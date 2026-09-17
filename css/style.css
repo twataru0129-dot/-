@@ -828,6 +828,33 @@ img { max-width: 100%; }
 }
 
 /* ==========================================================
+   横画面など画面の高さが低い端末向けの最小限の調整
+   (スマートフォン縦画面には影響しない: 縦画面は幅<700pxのため対象外)
+   国旗が画面の高さに対して大きくなりすぎて選択肢が
+   画面外にはみ出すのを防ぐ
+   ========================================================== */
+@media (min-width: 500px) and (max-height: 700px) {
+  .flag-image {
+    width: auto;
+    height: 28vh;
+    max-width: 50vw;
+    max-height: 170px;
+  }
+  .flag-stage { min-height: 0; margin-bottom: 4px; }
+  .quiz-instruction { margin: 2px 0 8px; }
+}
+
+/* 横画面かつさらに高さが厳しい端末(スマートフォンの横画面など)向けの追加調整 */
+@media (min-width: 500px) and (max-height: 420px) {
+  .flag-image {
+    height: 22vh;
+    max-height: 120px;
+  }
+  .quiz-wrap { padding-top: 6px; }
+  .timer-area { height: 40px; margin-bottom: 4px; }
+}
+
+/* ==========================================================
    アクセシビリティ: motion軽減
    ========================================================== */
 @media (prefers-reduced-motion: reduce) {
