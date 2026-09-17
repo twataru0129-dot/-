@@ -10,7 +10,13 @@ const SoundManager = (() => {
 
   // ユーザー操作の瞬間に呼び出してAudioContextを有効化する
   function unlock() {
-    if (audioCtx) return;
+    if (audioCtx) {
+      // すでに生成済みでもiOS Safariではsuspendedのままのことがあるため再開を試みる
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
+      return;
+    }
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       audioCtx = new AC();
@@ -20,6 +26,9 @@ const SoundManager = (() => {
       src.buffer = buffer;
       src.connect(audioCtx.destination);
       src.start(0);
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
     } catch (e) {
       console.warn("AudioContextの初期化に失敗しました", e);
     }
@@ -94,5 +103,39 @@ const SoundManager = (() => {
     });
   }
 
-  return { unlock, isEnabled, setEnabled, playCorrect, playWrong, playFanfare };
+  // カウントダウン音「5・4」用の短め・やや低めの「ピッ」
+  function playCountdownLow() {
+    safePlay(() => {
+      playTone(660, audioCtx.currentTime, 0.09, "sine", 0.12);
+    });
+  }
+
+  // カウントダウン音「3・2・1」用の少し高めの「ピッ」
+  function playCountdownHigh() {
+    safePlay(() => {
+      playTone(990, audioCtx.currentTime, 0.09, "sine", 0.13);
+    });
+  }
+
+  // カウントダウン終了(0/時間切れ)用の少し長めの「ピピーン」
+  function playCountdownEnd() {
+    safePlay(() => {
+      const t = audioCtx.currentTime;
+      playTone(1000, t, 0.08, "sine", 0.13);
+      playTone(1000, t + 0.11, 0.08, "sine", 0.13);
+      playTone(1300, t + 0.22, 0.4, "sine", 0.14);
+    });
+  }
+
+  return {
+    unlock,
+    isEnabled,
+    setEnabled,
+    playCorrect,
+    playWrong,
+    playFanfare,
+    playCountdownLow,
+    playCountdownHigh,
+    playCountdownEnd,
+  };
 })();

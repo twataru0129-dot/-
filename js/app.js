@@ -32,6 +32,7 @@ const state = {
   score: 0,
   answered: false,
   timer: null,
+  lastCountdownSecond: null, // カウントダウン効果音を秒が変わった瞬間だけ鳴らすための記録用
   lastResult: null, // { correct, total, rate, titleObj, isNewTitle }
   memorialType: "medal",
   memorialName: "",
@@ -145,6 +146,7 @@ function renderQuestion() {
   countdownDisplay.classList.remove("warn-3", "warn-2", "warn-1");
 
   $("result-overlay").classList.add("hidden");
+  state.lastCountdownSecond = null; // カウントダウン効果音の重複再生防止用カウンタをリセット
 
   const excludeIds = state.questions.map((q) => q.id);
   const question = QuizEngine.buildQuestion(country, excludeIds);
@@ -153,7 +155,11 @@ function renderQuestion() {
   if (state.timer) state.timer.stop();
   state.timer = new QuestionTimer({
     onTick: (phase, secondsLeft) => handleTimerTick(phase, secondsLeft),
-    onTimeout: () => handleAnswer(null),
+    onTimeout: () => {
+      // カウントダウンが0になった瞬間の合図音(ゲーム進行そのものには影響しない演出音)
+      SoundManager.playCountdownEnd();
+      handleAnswer(null);
+    },
   });
   state.timer.start();
 }
@@ -175,6 +181,13 @@ function handleTimerTick(phase, secondsLeft) {
     if (secondsLeft <= 1) countdownDisplay.classList.add("warn-1");
     else if (secondsLeft <= 2) countdownDisplay.classList.add("warn-2");
     else if (secondsLeft <= 3) countdownDisplay.classList.add("warn-3");
+
+    // 数字が切り替わった瞬間だけ効果音を鳴らす(既存のタイマー構造は変更しない)
+    if (state.lastCountdownSecond !== secondsLeft) {
+      state.lastCountdownSecond = secondsLeft;
+      if (secondsLeft >= 4) SoundManager.playCountdownLow();
+      else SoundManager.playCountdownHigh();
+    }
   }
 }
 
