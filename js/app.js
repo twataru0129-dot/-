@@ -137,10 +137,12 @@ function renderQuestion() {
   img.alt = "国旗クイズ(国名は選択肢から選んでください)";
   img.onerror = () => { $("flag-error").classList.remove("hidden"); };
 
-  $("timer-message").textContent = "よく見て考えよう！";
-  const badge = $("countdown-badge");
-  badge.classList.add("hidden");
-  badge.classList.remove("warn-3", "warn-2", "warn-1");
+  // 「よく見て考えよう！」とカウントダウンは同じ表示エリアを共有するため
+  // 常にthinking側を表示・countdown側を非表示にリセットしてから開始する
+  $("thinking-message").classList.remove("hidden");
+  const countdownDisplay = $("countdown-display");
+  countdownDisplay.classList.add("hidden");
+  countdownDisplay.classList.remove("warn-3", "warn-2", "warn-1");
 
   $("result-overlay").classList.add("hidden");
 
@@ -157,18 +159,22 @@ function renderQuestion() {
 }
 
 function handleTimerTick(phase, secondsLeft) {
-  const badge = $("countdown-badge");
+  // 「よく見て考えよう！」とカウントダウンは同じtimer-area内の
+  // 同じ位置で表示を切り替えるだけで、エリアの高さ自体は変えない
+  const thinking = $("thinking-message");
+  const countdownDisplay = $("countdown-display");
   if (phase === "thinking") {
-    $("timer-message").textContent = "よく見て考えよう！";
-    badge.classList.add("hidden");
+    thinking.classList.remove("hidden");
+    countdownDisplay.classList.add("hidden");
   } else {
-    $("timer-message").textContent = "残り5秒！";
-    badge.classList.remove("hidden");
+    thinking.classList.add("hidden");
+    countdownDisplay.classList.remove("hidden");
+    $("countdown-label").textContent = `残り${secondsLeft}秒！`;
     $("countdown-number").textContent = secondsLeft;
-    badge.classList.remove("warn-3", "warn-2", "warn-1");
-    if (secondsLeft <= 1) badge.classList.add("warn-1");
-    else if (secondsLeft <= 2) badge.classList.add("warn-2");
-    else if (secondsLeft <= 3) badge.classList.add("warn-3");
+    countdownDisplay.classList.remove("warn-3", "warn-2", "warn-1");
+    if (secondsLeft <= 1) countdownDisplay.classList.add("warn-1");
+    else if (secondsLeft <= 2) countdownDisplay.classList.add("warn-2");
+    else if (secondsLeft <= 3) countdownDisplay.classList.add("warn-3");
   }
 }
 
