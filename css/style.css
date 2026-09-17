@@ -1,0 +1,824 @@
+/* ==========================================================
+   世界の国旗クイズ - スタイルシート
+   CSS変数でメインカラー等をまとめて管理
+   ========================================================== */
+:root {
+  --color-primary: #2f6fed;
+  --color-primary-dark: #1f52c0;
+  --color-accent: #ff9800;
+  --color-correct: #1fa64c;
+  --color-correct-bg: #e5f8ec;
+  --color-wrong: #e5384d;
+  --color-wrong-bg: #fdeaec;
+  --color-bg: #f6f9fd;
+  --color-bg-card: #ffffff;
+  --color-text: #1c2733;
+  --color-text-sub: #64748b;
+  --color-border: #e2e8f0;
+  --color-gold: #d4a017;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --shadow-card: 0 4px 16px rgba(30, 40, 60, 0.08);
+  --font-main: system-ui, -apple-system, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-main);
+  -webkit-tap-highlight-color: transparent;
+}
+
+button, input {
+  font-family: inherit;
+}
+
+img { max-width: 100%; }
+
+/* ---------- 画面切り替え ---------- */
+.screen {
+  display: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.screen.active {
+  display: block;
+  animation: fadeIn .25s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.panel {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  position: relative;
+}
+
+.screen-title {
+  text-align: center;
+  font-size: 1.4rem;
+  margin: 8px 0 24px;
+}
+
+/* ---------- ボタン共通 ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 16px 28px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background .15s ease;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.btn:active { transform: scale(0.97); }
+.btn:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+  box-shadow: 0 6px 0 var(--color-primary-dark);
+}
+.btn-primary:active { box-shadow: 0 2px 0 var(--color-primary-dark); }
+
+.btn-secondary {
+  background: #fff;
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
+}
+
+.btn-plain {
+  background: transparent;
+  color: var(--color-text-sub);
+  border: 2px solid var(--color-border);
+}
+
+.btn-danger {
+  background: var(--color-wrong);
+  color: #fff;
+}
+
+.btn-gold {
+  background: linear-gradient(135deg, #ffd76a, var(--color-gold));
+  color: #4a3400;
+  box-shadow: 0 6px 0 #a97c0e;
+}
+
+.btn-large {
+  width: 100%;
+  max-width: 360px;
+  padding: 20px 28px;
+  font-size: 1.2rem;
+}
+
+.btn-link-small {
+  background: none;
+  border: none;
+  color: var(--color-text-sub);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.hidden { display: none !important; }
+
+.btn-back {
+  position: absolute;
+  top: 20px;
+  left: 16px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+
+/* ==========================================================
+   トップ画面
+   ========================================================== */
+.top-inner {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 48px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.top-flags-deco {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.top-flags-deco img {
+  width: 40px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+.app-title {
+  font-size: 2.1rem;
+  margin: 0 0 6px;
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+
+.app-subtitle {
+  color: var(--color-text-sub);
+  margin: 0 0 36px;
+  font-size: 1rem;
+}
+
+#btn-start { margin-bottom: 16px; }
+#btn-collection { margin-bottom: auto; }
+
+.top-footer {
+  margin-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-sound {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 0.85rem;
+  color: var(--color-text-sub);
+  cursor: pointer;
+}
+
+/* ==========================================================
+   問題数選択
+   ========================================================== */
+.count-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.count-card {
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 22px 10px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  transition: border-color .15s ease, transform .1s ease;
+}
+.count-card:active { transform: scale(0.97); }
+.count-card .count-num {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+.count-card .count-unit {
+  font-size: 0.9rem;
+  color: var(--color-text-sub);
+}
+.count-card.special {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #fff6e0, #ffe9b8);
+  border-color: var(--color-gold);
+}
+.count-card.special .count-crown {
+  font-size: 1.4rem;
+}
+.count-card.special .count-complete {
+  font-size: 0.75rem;
+  letter-spacing: 2px;
+  color: #8a6100;
+  font-weight: 700;
+}
+
+/* ==========================================================
+   クイズ画面
+   ========================================================== */
+.quiz-wrap {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 12px 16px 24px;
+}
+
+.quiz-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+#btn-quiz-exit {
+  position: static;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.quiz-progress-info {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  color: var(--color-text-sub);
+  font-size: 0.95rem;
+}
+
+.progress-bar-outer {
+  height: 10px;
+  background: var(--color-border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.progress-bar-inner {
+  height: 100%;
+  width: 0%;
+  background: var(--color-primary);
+  border-radius: 999px;
+  transition: width .3s ease;
+}
+
+.quiz-instruction {
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 4px 0 14px;
+}
+
+.flag-stage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+  min-height: 100px;
+}
+.flag-image {
+  width: 78vw;
+  max-width: 380px;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: #fff;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  padding: 10px;
+}
+.flag-error {
+  color: var(--color-wrong);
+  font-weight: 700;
+  text-align: center;
+}
+
+.timer-area {
+  text-align: center;
+  min-height: 40px;
+  margin-bottom: 8px;
+}
+.timer-message {
+  color: var(--color-text-sub);
+  font-weight: 600;
+  margin: 0;
+}
+.countdown-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-top: 4px;
+}
+.countdown-badge.warn-3 { background: var(--color-accent); }
+.countdown-badge.warn-2 {
+  background: var(--color-wrong);
+  transform: scale(1.08);
+}
+.countdown-badge.warn-1 {
+  background: var(--color-wrong);
+  transform: scale(1.18);
+  box-shadow: 0 0 0 6px var(--color-wrong-bg);
+}
+
+.choices-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+@media (min-width: 480px) {
+  .choices-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.choice-btn {
+  background: #fff;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 13px 12px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color .12s ease, background .12s ease, transform .08s ease;
+}
+.choice-btn:active { transform: scale(0.97); }
+.choice-btn:disabled { cursor: default; }
+.choice-btn.is-correct {
+  background: var(--color-correct-bg);
+  border-color: var(--color-correct);
+  color: var(--color-correct);
+}
+.choice-btn.is-correct::after {
+  content: " ○";
+}
+.choice-btn.is-wrong {
+  background: var(--color-wrong-bg);
+  border-color: var(--color-wrong);
+  color: var(--color-wrong);
+}
+.choice-btn.is-wrong::after {
+  content: " ×";
+}
+.choice-btn.is-dimmed {
+  opacity: 0.5;
+}
+
+.result-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  animation: popIn .25s ease;
+}
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.result-mark {
+  font-size: 6rem;
+  font-weight: 900;
+  line-height: 1;
+}
+.result-overlay.correct .result-mark { color: var(--color-correct); }
+.result-overlay.wrong .result-mark { color: var(--color-wrong); }
+.result-text {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin-top: 6px;
+}
+.result-overlay.correct .result-text { color: var(--color-correct); }
+.result-overlay.wrong .result-text { color: var(--color-wrong); }
+.result-answer {
+  margin-top: 10px;
+  font-size: 1.05rem;
+  color: var(--color-text-sub);
+}
+
+/* ==========================================================
+   結果画面
+   ========================================================== */
+.result-score-box {
+  text-align: center;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
+  padding: 32px 20px;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 20px;
+}
+.result-score-fraction {
+  font-size: 1.6rem;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+.result-score-rate {
+  color: var(--color-text-sub);
+  margin: 0 0 14px;
+}
+.result-message {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 0;
+}
+.result-best-record {
+  text-align: center;
+  color: var(--color-text-sub);
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+}
+.result-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+/* ==========================================================
+   称号獲得画面
+   ========================================================== */
+.award-panel {
+  text-align: center;
+  padding-top: 60px;
+  position: relative;
+  overflow: hidden;
+}
+.confetti-canvas-wrap {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.award-perfect-label {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+.award-new-badge {
+  display: inline-block;
+  background: var(--color-wrong);
+  color: #fff;
+  font-weight: 800;
+  padding: 4px 14px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+  animation: bounceIn .4s ease;
+}
+@keyframes bounceIn {
+  0% { transform: scale(0); }
+  70% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.award-heading {
+  font-size: 1.8rem;
+  margin: 4px 0 20px;
+}
+.award-title-name {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-gold);
+  margin: 12px 0 4px;
+}
+.award-title-desc {
+  color: var(--color-text-sub);
+  margin-bottom: 24px;
+}
+
+/* メダル */
+.medal {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  position: relative;
+  box-shadow: inset 0 -6px 0 rgba(0,0,0,0.15), 0 4px 10px rgba(0,0,0,0.2);
+  border: 4px solid rgba(255,255,255,0.6);
+}
+.medal-lg { width: 120px; height: 120px; font-size: 2.6rem; }
+.medal::after { content: "🏅"; filter: grayscale(0); }
+.medal.locked {
+  background: #cbd5e1 !important;
+  box-shadow: none;
+  border-color: #e2e8f0;
+}
+.medal.locked::after { content: "？"; font-size: 1.6rem; color: #94a3b8; }
+.medal-bronze { background: linear-gradient(135deg, #e0a26a, #a9642e); }
+.medal-green { background: linear-gradient(135deg, #8fe08f, #2f9e44); }
+.medal-blue { background: linear-gradient(135deg, #7fb8ff, #1f6fd6); }
+.medal-purple { background: linear-gradient(135deg, #cfa0ff, #7c3aed); }
+.medal-gold { background: linear-gradient(135deg, #ffe27a, #d4a017); }
+.medal-legend {
+  background: linear-gradient(135deg, #fff6c8, #ffd76a, #d4a017);
+  box-shadow: inset 0 -6px 0 rgba(0,0,0,0.15), 0 0 24px 4px rgba(212,160,23,0.6);
+}
+.medal-legend::before {
+  content: "👑";
+  position: absolute;
+  top: -22px;
+  font-size: 1.4rem;
+}
+
+/* ==========================================================
+   称号コレクション
+   ========================================================== */
+.collection-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 30px;
+}
+@media (min-width: 560px) {
+  .collection-grid { grid-template-columns: repeat(2, 1fr); }
+}
+.collection-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.collection-card .medal { width: 64px; height: 64px; font-size: 1.6rem; flex-shrink: 0; }
+.collection-card.locked { opacity: 0.75; }
+.collection-info { flex: 1; }
+.collection-name { font-weight: 800; margin: 0 0 4px; }
+.collection-cond { font-size: 0.85rem; color: var(--color-text-sub); margin: 0 0 2px; }
+.collection-date { font-size: 0.8rem; color: var(--color-primary-dark); margin: 0; }
+
+.record-list {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-card);
+}
+.record-list h3 { margin-top: 0; font-size: 1rem; }
+.record-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+}
+.record-row:last-child { border-bottom: none; }
+
+/* ==========================================================
+   メダル・賞状作成画面
+   ========================================================== */
+.field-label {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.text-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+.field-note {
+  font-size: 0.78rem;
+  color: var(--color-text-sub);
+  margin: 0 0 18px;
+}
+
+.memorial-type-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.type-tab {
+  flex: 1;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--color-border);
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.type-tab.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: #eaf1ff;
+}
+
+.memorial-preview-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.memorial-card {
+  width: 100%;
+  max-width: 380px;
+  aspect-ratio: 3 / 4;
+  border-radius: 18px;
+  padding: 28px 20px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.medal-card {
+  background: linear-gradient(160deg, #1f3a8f, #2f6fed 60%, #7fb8ff);
+}
+.mc-brand {
+  letter-spacing: 3px;
+  font-size: 0.75rem;
+  opacity: 0.85;
+  margin-bottom: 18px;
+}
+.mc-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 16px 0 4px;
+}
+.mc-name {
+  font-size: 1.1rem;
+  margin: 0 0 14px;
+}
+.mc-count {
+  font-size: 1rem;
+  margin: 0 0 20px;
+}
+.mc-perfect {
+  display: block;
+  font-weight: 800;
+  color: #ffe27a;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.mc-date {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  position: absolute;
+  bottom: 18px;
+}
+
+.cert-card {
+  aspect-ratio: 210 / 297;
+  background: #fffaf0;
+  border: 6px double var(--color-gold);
+  color: #3a2c00;
+  padding: 34px 24px;
+  justify-content: flex-start;
+  gap: 10px;
+}
+.cert-title {
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: 4px;
+  margin: 10px 0 20px;
+}
+.cert-body {
+  font-size: 0.82rem;
+  line-height: 1.9;
+  white-space: pre-line;
+  margin: 0;
+}
+.cert-footer {
+  margin-top: auto;
+  width: 100%;
+  text-align: center;
+}
+.cert-date { font-size: 0.85rem; margin: 4px 0; }
+.cert-brand { font-size: 0.75rem; opacity: 0.7; margin: 0; }
+
+.ios-save-hint {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-sub);
+  margin-top: 14px;
+  background: #fff7e0;
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+/* ==========================================================
+   モーダル
+   ========================================================== */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 20px;
+}
+.modal-box {
+  background: #fff;
+  border-radius: var(--radius-md);
+  padding: 28px 24px;
+  max-width: 340px;
+  width: 100%;
+  text-align: center;
+}
+.modal-text {
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+}
+.modal-buttons .btn { flex: 1; }
+
+/* ==========================================================
+   PC向け max-width 調整
+   ========================================================== */
+@media (min-width: 900px) {
+  .panel, .quiz-wrap { max-width: 900px; }
+}
+
+/* ==========================================================
+   アクセシビリティ: motion軽減
+   ========================================================== */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* キーボードフォーカス強調 */
+.choice-btn:focus-visible,
+.count-card:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
