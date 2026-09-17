@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>世界の国旗クイズ</title>
+<meta name="description" content="世界198の国・地域の国旗を当てるクイズアプリ。全問正解で称号がもらえる！">
+<link rel="icon" href="./assets/flags/jp.svg">
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+<!-- ============ トップ画面 ============ -->
+<section id="screen-top" class="screen active">
+  <div class="top-inner">
+    <div class="top-flags-deco" aria-hidden="true">
+      <img src="./assets/flags/jp.svg" alt="">
+      <img src="./assets/flags/fr.svg" alt="">
+      <img src="./assets/flags/br.svg" alt="">
+      <img src="./assets/flags/za.svg" alt="">
+      <img src="./assets/flags/au.svg" alt="">
+      <img src="./assets/flags/ca.svg" alt="">
+    </div>
+    <h1 class="app-title">世界の国旗クイズ</h1>
+    <p class="app-subtitle">世界198の国・地域に挑戦！</p>
+
+    <button id="btn-start" class="btn btn-primary btn-large">クイズをはじめる</button>
+    <button id="btn-collection" class="btn btn-secondary">🏅 称号コレクション</button>
+
+    <div class="top-footer">
+      <button id="btn-sound-toggle" class="btn-sound" aria-pressed="true">
+        <span id="sound-icon">🔊</span> <span id="sound-label">効果音 ON</span>
+      </button>
+      <button id="btn-reset-data" class="btn-link-small">データをリセット</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 問題数選択画面 ============ -->
+<section id="screen-select" class="screen">
+  <div class="panel">
+    <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
+    <h2 class="screen-title">問題数をえらぼう</h2>
+    <div id="count-options" class="count-grid"></div>
+  </div>
+</section>
+
+<!-- ============ クイズ画面 ============ -->
+<section id="screen-quiz" class="screen">
+  <div class="quiz-wrap">
+    <div class="quiz-header">
+      <button class="btn-back" id="btn-quiz-exit" aria-label="クイズを終了">✕</button>
+      <div class="quiz-progress-info">
+        <span id="quiz-progress-text">問題 1 / 10</span>
+        <span id="quiz-score-text">正解 0</span>
+      </div>
+    </div>
+    <div class="progress-bar-outer">
+      <div id="progress-bar-inner" class="progress-bar-inner"></div>
+    </div>
+
+    <p id="quiz-instruction" class="quiz-instruction">この国旗はどこの国？</p>
+
+    <div class="flag-stage">
+      <img id="quiz-flag-img" class="flag-image" src="" alt="国旗">
+      <div id="flag-error" class="flag-error hidden">国旗画像を読み込めませんでした</div>
+    </div>
+
+    <div class="timer-area">
+      <p id="timer-message" class="timer-message">よく見て考えよう！</p>
+      <div id="countdown-badge" class="countdown-badge hidden">
+        <span id="countdown-number">5</span>
+      </div>
+    </div>
+
+    <div id="choices-grid" class="choices-grid" role="group" aria-label="回答の選択肢"></div>
+
+    <div id="result-overlay" class="result-overlay hidden" role="status" aria-live="assertive">
+      <div id="result-mark" class="result-mark" aria-hidden="true">○</div>
+      <div id="result-text" class="result-text">正解！</div>
+      <div id="result-answer" class="result-answer"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 結果画面 ============ -->
+<section id="screen-result" class="screen">
+  <div class="panel">
+    <h2 class="screen-title">結果発表</h2>
+    <div class="result-score-box">
+      <p id="result-score-fraction" class="result-score-fraction">20問中17問正解！</p>
+      <p id="result-score-rate" class="result-score-rate">正答率 85%</p>
+      <p id="result-message" class="result-message">すごい！</p>
+    </div>
+    <div id="result-best-record" class="result-best-record"></div>
+    <div class="result-buttons">
+      <button id="btn-result-view-title" class="btn btn-gold hidden">🏅 称号を見る</button>
+      <button id="btn-result-retry" class="btn btn-primary">もう一度挑戦</button>
+      <button id="btn-result-change-count" class="btn btn-secondary">問題数を変える</button>
+      <button id="btn-result-memorial" class="btn btn-gold hidden">🖼 記念画像を作る</button>
+      <button id="btn-result-top" class="btn btn-plain">トップへ戻る</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 称号獲得画面 ============ -->
+<section id="screen-title-award" class="screen">
+  <div class="panel award-panel">
+    <div id="confetti-canvas-wrap" class="confetti-canvas-wrap"></div>
+    <p id="award-perfect-label" class="award-perfect-label">パーフェクト達成！</p>
+    <p id="award-new-badge" class="award-new-badge hidden">NEW！</p>
+    <h2 class="award-heading">称号獲得！</h2>
+    <div id="award-medal" class="medal medal-lg"></div>
+    <p id="award-title-name" class="award-title-name">国旗マスター</p>
+    <p id="award-title-desc" class="award-title-desc"></p>
+    <div class="result-buttons">
+      <button id="btn-award-memorial" class="btn btn-gold">🖼 記念画像を作る</button>
+      <button id="btn-award-continue" class="btn btn-secondary">結果画面へ</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 称号コレクション画面 ============ -->
+<section id="screen-collection" class="screen">
+  <div class="panel">
+    <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
+    <h2 class="screen-title">称号コレクション</h2>
+    <div id="collection-grid" class="collection-grid"></div>
+    <div id="record-list" class="record-list"></div>
+  </div>
+</section>
+
+<!-- ============ メダル・賞状作成画面 ============ -->
+<section id="screen-memorial" class="screen">
+  <div class="panel">
+    <button class="btn-back" data-back="screen-result" aria-label="戻る">← 戻る</button>
+    <h2 class="screen-title">記念画像を作る</h2>
+
+    <label class="field-label" for="memorial-name">名前を入力してください</label>
+    <input id="memorial-name" class="text-input" type="text" placeholder="例：山田 太郎" maxlength="20">
+    <p class="field-note">※名前は端末内だけで使用され、送信されません</p>
+
+    <div class="memorial-type-tabs">
+      <button id="tab-medal" class="type-tab active" data-type="medal">メダル画像</button>
+      <button id="tab-certificate" class="type-tab" data-type="certificate">認定証画像</button>
+    </div>
+
+    <div id="memorial-preview-wrap" class="memorial-preview-wrap">
+      <div id="memorial-medal-card" class="memorial-card medal-card">
+        <p class="mc-brand">WORLD FLAG QUIZ</p>
+        <div id="mc-medal" class="medal medal-lg"></div>
+        <p id="mc-title" class="mc-title">国旗マスター</p>
+        <p id="mc-name" class="mc-name">山田 太郎 さん</p>
+        <p id="mc-count" class="mc-count">100問 <span class="mc-perfect">PERFECT!</span></p>
+        <p id="mc-date" class="mc-date">2026.09.17</p>
+      </div>
+      <div id="memorial-cert-card" class="memorial-card cert-card hidden">
+        <p id="cert-title" class="cert-title">認定証</p>
+        <p id="cert-body" class="cert-body"></p>
+        <div class="cert-footer">
+          <p id="cert-date" class="cert-date">2026年9月17日</p>
+          <p class="cert-brand">世界の国旗クイズ</p>
+        </div>
+      </div>
+    </div>
+
+    <button id="btn-save-image" class="btn btn-primary btn-large">画像を保存</button>
+    <p id="ios-save-hint" class="ios-save-hint hidden">📱 iPhoneの方：画像が新しいタブで開きます。長押しして「写真に追加」を選ぶと保存できます。</p>
+  </div>
+</section>
+
+<!-- 途中終了確認モーダル -->
+<div id="confirm-modal" class="modal hidden">
+  <div class="modal-box">
+    <p id="confirm-modal-text" class="modal-text">クイズを終了しますか？</p>
+    <div class="modal-buttons">
+      <button id="confirm-modal-yes" class="btn btn-danger">終了する</button>
+      <button id="confirm-modal-no" class="btn btn-plain">続ける</button>
+    </div>
+  </div>
+</div>
+
+<canvas id="hidden-render-canvas" style="display:none;"></canvas>
+
+<script src="./js/countries.js"></script>
+<script src="./js/storage.js"></script>
+<script src="./js/sound.js"></script>
+<script src="./js/quiz.js"></script>
+<script src="./js/certificate.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>
