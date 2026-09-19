@@ -50,11 +50,13 @@ const QuizEngine = (() => {
   }
 
   // 6択の候補を生成する
+  // 誤答候補は「countries全198件から現在の正解国を除いた197件」から選ぶ。
+  // そのゲームで出題される他の国(正解問題として使われるかどうか)は
+  // 誤答候補から除外しない。除外するのはこの問題の正解国だけ。
   // 優先順位: 1.似ている国 2.同じ地域の国 3.残りはランダム
-  function buildChoices(correctCountry, excludeIds) {
+  function buildChoices(correctCountry) {
     const map = getCountryMap();
-    const used = new Set(excludeIds);
-    used.add(correctCountry.id);
+    const used = new Set([correctCountry.id]);
     const result = [];
 
     function addFrom(pool) {
@@ -78,18 +80,23 @@ const QuizEngine = (() => {
       addFrom(shuffleArray(sameRegion));
     }
 
-    // 優先3(不足分): 完全ランダム
+    // 優先3(不足分): 完全ランダム(198件全体から)
     if (result.length < 5) {
       addFrom(shuffleArray(COUNTRIES));
     }
 
     const choices = [correctCountry, ...result.slice(0, 5)];
+
+    // 最終安全チェック: 必ず6択・重複なしになっていることを保証する
+    console.assert(choices.length === 6, `choicesが6件ではありません: ${choices.length}`);
+    console.assert(new Set(choices.map((c) => c.id)).size === 6, "choicesに重複があります");
+
     return shuffleArray(choices);
   }
 
   // 1問分のデータを作る
-  function buildQuestion(country, allExcludeForThisGame) {
-    const choices = buildChoices(country, allExcludeForThisGame || []);
+  function buildQuestion(country) {
+    const choices = buildChoices(country);
     return { country, choices };
   }
 

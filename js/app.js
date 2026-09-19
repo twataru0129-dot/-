@@ -148,8 +148,10 @@ function renderQuestion() {
   $("result-overlay").classList.add("hidden");
   state.lastCountdownSecond = null; // カウントダウン効果音の重複再生防止用カウンタをリセット
 
-  const excludeIds = state.questions.map((q) => q.id);
-  const question = QuizEngine.buildQuestion(country, excludeIds);
+  // 誤答候補はcountries全198件(現在の正解国のみ除外)から選ぶ。
+  // このゲームで出題される他の国を除外しない(198問モードで
+  // 誤答候補が0件になっていた不具合の原因だったため)。
+  const question = QuizEngine.buildQuestion(country);
   renderChoices(question.choices, country);
 
   if (state.timer) state.timer.stop();
