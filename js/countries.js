@@ -158,7 +158,8 @@ const COUNTRIES = [
     ],
     "similarCountries": [
       "mc",
-      "pl"
+      "pl",
+      "sg"
     ]
   },
   {
@@ -493,7 +494,8 @@ const COUNTRIES = [
     ],
     "similarCountries": [
       "mc",
-      "pl"
+      "pl",
+      "id"
     ]
   },
   {
@@ -1027,7 +1029,8 @@ const COUNTRIES = [
     ],
     "similarCountries": [
       "nl",
-      "ru"
+      "ru",
+      "fr"
     ]
   },
   {
@@ -1085,6 +1088,13 @@ const COUNTRIES = [
     "flag": "./assets/flags/me.svg",
     "aliases": [
       "モンテネグロ"
+    ],
+    "similarCountries": [
+      "rs",
+      "hr",
+      "al",
+      "mk",
+      "ba"
     ]
   },
   {
@@ -1100,7 +1110,8 @@ const COUNTRIES = [
     ],
     "similarCountries": [
       "lu",
-      "ru"
+      "ru",
+      "fr"
     ]
   },
   {
@@ -1129,7 +1140,8 @@ const COUNTRIES = [
     "similarCountries": [
       "is",
       "dk",
-      "se"
+      "se",
+      "fi"
     ]
   },
   {
@@ -1235,7 +1247,9 @@ const COUNTRIES = [
     ],
     "similarCountries": [
       "si",
-      "ru"
+      "ru",
+      "rs",
+      "hr"
     ]
   },
   {
@@ -1251,7 +1265,9 @@ const COUNTRIES = [
     ],
     "similarCountries": [
       "sk",
-      "ru"
+      "ru",
+      "rs",
+      "hr"
     ]
   },
   {
