@@ -104,11 +104,15 @@ const MapModule = (() => {
   }
 
   // ---------- 国のハイライト表示 ----------
+  // 通常の国は緑系、選択中の国だけオレンジ系にする(他の国の色は変えない)
   function polygonCapColor(feat) {
-    return feat === selectedFeature ? "#ffb703" : "rgba(122, 172, 142, 0.85)";
+    return feat === selectedFeature ? "#ffb100" : "rgba(139, 195, 143, 0.95)";
+  }
+  function polygonSideColor(feat) {
+    return feat === selectedFeature ? "rgba(255, 177, 0, 0.45)" : "rgba(90, 130, 100, 0.25)";
   }
   function polygonStrokeColor(feat) {
-    return feat === selectedFeature ? "#8a5a00" : "#4c6b5a";
+    return feat === selectedFeature ? "#8a5500" : "#3f5c4c";
   }
   function polygonAltitude(feat) {
     return feat === selectedFeature ? 0.02 : 0.006;
@@ -117,6 +121,7 @@ const MapModule = (() => {
     if (!globeInstance) return;
     globeInstance
       .polygonCapColor(polygonCapColor)
+      .polygonSideColor(polygonSideColor)
       .polygonStrokeColor(polygonStrokeColor)
       .polygonAltitude(polygonAltitude);
   }
@@ -128,11 +133,11 @@ const MapModule = (() => {
     globeInstance = new Globe(container)
       .backgroundColor("rgba(0,0,0,0)")
       .showAtmosphere(true)
-      .atmosphereColor("#bcd9ff")
+      .atmosphereColor("#bfe4ff")
       .atmosphereAltitude(0.18)
       .polygonsData(geoFeatures)
       .polygonCapColor(polygonCapColor)
-      .polygonSideColor(() => "rgba(90, 120, 100, 0.25)")
+      .polygonSideColor(polygonSideColor)
       .polygonStrokeColor(polygonStrokeColor)
       .polygonAltitude(polygonAltitude)
       .polygonsTransitionDuration(200)
@@ -143,11 +148,14 @@ const MapModule = (() => {
         startAutoRotate();
       });
 
-    // 衛星写真ではなく、国境が見やすいシンプルで明るい海の色にする
-    if (window.THREE) {
-      globeInstance.globeMaterial(
-        new window.THREE.MeshPhongMaterial({ color: 0xdcecf7, shininess: 3 })
-      );
+    // 衛星写真ではなく、国境が見やすい明るい水色の海にする。
+    // このglobe.glビルドはwindow.THREEを公開していないため、new THREE.Material(...)は使えない。
+    // 代わりにglobeMaterial()を引数なしで呼び、既存のマテリアルインスタンスを取得して
+    // その場でcolorだけ書き換える(Kapsuleアクセサの取得/設定パターン)
+    const material = globeInstance.globeMaterial();
+    if (material && material.color && typeof material.color.set === "function") {
+      material.color.set("#8ecae6");
+      if ("shininess" in material) material.shininess = 6;
     }
 
     const controls = globeInstance.controls();
