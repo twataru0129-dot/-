@@ -789,6 +789,24 @@ img { max-width: 100%; }
   padding: 12px;
 }
 
+/* メダル・認定証を個別に保存するボタン */
+.memorial-save-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  margin: 0 auto;
+}
+
+/* 記念画像作成画面の戻る系ボタン(結果画面・トップ・もう一度挑戦) */
+.memorial-nav-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  margin: 20px auto 0;
+}
+
 /* ==========================================================
    モーダル
    ========================================================== */
@@ -813,6 +831,20 @@ img { max-width: 100%; }
 .modal-text {
   font-weight: 700;
   margin-bottom: 20px;
+}
+
+/* iOSで保存した画像を表示するモーダル */
+.image-preview-box {
+  max-width: 420px;
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.image-preview-img {
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-card);
 }
 .modal-buttons {
   display: flex;

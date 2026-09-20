@@ -197,23 +197,17 @@ function buildCertificateBodyLines(titleObj, questionCount, name) {
   ];
 }
 
-// キャンバスをPNGとして保存する。iOSでは新しいタブで開き長押し保存を案内する
+// キャンバスをPNGとして保存する。
+// iOSでは window.open() でタブを開こうとすると、ポップアップとして
+// ブロックされた場合に window.location.href で画面全体を画像に置き換えてしまい、
+// アプリ(SPA)に戻れなくなる不具合があったため、新しいタブは開かず、
+// アプリ内に画像を表示して長押し保存してもらう方式にする。
+// 戻り値は { status: "ios"|"download"|"error", dataUrl?, filename? }
 function saveCanvasAsPNG(canvas, filename) {
   try {
-    const dataUrl = canvas.toDataURL("image/png");
     if (isIOSDevice()) {
-      const w = window.open();
-      if (w) {
-        w.document.write(
-          `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${filename}</title></head>` +
-          `<body style="margin:0;background:#222;display:flex;align-items:center;justify-content:center;min-height:100vh;">` +
-          `<img src="${dataUrl}" style="max-width:100%;height:auto;" alt="${filename}"></body></html>`
-        );
-        w.document.close();
-      } else {
-        window.location.href = dataUrl;
-      }
-      return "ios";
+      const dataUrl = canvas.toDataURL("image/png");
+      return { status: "ios", dataUrl, filename };
     }
     // data:URLだとブラウザによってファイル名(download属性)が無視されるため
     // Blob + ObjectURLを使ってファイル名を確実に反映させる
@@ -228,9 +222,9 @@ function saveCanvasAsPNG(canvas, filename) {
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 4000);
     }, "image/png");
-    return "download";
+    return { status: "download" };
   } catch (e) {
     console.error("画像の保存に失敗しました", e);
-    return "error";
+    return { status: "error" };
   }
 }

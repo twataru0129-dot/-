@@ -168,10 +168,28 @@
       </div>
     </div>
 
-    <button id="btn-save-image" class="btn btn-primary btn-large">画像を保存</button>
-    <p id="ios-save-hint" class="ios-save-hint hidden">📱 iPhoneの方：画像が新しいタブで開きます。長押しして「写真に追加」を選ぶと保存できます。</p>
+    <div class="memorial-save-buttons">
+      <button id="btn-save-medal" class="btn btn-primary btn-large">🏅 メダル画像を保存</button>
+      <button id="btn-save-certificate" class="btn btn-primary btn-large">📜 認定証画像を保存</button>
+    </div>
+    <p id="ios-save-hint" class="ios-save-hint hidden">📱 保存した画像が下に表示されます。長押しして「写真に追加」を選ぶと保存できます。</p>
+
+    <div class="memorial-nav-buttons">
+      <button id="btn-memorial-retry" class="btn btn-secondary">もう一度挑戦する</button>
+      <button id="btn-memorial-back-result" class="btn btn-secondary">結果画面に戻る</button>
+      <button id="btn-memorial-top" class="btn btn-plain">トップへ戻る</button>
+    </div>
   </div>
 </section>
+
+<!-- iOSで保存した画像を表示するモーダル(長押しで写真に追加してもらう) -->
+<div id="image-preview-modal" class="modal hidden">
+  <div class="modal-box image-preview-box">
+    <p class="modal-text">画像を長押しして「写真に追加」を選ぶと保存できます</p>
+    <img id="image-preview-img" class="image-preview-img" src="" alt="生成された記念画像">
+    <button id="image-preview-close" class="btn btn-plain">閉じる</button>
+  </div>
+</div>
 
 <!-- 途中終了確認モーダル -->
 <div id="confirm-modal" class="modal hidden">
