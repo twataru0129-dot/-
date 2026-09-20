@@ -14,16 +14,19 @@ const MapModule = (() => {
 
   let globeInstance = null;
   let geoFeatures = [];
+  let allMapCountries = []; // COUNTRIES(198件、クイズ対象) + MAP_ONLY_REGIONS(地図モード専用の追加地域)
   let countryByMapCode = null;
   let countryById = null;
   let countryAngularSize = null; // country.id -> 実ポリゴンのバウンディングボックス角度(度)
   let selectedCountryId = null;
+  let selectedShowsLabel = false; // 選択中の国が「ピン→ラベル切り替え」対象かどうか(選択した瞬間に固定する)
   let initPromise = null;
   let hasInteracted = false;
   let pinRecomputeTimer = null;
+  let labelRAF = null;
 
-  // ポリゴン形状が無いために合成円(タップ判定専用、非表示。半径約1.6度)を
-  // 使っている極小国は、ズームレベルに関わらず常に小さいピンで表示し続ける
+  // 実ポリゴンが極小で常にタップしづらい国・地域は、ズームレベルに関わらず
+  // 常に小さいピンで表示し続ける(それ以外の国は下記の画面上サイズに応じた動的判定)
   const ALWAYS_PIN_IDS = new Set(["va", "mc", "sm", "mv", "nr", "tv"]);
   // 画面上のおおよその見かけサイズ(px)がこの値を下回ったらピン表示、
   // 上回ったらピンを消す。25〜35pxの間は前回の表示状態を維持する(ヒステリシス)ことで
@@ -31,6 +34,13 @@ const MapModule = (() => {
   const PIN_SHOW_PX = 25;
   const PIN_HIDE_PX = 35;
   let dynamicPinIds = new Set();
+
+  // ピンはpointsDataレイヤーで描画しているが、このglobe.glビルドではpointsData自体は
+  // クリックを受け取れないため、ピン表示中の国をタップできるように、緯度経度の近さで
+  // 判定する専用のヒット半径(度)を持たせる(実ポリゴンが小さすぎて直接タップしづらい国ほど広め)
+  const HIT_RADIUS_DEG = { va: 1.6, mc: 1.5, sm: 1.4, mv: 1.5, nr: 1.3, tv: 1.3 };
+  const DEFAULT_HIT_RADIUS_DEG = 1.4;
+  const GLOBE_RADIUS = 100; // globe.glの基準球半径(getCoords()の結果から実測して確認済み)
 
   function $(id) { return document.getElementById(id); }
 
@@ -65,9 +75,15 @@ const MapModule = (() => {
   }
 
   function buildCountryIndex() {
+    // クイズ対象の198件(COUNTRIES)は絶対に変更せず、地図モードでの検索・タップ用に
+    // 表示専用の追加地域(MAP_ONLY_REGIONS、mapOnly:true)だけをこのモジュール内でのみ合算する。
+    // COUNTRIES自体には触れないため、国旗クイズ・首都クイズ側の198件には一切影響しない。
+    allMapCountries = COUNTRIES.concat(
+      typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : []
+    );
     countryByMapCode = new Map();
     countryById = new Map();
-    COUNTRIES.forEach((c) => {
+    allMapCountries.forEach((c) => {
       countryById.set(c.id, c);
       if (c.mapCode) countryByMapCode.set(c.mapCode, c);
     });
@@ -75,11 +91,10 @@ const MapModule = (() => {
   }
 
   // 各国の実ポリゴンのバウンディングボックス角度(緯度幅・経度幅の大きい方)を
-  // 一度だけ計算しておく(タップ判定用の合成円しか持たない極小6か国は対象外)
+  // 一度だけ計算しておく
   function buildAngularSizeIndex() {
     countryAngularSize = new Map();
     geoFeatures.forEach((f) => {
-      if (f.properties && f.properties.isSyntheticMarker) return;
       const c = countryByMapCode.get(f.id);
       if (!c) return;
       let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
@@ -144,32 +159,28 @@ const MapModule = (() => {
   }
 
   // ---------- 国のハイライト表示 ----------
-  // 通常の国は緑系、選択中の国だけオレンジ系にする(他の国の色は変えない)
+  // 通常の国は緑系、選択中の国だけオレンジ系にする(他の国の色は変えない)。
+  // 以前は極小国のタップ判定に「透明・高高度の合成円」を重ねていたが、
+  // 透明(alpha=0)なのに周辺国より高い高度を持つポリゴンはWebGLの深度バッファに
+  // 書き込みだけ行って可視化はされないため、真下にある隣国(モナコ→フランス、
+  // バチカン/サンマリノ→イタリア等)の描画が深度テストに負けて海の色が透けて
+  // 見えてしまう不具合の原因になっていた。極小国も含め全ポリゴンが実形状の
+  // GeoJSONを持つようになったため、この合成円・透明化・高高度化の仕組みは廃止し、
+  // 全ポリゴンに同一のシンプルな色・高度ロジックだけを適用する。
   function isSelected(feat) {
     const c = countryByMapCode.get(feat.id);
     return !!c && c.id === selectedCountryId;
   }
-  // 極小国のタップ判定用合成円は、大きな円としてそのまま見せると周囲の地図を
-  // 隠してしまうため、常に透明にする(選択状態は下記のピンの見た目で示す)
-  function isInvisibleHitArea(feat) {
-    return !!(feat.properties && feat.properties.isSyntheticMarker);
-  }
   function polygonCapColor(feat) {
-    if (isInvisibleHitArea(feat)) return "rgba(0, 0, 0, 0)";
     return isSelected(feat) ? "#ffb100" : "rgba(139, 195, 143, 0.95)";
   }
   function polygonSideColor(feat) {
-    if (isInvisibleHitArea(feat)) return "rgba(0, 0, 0, 0)";
     return isSelected(feat) ? "rgba(255, 177, 0, 0.45)" : "rgba(90, 130, 100, 0.25)";
   }
   function polygonStrokeColor(feat) {
-    if (isInvisibleHitArea(feat)) return "rgba(0, 0, 0, 0)";
     return isSelected(feat) ? "#8a5500" : "#3f5c4c";
   }
   function polygonAltitude(feat) {
-    // 透明なタップ判定円は、周辺国(高くても0.02)より確実に高く(＝カメラに近く)
-    // しておかないと、重なった部分で隣国のポリゴンにタップを奪われてしまう
-    if (isInvisibleHitArea(feat)) return 0.03;
     return isSelected(feat) ? 0.02 : 0.006;
   }
   function refreshPolygonStyles() {
@@ -181,36 +192,32 @@ const MapModule = (() => {
       .polygonAltitude(polygonAltitude);
   }
 
-  // ---------- 小国ピン(見た目)。タップ判定は上のポリゴン(透明)側が担当する ----------
-  // 白い縁取り(halo)+ オレンジの本体(fill)+ 選択時だけ薄い外側リング(ring)の
-  // 3層を同じ緯度経度に重ねて描画し、シンプルなピンに見せる
+  // ---------- 小国ピン(見た目)。タップ判定はscreenToLatLngによる近接判定が担当する ----------
+  // 白い縁取り(halo)+ オレンジの本体(fill)の2層を同じ緯度経度に重ねて描画し、
+  // シンプルなピンに見せる。選択中の国はここには含めない(下記buildPinDataを参照)。
+  // 選択中はピンの代わりに国名ラベルと実ポリゴンのオレンジ表示で位置・形を示す。
   function pinColor(d) {
-    if (d._pinKind === "ring") return "rgba(255, 177, 0, 0.28)";
-    if (d._pinKind === "halo") return "#ffffff";
-    return "#ffb100";
+    return d._pinKind === "halo" ? "#ffffff" : "#ffb100";
   }
   function pinRadius(d) {
-    const sel = d._selected;
-    if (d._pinKind === "ring") return 0.62;
-    if (d._pinKind === "halo") return sel ? 0.4 : 0.3;
-    return sel ? 0.3 : 0.2;
+    return d._pinKind === "halo" ? 0.3 : 0.2;
   }
   function pinAltitude(d) {
-    if (d._pinKind === "ring") return 0.004;
-    if (d._pinKind === "halo") return 0.009;
-    return 0.013;
+    return d._pinKind === "halo" ? 0.009 : 0.013;
   }
   function buildPinData() {
     const ids = new Set(ALWAYS_PIN_IDS);
     dynamicPinIds.forEach((id) => ids.add(id));
+    // 選択中の国は、ズームレベルに関わらずピンを常に非表示にする(通常のズーム連動
+    // ロジックをオーバーライドする)。ピンの位置に実際の国・地域があることを
+    // ラベルと実ポリゴンのハイライトで示すため、ピンと同時には表示しない。
+    ids.delete(selectedCountryId);
     const data = [];
     ids.forEach((id) => {
       const c = countryById.get(id);
       if (!c) return;
-      const selected = id === selectedCountryId;
-      if (selected) data.push({ ...c, _pinKind: "ring", _selected: true });
-      data.push({ ...c, _pinKind: "halo", _selected: selected });
-      data.push({ ...c, _pinKind: "fill", _selected: selected });
+      data.push({ ...c, _pinKind: "halo" });
+      data.push({ ...c, _pinKind: "fill" });
     });
     return data;
   }
@@ -255,6 +262,171 @@ const MapModule = (() => {
     pinRecomputeTimer = setTimeout(recomputePinVisibility, delay);
   }
 
+  // ---------- 選択中の国名ラベル(ピンの代わりに表示する) ----------
+  // このglobe.glビルドのhtmlElementsData/labelレイヤーには背景色を付けられないため、
+  // カスタムのHTML<div>を自前のスクリーン座標計算で追従させる。
+  // 計算対象は「現在選択中の1地点」だけであり、198件全体を毎フレーム計算するような
+  // 重い処理ではないため、requestAnimationFrameで継続更新してもパフォーマンス上問題ない。
+  function normalizeVec(v) {
+    const len = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
+    return { x: v.x / len, y: v.y / len, z: v.z / len };
+  }
+  function dotVec(a, b) {
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+  }
+  // 4x4行列(three.jsのcolumn-major elements配列)とベクトルの掛け算
+  function transformVec4(elements, x, y, z, w) {
+    const e = elements;
+    return {
+      x: e[0] * x + e[4] * y + e[8] * z + e[12] * w,
+      y: e[1] * x + e[5] * y + e[9] * z + e[13] * w,
+      z: e[2] * x + e[6] * y + e[10] * z + e[14] * w,
+      w: e[3] * x + e[7] * y + e[11] * z + e[15] * w,
+    };
+  }
+  // 緯度経度(+高度)をスクリーン上のピクセル座標に変換する。
+  // 地球の裏側にある場合や画面外に大きく外れる場合はnullを返す。
+  function projectLatLngToScreen(lat, lng, altitude) {
+    if (!globeInstance) return null;
+    const camera = globeInstance.camera();
+    if (!camera || !camera.matrixWorldInverse || !camera.projectionMatrix) return null;
+    const world = globeInstance.getCoords(lat, lng, altitude);
+
+    // カメラから見て地球の裏側(水平線の向こう)にある地点は表示しない
+    const camDir = normalizeVec(camera.position);
+    const pointDir = normalizeVec(world);
+    if (dotVec(camDir, pointDir) < 0.15) return null;
+
+    const view = transformVec4(camera.matrixWorldInverse.elements, world.x, world.y, world.z, 1);
+    const clip = transformVec4(camera.projectionMatrix.elements, view.x, view.y, view.z, view.w);
+    if (clip.w <= 0) return null;
+    const ndcX = clip.x / clip.w;
+    const ndcY = clip.y / clip.w;
+    if (ndcX < -1.15 || ndcX > 1.15 || ndcY < -1.15 || ndcY > 1.15) return null;
+
+    const container = $("map-globe-container");
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    return { x: (ndcX * 0.5 + 0.5) * w, y: (1 - (ndcY * 0.5 + 0.5)) * h };
+  }
+  function updateLabelPosition(country) {
+    const labelEl = $("map-country-label");
+    const pos = projectLatLngToScreen(country.lat, country.lng, 0.02);
+    if (!pos) {
+      labelEl.classList.add("hidden");
+      return;
+    }
+    labelEl.classList.remove("hidden");
+    const container = $("map-globe-container");
+    const wrap = document.querySelector(".map-wrap");
+    const cRect = container.getBoundingClientRect();
+    const wRect = wrap.getBoundingClientRect();
+    labelEl.style.left = `${cRect.left - wRect.left + pos.x}px`;
+    labelEl.style.top = `${cRect.top - wRect.top + pos.y - 14}px`;
+  }
+  function stopLabelTracking() {
+    if (labelRAF !== null) {
+      cancelAnimationFrame(labelRAF);
+      labelRAF = null;
+    }
+    $("map-country-label").classList.add("hidden");
+  }
+  function startLabelTracking(country) {
+    stopLabelTracking();
+    const labelEl = $("map-country-label");
+    labelEl.textContent = country.name;
+    const tick = () => {
+      updateLabelPosition(country);
+      labelRAF = requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  // ---------- ピン表示中の国をタップできるようにする近接判定 ----------
+  // pointsDataレイヤーはこのglobe.glビルドではクリックイベントを受け取れないため、
+  // 地球儀コンテナへの生のclickイベントから「画面上のどの地点をタップしたか」を
+  // 緯度経度に変換し、現在ピン表示されている国の座標に近ければその国を選択する。
+  // 透明・高高度ポリゴンを使わないため、深度バッファを汚染する副作用が一切ない。
+  function screenToLatLng(px, py) {
+    if (!globeInstance) return null;
+    const camera = globeInstance.camera();
+    const container = $("map-globe-container");
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (!w || !h || !camera) return null;
+
+    const fovRad = ((camera.fov || 50) * Math.PI) / 180;
+    const aspect = camera.aspect || w / h;
+    const ndcX = (px / w) * 2 - 1;
+    const ndcY = 1 - (py / h) * 2;
+    const halfH = Math.tan(fovRad / 2);
+    const halfW = halfH * aspect;
+    const dCam = { x: ndcX * halfW, y: ndcY * halfH, z: -1 };
+
+    // カメラのワールド回転(matrixWorldInverseの上3x3の転置)でワールド空間の方向に変換する
+    const e = camera.matrixWorldInverse.elements;
+    const dir = normalizeVec({
+      x: e[0] * dCam.x + e[1] * dCam.y + e[2] * dCam.z,
+      y: e[4] * dCam.x + e[5] * dCam.y + e[6] * dCam.z,
+      z: e[8] * dCam.x + e[9] * dCam.y + e[10] * dCam.z,
+    });
+    const origin = camera.position;
+
+    // 原点中心・半径GLOBE_RADIUSの球とのレイの交点を求める
+    const b = origin.x * dir.x + origin.y * dir.y + origin.z * dir.z;
+    const c = origin.x * origin.x + origin.y * origin.y + origin.z * origin.z - GLOBE_RADIUS * GLOBE_RADIUS;
+    const disc = b * b - c;
+    if (disc < 0) return null; // 地球の外(背景)をタップした
+    const t = -b - Math.sqrt(disc);
+    if (t < 0) return null;
+    const hit = { x: origin.x + t * dir.x, y: origin.y + t * dir.y, z: origin.z + t * dir.z };
+
+    const iLen = Math.sqrt(hit.x * hit.x + hit.y * hit.y + hit.z * hit.z) || 1;
+    const s = Math.acos(hit.y / iLen);
+    const a = Math.atan2(hit.z, hit.x);
+    const lat = 90 - (180 * s) / Math.PI;
+    let lng = 90 - (180 * a) / Math.PI;
+    if (a < -Math.PI / 2) lng -= 360;
+    return { lat, lng };
+  }
+  function handleContainerClick(evt) {
+    if (!globeInstance || !countryById) return;
+    const container = $("map-globe-container");
+    const rect = container.getBoundingClientRect();
+    const px = evt.clientX - rect.left;
+    const py = evt.clientY - rect.top;
+    // globe.gl自身のonPolygonClickが、このイベントより後(または別タイミング)で
+    // 選択を上書きしてしまうことがあるため、ピンとの近接一致による選択は
+    // 次のタスクに遅延させ、必ず最後に(=確実に)反映されるようにする
+    setTimeout(() => {
+      const geo = screenToLatLng(px, py);
+      if (!geo) return;
+
+      const candidateIds = new Set(ALWAYS_PIN_IDS);
+      dynamicPinIds.forEach((id) => candidateIds.add(id));
+      candidateIds.delete(selectedCountryId); // 選択中の国はピンが無いので対象外
+
+      let best = null;
+      let bestDist = Infinity;
+      candidateIds.forEach((id) => {
+        const c = countryById.get(id);
+        if (!c) return;
+        const dLat = geo.lat - c.lat;
+        let dLng = geo.lng - c.lng;
+        if (dLng > 180) dLng -= 360;
+        if (dLng < -180) dLng += 360;
+        const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+        const radius = HIT_RADIUS_DEG[id] || DEFAULT_HIT_RADIUS_DEG;
+        if (dist <= radius && dist < bestDist) {
+          best = c;
+          bestDist = dist;
+        }
+      });
+      // 一致するピンが無ければ何もしない(onPolygonClickが選択した内容をそのまま活かす)
+      if (best) selectCountry(best, { moveCamera: false });
+    }, 0);
+  }
+
   function buildGlobe() {
     const container = $("map-globe-container");
     const Globe = window.Globe;
@@ -297,6 +469,12 @@ const MapModule = (() => {
     // ここでピン表示の再計算をdebounceする(毎フレーム計算する重い設計を避ける)
     controls.addEventListener("change", () => schedulePinRecompute(200));
 
+    // pointsData(ピン)自体はクリックを受け取れないため、コンテナ側のclickで
+    // 近接判定を行う。globe.gl自身のonPolygonClickはcanvas(コンテナの子要素)側で
+    // 先に発火してからこのイベントがバブリングしてくるため、ピンに近い場合だけ
+    // ここで選択内容を上書きする形になる
+    container.addEventListener("click", handleContainerClick);
+
     // 最初にユーザーが触れた瞬間だけ自動回転を止める
     ["pointerdown", "wheel", "touchstart"].forEach((evt) => {
       container.addEventListener(evt, stopAutoRotateOnce, { passive: true });
@@ -335,15 +513,27 @@ const MapModule = (() => {
   // 地図タップ・検索のどちらから来ても、この共通処理で国を選択する。
   // moveCameraをfalseにすると、選択状態の更新と情報カード表示だけを行い、
   // 現在のズーム倍率・向き・位置には一切触れない
+  function isPinEligible(id) {
+    return ALWAYS_PIN_IDS.has(id) || dynamicPinIds.has(id);
+  }
+
   function selectCountry(country, options) {
     const moveCamera = !options || options.moveCamera !== false;
     hasInteracted = true;
     selectedCountryId = country.id;
+    // 選択した瞬間のピン対象状態を固定する。選択中にズームが変わっても
+    // ラベル表示・非表示が途中で切り替わってちらつかないようにするため
+    selectedShowsLabel = isPinEligible(country.id);
 
     if (globeInstance) {
       globeInstance.controls().autoRotate = false;
       refreshPolygonStyles();
       refreshPins();
+      if (selectedShowsLabel) {
+        startLabelTracking(country);
+      } else {
+        stopLabelTracking();
+      }
       if (moveCamera) {
         // 現在の視点を大きく失わない程度に、対象の国へゆっくり移動する
         globeInstance.pointOfView({ lat: country.lat, lng: country.lng, altitude: 1.5 }, 1200);
@@ -362,11 +552,19 @@ const MapModule = (() => {
     $("map-card-name").textContent = country.name;
     $("map-card-region").textContent = country.regionJa;
 
-    const capitalText =
-      country.capitals && country.capitals.length
-        ? country.capitals.map((c) => `${c.name}(${c.type})`).join(" / ")
-        : country.capital;
-    $("map-card-capital").textContent = capitalText;
+    // 通常の国は「首都：〇〇」、香港・マカオは「区分：中国の特別行政区」、
+    // グリーンランド・フェロー諸島は「中心都市：〇〇」のように、
+    // 国・地域ごとに見出しと値を切り替えられるようにする
+    $("map-card-capital-label-text").textContent = country.infoLabel || "首都";
+    let valueText;
+    if (country.infoValue) {
+      valueText = country.infoValue;
+    } else if (country.capitals && country.capitals.length) {
+      valueText = country.capitals.map((c) => `${c.name}(${c.type})`).join(" / ");
+    } else {
+      valueText = country.capital;
+    }
+    $("map-card-capital").textContent = valueText;
     $("map-card-desc").textContent = country.description;
 
     $("map-info-card").classList.remove("hidden");
@@ -378,6 +576,8 @@ const MapModule = (() => {
   function closeInfoCard() {
     $("map-info-card").classList.remove("open");
     selectedCountryId = null;
+    selectedShowsLabel = false;
+    stopLabelTracking();
     refreshPolygonStyles();
     refreshPins();
   }
@@ -409,7 +609,7 @@ const MapModule = (() => {
     const q = toKatakana(query);
     const startsWith = [];
     const contains = [];
-    COUNTRIES.forEach((c) => {
+    allMapCountries.forEach((c) => {
       if (!matchesQuery(c, query)) return;
       if (toKatakana(c.name).startsWith(q)) startsWith.push(c);
       else contains.push(c);
@@ -466,6 +666,7 @@ const MapModule = (() => {
   // 画面を離れるときはレンダリングを止めてバッテリー消費を抑える
   function close() {
     if (globeInstance) globeInstance.pauseAnimation();
+    stopLabelTracking();
     closeSearchSuggestions();
   }
 
