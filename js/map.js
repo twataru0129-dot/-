@@ -15,9 +15,22 @@ const MapModule = (() => {
   let globeInstance = null;
   let geoFeatures = [];
   let countryByMapCode = null;
+  let countryById = null;
+  let countryAngularSize = null; // country.id -> 実ポリゴンのバウンディングボックス角度(度)
   let selectedCountryId = null;
   let initPromise = null;
   let hasInteracted = false;
+  let pinRecomputeTimer = null;
+
+  // ポリゴン形状が無いために合成円(タップ判定専用、非表示。半径約1.6度)を
+  // 使っている極小国は、ズームレベルに関わらず常に小さいピンで表示し続ける
+  const ALWAYS_PIN_IDS = new Set(["va", "mc", "sm", "mv", "nr", "tv"]);
+  // 画面上のおおよその見かけサイズ(px)がこの値を下回ったらピン表示、
+  // 上回ったらピンを消す。25〜35pxの間は前回の表示状態を維持する(ヒステリシス)ことで
+  // ズーム境界でピンが激しく点滅しないようにする
+  const PIN_SHOW_PX = 25;
+  const PIN_HIDE_PX = 35;
+  let dynamicPinIds = new Set();
 
   function $(id) { return document.getElementById(id); }
 
@@ -53,8 +66,35 @@ const MapModule = (() => {
 
   function buildCountryIndex() {
     countryByMapCode = new Map();
+    countryById = new Map();
     COUNTRIES.forEach((c) => {
+      countryById.set(c.id, c);
       if (c.mapCode) countryByMapCode.set(c.mapCode, c);
+    });
+    buildAngularSizeIndex();
+  }
+
+  // 各国の実ポリゴンのバウンディングボックス角度(緯度幅・経度幅の大きい方)を
+  // 一度だけ計算しておく(タップ判定用の合成円しか持たない極小6か国は対象外)
+  function buildAngularSizeIndex() {
+    countryAngularSize = new Map();
+    geoFeatures.forEach((f) => {
+      if (f.properties && f.properties.isSyntheticMarker) return;
+      const c = countryByMapCode.get(f.id);
+      if (!c) return;
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      const polys = f.geometry.type === "MultiPolygon" ? f.geometry.coordinates : [f.geometry.coordinates];
+      polys.forEach((poly) => {
+        poly.forEach((ring) => {
+          ring.forEach(([lng, lat]) => {
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+            if (lng < minLng) minLng = lng;
+            if (lng > maxLng) maxLng = lng;
+          });
+        });
+      });
+      countryAngularSize.set(c.id, Math.max(maxLat - minLat, maxLng - minLng));
     });
   }
 
@@ -109,16 +149,27 @@ const MapModule = (() => {
     const c = countryByMapCode.get(feat.id);
     return !!c && c.id === selectedCountryId;
   }
+  // 極小国のタップ判定用合成円は、大きな円としてそのまま見せると周囲の地図を
+  // 隠してしまうため、常に透明にする(選択状態は下記のピンの見た目で示す)
+  function isInvisibleHitArea(feat) {
+    return !!(feat.properties && feat.properties.isSyntheticMarker);
+  }
   function polygonCapColor(feat) {
+    if (isInvisibleHitArea(feat)) return "rgba(0, 0, 0, 0)";
     return isSelected(feat) ? "#ffb100" : "rgba(139, 195, 143, 0.95)";
   }
   function polygonSideColor(feat) {
+    if (isInvisibleHitArea(feat)) return "rgba(0, 0, 0, 0)";
     return isSelected(feat) ? "rgba(255, 177, 0, 0.45)" : "rgba(90, 130, 100, 0.25)";
   }
   function polygonStrokeColor(feat) {
+    if (isInvisibleHitArea(feat)) return "rgba(0, 0, 0, 0)";
     return isSelected(feat) ? "#8a5500" : "#3f5c4c";
   }
   function polygonAltitude(feat) {
+    // 透明なタップ判定円は、周辺国(高くても0.02)より確実に高く(＝カメラに近く)
+    // しておかないと、重なった部分で隣国のポリゴンにタップを奪われてしまう
+    if (isInvisibleHitArea(feat)) return 0.03;
     return isSelected(feat) ? 0.02 : 0.006;
   }
   function refreshPolygonStyles() {
@@ -128,6 +179,80 @@ const MapModule = (() => {
       .polygonSideColor(polygonSideColor)
       .polygonStrokeColor(polygonStrokeColor)
       .polygonAltitude(polygonAltitude);
+  }
+
+  // ---------- 小国ピン(見た目)。タップ判定は上のポリゴン(透明)側が担当する ----------
+  // 白い縁取り(halo)+ オレンジの本体(fill)+ 選択時だけ薄い外側リング(ring)の
+  // 3層を同じ緯度経度に重ねて描画し、シンプルなピンに見せる
+  function pinColor(d) {
+    if (d._pinKind === "ring") return "rgba(255, 177, 0, 0.28)";
+    if (d._pinKind === "halo") return "#ffffff";
+    return "#ffb100";
+  }
+  function pinRadius(d) {
+    const sel = d._selected;
+    if (d._pinKind === "ring") return 0.62;
+    if (d._pinKind === "halo") return sel ? 0.4 : 0.3;
+    return sel ? 0.3 : 0.2;
+  }
+  function pinAltitude(d) {
+    if (d._pinKind === "ring") return 0.004;
+    if (d._pinKind === "halo") return 0.009;
+    return 0.013;
+  }
+  function buildPinData() {
+    const ids = new Set(ALWAYS_PIN_IDS);
+    dynamicPinIds.forEach((id) => ids.add(id));
+    const data = [];
+    ids.forEach((id) => {
+      const c = countryById.get(id);
+      if (!c) return;
+      const selected = id === selectedCountryId;
+      if (selected) data.push({ ...c, _pinKind: "ring", _selected: true });
+      data.push({ ...c, _pinKind: "halo", _selected: selected });
+      data.push({ ...c, _pinKind: "fill", _selected: selected });
+    });
+    return data;
+  }
+  function refreshPins() {
+    if (!globeInstance) return;
+    globeInstance
+      .pointsData(buildPinData())
+      .pointLat((d) => d.lat)
+      .pointLng((d) => d.lng)
+      .pointColor(pinColor)
+      .pointRadius(pinRadius)
+      .pointAltitude(pinAltitude)
+      .pointResolution(16)
+      .pointsMerge(false)
+      .pointsTransitionDuration(0);
+  }
+
+  // ---------- ズームに応じたピン表示の切り替え ----------
+  // globe.glの透視投影を簡易近似した式(fov≈50°相当で較正)で、実ポリゴンの
+  // おおよその画面上サイズ(px)を見積もる。198件すべてに対して毎フレーム
+  // 計算するのではなく、ユーザーの操作が一段落したタイミングでのみ実行する
+  function estimateApparentPx(angularSizeDeg, altitude) {
+    const CALIBRATION_K = 15.6;
+    return (CALIBRATION_K * angularSizeDeg) / (1 + altitude);
+  }
+  function recomputePinVisibility() {
+    if (!globeInstance || !countryAngularSize) return;
+    const pov = globeInstance.pointOfView();
+    const altitude = pov && typeof pov.altitude === "number" ? pov.altitude : 2.3;
+    const next = new Set();
+    countryAngularSize.forEach((deg, id) => {
+      const px = estimateApparentPx(deg, altitude);
+      if (px < PIN_SHOW_PX) next.add(id);
+      else if (px <= PIN_HIDE_PX && dynamicPinIds.has(id)) next.add(id);
+    });
+    dynamicPinIds = next;
+    refreshPins();
+  }
+  // ドラッグ/ピンチ中に毎フレーム再計算しないよう、操作が止まってから実行する
+  function schedulePinRecompute(delay) {
+    clearTimeout(pinRecomputeTimer);
+    pinRecomputeTimer = setTimeout(recomputePinVisibility, delay);
   }
 
   function buildGlobe() {
@@ -150,6 +275,7 @@ const MapModule = (() => {
         resizeGlobe();
         globeInstance.pointOfView({ lat: 15, lng: 30, altitude: 2.3 }, 0);
         startAutoRotate();
+        recomputePinVisibility();
       });
 
     // 衛星写真ではなく、国境が見やすい明るい水色の海にする。
@@ -166,6 +292,10 @@ const MapModule = (() => {
     controls.enableDamping = true;
     controls.minDistance = 120;
     controls.maxDistance = 500;
+
+    // ドラッグ回転・ピンチ/ホイールズームのどれでも'change'が発火するので、
+    // ここでピン表示の再計算をdebounceする(毎フレーム計算する重い設計を避ける)
+    controls.addEventListener("change", () => schedulePinRecompute(200));
 
     // 最初にユーザーが触れた瞬間だけ自動回転を止める
     ["pointerdown", "wheel", "touchstart"].forEach((evt) => {
@@ -194,22 +324,32 @@ const MapModule = (() => {
     globeInstance.controls().autoRotate = false;
   }
 
+  // 地球儀への直接タップは「今見ている画面をユーザーが自分で作った状態」として
+  // 一切動かさない。検索からの選択だけ、その国までカメラを移動してよい
   function handlePolygonClick(feature) {
     const country = feature && countryByMapCode.get(feature.id);
     if (!country) return;
-    selectCountry(country);
+    selectCountry(country, { moveCamera: false });
   }
 
-  // 地図タップ・検索のどちらから来ても、この共通処理で国を選択する
-  function selectCountry(country) {
+  // 地図タップ・検索のどちらから来ても、この共通処理で国を選択する。
+  // moveCameraをfalseにすると、選択状態の更新と情報カード表示だけを行い、
+  // 現在のズーム倍率・向き・位置には一切触れない
+  function selectCountry(country, options) {
+    const moveCamera = !options || options.moveCamera !== false;
     hasInteracted = true;
     selectedCountryId = country.id;
 
     if (globeInstance) {
       globeInstance.controls().autoRotate = false;
       refreshPolygonStyles();
-      // 現在の視点を大きく失わない程度に、対象の国へゆっくり移動する
-      globeInstance.pointOfView({ lat: country.lat, lng: country.lng, altitude: 1.5 }, 1200);
+      refreshPins();
+      if (moveCamera) {
+        // 現在の視点を大きく失わない程度に、対象の国へゆっくり移動する
+        globeInstance.pointOfView({ lat: country.lat, lng: country.lng, altitude: 1.5 }, 1200);
+        // 移動先でのズーム率に合わせて、ピン表示を移動完了後に再計算する
+        schedulePinRecompute(1300);
+      }
     }
     renderInfoCard(country);
     closeSearchSuggestions();
@@ -239,6 +379,7 @@ const MapModule = (() => {
     $("map-info-card").classList.remove("open");
     selectedCountryId = null;
     refreshPolygonStyles();
+    refreshPins();
   }
 
   // ---------- 検索 ----------
