@@ -1,0 +1,261 @@
+/* ==========================================================
+   世界地図モード(第1版) 専用スタイル
+   国旗クイズ・首都クイズのCSS(style.css)で定義されている
+   CSS変数(--color-primary 等)をそのまま再利用し、
+   ボタンやフォントの雰囲気を統一している。
+   ========================================================== */
+
+/* トップ画面: 世界地図カードだけ少し違う色味にして
+   「クイズではない」ことが一目で分かるようにする */
+.mode-card-map {
+  background: linear-gradient(135deg, #eef9f6, #dff3ee);
+  border-color: #6fbfae;
+}
+.mode-card-map .mode-card-title { color: #1d7a68; }
+
+/* screen-map全体: 地球儀を操作している間、ページ自体が
+   上下にスクロールしないよう高さを画面ぴったりに固定する */
+#screen-map.active {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding: 0;
+}
+
+.map-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+.map-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px;
+  flex-shrink: 0;
+  z-index: 5;
+}
+
+.btn-map-back {
+  flex-shrink: 0;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  white-space: nowrap;
+}
+.btn-map-back:active { transform: scale(0.97); }
+
+.map-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.map-search-input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 2px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.92rem;
+  background: #fff;
+}
+.map-search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.map-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 20px rgba(20, 30, 50, 0.18);
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  z-index: 20;
+}
+.map-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.map-search-item:active { background: var(--color-bg); }
+.map-search-flag {
+  width: 28px;
+  height: 21px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+.map-search-empty {
+  padding: 12px;
+  color: var(--color-text-sub);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* 地球儀本体。指1本のドラッグ操作を地球儀に渡し、
+   ページのスクロールと競合しないようにする */
+.map-globe-container {
+  flex: 1;
+  min-height: 0;
+  touch-action: none;
+  position: relative;
+}
+.map-globe-container canvas {
+  display: block;
+}
+
+.map-status {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 14px 22px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  font-weight: 700;
+  color: var(--color-text-sub);
+  text-align: center;
+  z-index: 3;
+}
+.map-status-error { color: var(--color-wrong); }
+
+.map-unsupported {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  background: var(--color-bg);
+  z-index: 4;
+}
+.map-unsupported p {
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+
+/* 国情報カード: スマホでは画面下からのシート、
+   地球儀全体は隠さない高さに抑える */
+.map-info-card {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 24px rgba(20, 30, 50, 0.18);
+  padding: 18px 20px calc(20px + env(safe-area-inset-bottom));
+  max-height: 46vh;
+  overflow-y: auto;
+  transform: translateY(100%);
+  transition: transform 0.25s ease;
+  z-index: 10;
+}
+.map-info-card.open {
+  transform: translateY(0);
+}
+
+.map-card-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--color-bg);
+  border-radius: 50%;
+  font-size: 1.1rem;
+  color: var(--color-text-sub);
+  cursor: pointer;
+}
+
+.map-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+  padding-right: 30px;
+}
+.map-card-flag {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  flex-shrink: 0;
+}
+.map-card-heading { min-width: 0; }
+.map-card-name {
+  font-size: 1.25rem;
+  font-weight: 800;
+  margin: 0 0 2px;
+}
+.map-card-region {
+  font-size: 0.85rem;
+  color: var(--color-text-sub);
+  margin: 0;
+}
+.map-card-capital-label {
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.map-card-desc {
+  color: var(--color-text-sub);
+  line-height: 1.7;
+  margin: 0;
+}
+
+/* ==========================================================
+   PC・タブレット(幅700px以上): 国情報カードを右側パネルにする
+   ========================================================== */
+@media (min-width: 700px) {
+  .map-info-card {
+    left: auto;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 320px;
+    max-height: none;
+    border-radius: 0;
+    box-shadow: -8px 0 24px rgba(20, 30, 50, 0.18);
+    transform: translateX(100%);
+    padding-top: 24px;
+  }
+  .map-info-card.open {
+    transform: translateX(0);
+  }
+}
+
+/* ==========================================================
+   アクセシビリティ: motion軽減
+   ========================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .map-info-card { transition-duration: 0.001ms; }
+}
