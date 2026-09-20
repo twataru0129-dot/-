@@ -8,6 +8,7 @@
 <link rel="icon" href="./assets/flags/jp.svg">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png.PNG">
 <link rel="stylesheet" href="./css/style.css">
+<link rel="stylesheet" href="./css/map.css">
 </head>
 <body>
 
@@ -35,6 +36,11 @@
         <span class="mode-card-icon">🏙️</span>
         <span class="mode-card-title">首都クイズ</span>
         <span class="mode-card-desc">国名を見て首都を当てよう！</span>
+      </button>
+      <button id="btn-mode-map" class="mode-card mode-card-map" data-mode="map">
+        <span class="mode-card-icon">🌐</span>
+        <span class="mode-card-title">世界地図</span>
+        <span class="mode-card-desc">地球を自由に探索しよう！</span>
       </button>
     </div>
     <button id="btn-collection" class="btn btn-secondary">🏅 称号コレクション</button>
@@ -155,6 +161,41 @@
   </div>
 </section>
 
+<!-- ============ 世界地図モード(第1版) ============ -->
+<section id="screen-map" class="screen">
+  <div class="map-wrap">
+    <div class="map-topbar">
+      <button id="btn-map-back" class="btn-map-back" aria-label="トップへ戻る">← トップへ戻る</button>
+      <div class="map-search-wrap">
+        <input id="map-search-input" class="map-search-input" type="text" placeholder="🔍 国を検索" autocomplete="off">
+        <ul id="map-search-results" class="map-search-results hidden"></ul>
+      </div>
+    </div>
+
+    <div id="map-globe-container" class="map-globe-container"></div>
+
+    <p id="map-status" class="map-status hidden">世界地図を読み込んでいます…</p>
+
+    <div id="map-unsupported" class="map-unsupported hidden">
+      <p>この端末またはブラウザでは<br>3D地球儀を表示できません。</p>
+      <button id="map-unsupported-back" class="btn btn-secondary">トップへ戻る</button>
+    </div>
+
+    <div id="map-info-card" class="map-info-card hidden">
+      <button id="map-card-close" class="map-card-close" aria-label="閉じる">×</button>
+      <div class="map-card-header">
+        <img id="map-card-flag" class="map-card-flag" src="" alt="">
+        <div class="map-card-heading">
+          <p id="map-card-name" class="map-card-name">日本</p>
+          <p id="map-card-region" class="map-card-region">アジア</p>
+        </div>
+      </div>
+      <p class="map-card-capital-label">首都：<span id="map-card-capital"></span></p>
+      <p id="map-card-desc" class="map-card-desc"></p>
+    </div>
+  </div>
+</section>
+
 <!-- ============ メダル・賞状作成画面 ============ -->
 <section id="screen-memorial" class="screen">
   <div class="panel">
@@ -230,6 +271,7 @@
 <script src="./js/sound.js"></script>
 <script src="./js/quiz.js"></script>
 <script src="./js/certificate.js"></script>
+<script src="./js/map.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>

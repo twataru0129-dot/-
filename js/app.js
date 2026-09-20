@@ -61,11 +61,21 @@ function showScreen(id) {
 function initTopScreen() {
   updateSoundButton();
 
-  // 🌍国旗クイズ / 🏙️首都クイズ、どちらのモードで始めるかをここで決める
+  // 🌍国旗クイズ / 🏙️首都クイズ / 🌐世界地図、どちらのモードで始めるかをここで決める
   document.querySelectorAll(".mode-card").forEach((card) => {
     card.addEventListener("click", () => {
+      const mode = card.dataset.mode;
+      state.mode = mode;
+
+      // 世界地図はクイズではないので、問題数選択を経由せず直接開く。
+      // 得点・タイマーを使わないため効果音の有効化も行わない。
+      if (mode === "map") {
+        showScreen("screen-map");
+        MapModule.open();
+        return;
+      }
+
       SoundManager.unlock(); // 最初のユーザー操作でAudioContextを有効化
-      state.mode = card.dataset.mode;
       renderSelectScreen();
       showScreen("screen-select");
     });
