@@ -114,6 +114,105 @@
   text-align: center;
 }
 
+/* 2段目のツールバー: 地域フィルターとランダムボタン。
+   1段目(戻る・検索)と分けることで、幅が狭いスマホでも
+   ボタン同士が窮屈にならないようにする */
+.map-toolbar-row2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 10px;
+  flex-shrink: 0;
+  z-index: 5;
+}
+
+.map-region-wrap {
+  position: relative;
+  flex-shrink: 0;
+  max-width: 62%;
+}
+.map-region-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+}
+.map-region-btn:active { transform: scale(0.97); }
+#map-region-btn-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.map-region-caret {
+  font-size: 0.65rem;
+  color: var(--color-text-sub);
+  flex-shrink: 0;
+}
+
+/* 地域選択のドロップダウン。横幅が狭いスマホで7個を横並びにせず、
+   ボタン直下から縦に並ぶシンプルなリストにする */
+.map-region-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 20px rgba(20, 30, 50, 0.18);
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  z-index: 21;
+}
+.map-region-item {
+  padding: 11px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.map-region-item:active { background: var(--color-bg); }
+.map-region-item.active {
+  background: rgba(111, 191, 174, 0.18);
+  color: #1d7a68;
+  font-weight: 800;
+}
+
+.map-random-btn {
+  flex: 1;
+  min-width: 0;
+  background: #fff8ee;
+  border: 1px solid #f0c884;
+  border-radius: 999px;
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #8a5500;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.map-random-btn:active { transform: scale(0.97); }
+.map-random-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
+
 /* 地球儀本体。指1本のドラッグ操作を地球儀に渡し、
    ページのスクロールと競合しないようにする */
 .map-globe-container {

@@ -12,7 +12,7 @@ const MAP_ONLY_REGIONS = [
     name: "グリーンランド",
     englishName: "Greenland",
     region: "namerica",
-    regionJa: "北アメリカ",
+    regionJa: "北アメリカ・中央アメリカ・カリブ",
     flag: "./assets/flags/gl.svg",
     aliases: ["グリーンランド", "Greenland"],
     mapCode: "GRL",
