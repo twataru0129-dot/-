@@ -25,6 +25,25 @@ const MapModule = (() => {
   let pinRecomputeTimer = null;
   let labelRAF = null;
 
+  // ---------- 地域フィルター(v1.2) ----------
+  // "all"のときは既存(v1.1以前)の見た目・挙動を完全に維持する。
+  // countries.js / map-regions.jsのregionフィールドをそのまま再利用するため、
+  // 新しいデータ構造は追加していない
+  const REGION_ORDER = ["all", "asia", "europe", "africa", "namerica", "samerica", "oceania"];
+  const REGION_LABELS = {
+    all: "🌍 全世界",
+    asia: "🌏 アジア",
+    europe: "🌍 ヨーロッパ",
+    africa: "🌍 アフリカ",
+    namerica: "🌎 北アメリカ・中央アメリカ・カリブ",
+    samerica: "🌎 南アメリカ",
+    oceania: "🌏 オセアニア",
+  };
+  let currentRegionFilter = "all";
+  let regionCenters = null; // region -> {lat,lng,altitude}。allMapCountriesから一度だけ算出する
+  let randomFlightTimer = null;
+  let previousRandomIds = []; // 直近に選ばれたID(最大5件)を保持し、連続・近接重複を避ける
+
   // 実ポリゴンが極小で常にタップしづらい国・地域は、ズームレベルに関わらず
   // 常に小さいピンで表示し続ける(それ以外の国は下記の画面上サイズに応じた動的判定)
   const ALWAYS_PIN_IDS = new Set(["va", "mc", "sm", "mv", "nr", "tv"]);
@@ -88,6 +107,36 @@ const MapModule = (() => {
       if (c.mapCode) countryByMapCode.set(c.mapCode, c);
     });
     buildAngularSizeIndex();
+    buildRegionCenters();
+  }
+
+  // 地域フィルター選択時にカメラを移動する先を、実際のデータから算出しておく。
+  // 経度は日付変更線をまたぐ地域(オセアニア等)でも正しく中心が出るよう
+  // 単純平均ではなく円周(sin/cos)平均を使う
+  function buildRegionCenters() {
+    regionCenters = {};
+    const byRegion = new Map();
+    allMapCountries.forEach((c) => {
+      if (!byRegion.has(c.region)) byRegion.set(c.region, []);
+      byRegion.get(c.region).push(c);
+    });
+    byRegion.forEach((list, region) => {
+      let latSum = 0, sinSum = 0, cosSum = 0, minLat = 90, maxLat = -90;
+      list.forEach((c) => {
+        latSum += c.lat;
+        const rad = (c.lng * Math.PI) / 180;
+        sinSum += Math.sin(rad);
+        cosSum += Math.cos(rad);
+        if (c.lat < minLat) minLat = c.lat;
+        if (c.lat > maxLat) maxLat = c.lat;
+      });
+      const lat = latSum / list.length;
+      const lng = (Math.atan2(sinSum, cosSum) * 180) / Math.PI;
+      // 縦方向の広がりに応じて、大陸全体をある程度見渡せる高度にする
+      // (極端な拡大/縮小を避けるため1.7〜2.6の範囲に収める)
+      const altitude = Math.min(2.6, Math.max(1.7, 1.1 + (maxLat - minLat) / 70));
+      regionCenters[region] = { lat, lng, altitude };
+    });
   }
 
   // 各国の実ポリゴンのバウンディングボックス角度(緯度幅・経度幅の大きい方)を
@@ -171,14 +220,27 @@ const MapModule = (() => {
     const c = countryByMapCode.get(feat.id);
     return !!c && c.id === selectedCountryId;
   }
+  // 地域フィルターが有効なとき、選択中の地域に属する国かどうか。
+  // フィルターが"all"のときは常にtrue(＝既存の見た目を完全に維持する)
+  function isInActiveRegion(feat) {
+    if (currentRegionFilter === "all") return true;
+    const c = countryByMapCode.get(feat.id);
+    return !!c && c.region === currentRegionFilter;
+  }
   function polygonCapColor(feat) {
-    return isSelected(feat) ? "#ffb100" : "rgba(139, 195, 143, 0.95)";
+    if (isSelected(feat)) return "#ffb100";
+    if (currentRegionFilter === "all") return "rgba(139, 195, 143, 0.95)";
+    return isInActiveRegion(feat) ? "rgba(150, 214, 154, 0.97)" : "rgba(150, 178, 150, 0.28)";
   }
   function polygonSideColor(feat) {
-    return isSelected(feat) ? "rgba(255, 177, 0, 0.45)" : "rgba(90, 130, 100, 0.25)";
+    if (isSelected(feat)) return "rgba(255, 177, 0, 0.45)";
+    if (currentRegionFilter === "all") return "rgba(90, 130, 100, 0.25)";
+    return isInActiveRegion(feat) ? "rgba(90, 140, 100, 0.32)" : "rgba(110, 130, 110, 0.08)";
   }
   function polygonStrokeColor(feat) {
-    return isSelected(feat) ? "#8a5500" : "#3f5c4c";
+    if (isSelected(feat)) return "#8a5500";
+    if (currentRegionFilter === "all") return "#3f5c4c";
+    return isInActiveRegion(feat) ? "#345a42" : "rgba(90, 110, 95, 0.35)";
   }
   function polygonAltitude(feat) {
     return isSelected(feat) ? 0.02 : 0.006;
@@ -216,6 +278,9 @@ const MapModule = (() => {
     ids.forEach((id) => {
       const c = countryById.get(id);
       if (!c) return;
+      // 地域フィルター中は、他地域の小国ピンを非表示にして画面がピンだらけに
+      // ならないようにする("all"のときは全ピンを従来どおり表示する)
+      if (currentRegionFilter !== "all" && c.region !== currentRegionFilter) return;
       data.push({ ...c, _pinKind: "halo" });
       data.push({ ...c, _pinKind: "fill" });
     });
@@ -402,9 +467,18 @@ const MapModule = (() => {
       const geo = screenToLatLng(px, py);
       if (!geo) return;
 
-      const candidateIds = new Set(ALWAYS_PIN_IDS);
+      let candidateIds = new Set(ALWAYS_PIN_IDS);
       dynamicPinIds.forEach((id) => candidateIds.add(id));
       candidateIds.delete(selectedCountryId); // 選択中の国はピンが無いので対象外
+      if (currentRegionFilter !== "all") {
+        // 非表示にしているピンは近接判定の対象からも外す(見えないピンがタップに反応すると混乱するため)
+        candidateIds = new Set(
+          [...candidateIds].filter((id) => {
+            const c = countryById.get(id);
+            return c && c.region === currentRegionFilter;
+          })
+        );
+      }
 
       let best = null;
       let bestDist = Infinity;
@@ -474,6 +548,8 @@ const MapModule = (() => {
     // 先に発火してからこのイベントがバブリングしてくるため、ピンに近い場合だけ
     // ここで選択内容を上書きする形になる
     container.addEventListener("click", handleContainerClick);
+    // 地球儀を直接操作し始めたら、開いたままの地域ドロップダウンは閉じる
+    container.addEventListener("pointerdown", closeRegionList, { passive: true });
 
     // 最初にユーザーが触れた瞬間だけ自動回転を止める
     ["pointerdown", "wheel", "touchstart"].forEach((evt) => {
@@ -636,6 +712,9 @@ const MapModule = (() => {
       li.appendChild(span);
       li.addEventListener("click", () => {
         $("map-search-input").value = "";
+        // 「検索したのにフィルターのせいで見えない」という混乱を防ぐため、
+        // 検索からの選択は常に地域フィルターを全世界に戻してから移動する
+        if (currentRegionFilter !== "all") applyRegionFilter("all", { moveCamera: false });
         selectCountry(c);
       });
       list.appendChild(li);
@@ -646,6 +725,99 @@ const MapModule = (() => {
   function closeSearchSuggestions() {
     $("map-search-results").classList.add("hidden");
     $("map-search-results").innerHTML = "";
+  }
+
+  // ---------- 地域フィルター(v1.2) ----------
+  function updateRegionListHighlight() {
+    const list = $("map-region-list");
+    Array.from(list.children).forEach((li) => {
+      li.classList.toggle("active", li.dataset.region === currentRegionFilter);
+    });
+  }
+  function buildRegionList() {
+    const list = $("map-region-list");
+    list.innerHTML = "";
+    REGION_ORDER.forEach((region) => {
+      const li = document.createElement("li");
+      li.className = "map-region-item";
+      li.textContent = REGION_LABELS[region];
+      li.dataset.region = region;
+      li.addEventListener("click", () => selectRegion(region));
+      list.appendChild(li);
+    });
+    updateRegionListHighlight();
+  }
+  function openRegionList() {
+    closeSearchSuggestions();
+    $("map-region-list").classList.remove("hidden");
+    $("map-region-btn").setAttribute("aria-expanded", "true");
+  }
+  function closeRegionList() {
+    $("map-region-list").classList.add("hidden");
+    $("map-region-btn").setAttribute("aria-expanded", "false");
+  }
+  function toggleRegionList() {
+    if ($("map-region-list").classList.contains("hidden")) openRegionList();
+    else closeRegionList();
+  }
+  function selectRegion(region) {
+    applyRegionFilter(region);
+    closeRegionList();
+  }
+  // 地域フィルターの本体。"all"のときは色・ピンとも既存の見た目に完全に戻す。
+  // moveCameraをfalseにすると、フィルターの見た目だけ変えてカメラは動かさない
+  // (検索選択時に「全世界へ戻す」ためだけに使う内部的な呼び出し用)
+  function applyRegionFilter(region, options) {
+    const moveCamera = !options || options.moveCamera !== false;
+    currentRegionFilter = region;
+    $("map-region-btn-label").textContent = REGION_LABELS[region];
+    updateRegionListHighlight();
+    refreshPolygonStyles();
+    recomputePinVisibility();
+    if (moveCamera && globeInstance && region !== "all") {
+      const center = regionCenters && regionCenters[region];
+      if (center) {
+        hasInteracted = true;
+        globeInstance.controls().autoRotate = false;
+        globeInstance.pointOfView({ lat: center.lat, lng: center.lng, altitude: center.altitude }, 1400);
+        schedulePinRecompute(1500);
+      }
+    }
+  }
+
+  // ---------- ランダムな国へ(v1.2) ----------
+  // 現在の地域フィルターに応じた候補プールから1件選ぶ。直近に選ばれた
+  // 最大5件は優先的に除外し、候補が尽きたら段階的に除外条件を緩める
+  function getRegionPool(region) {
+    if (region === "all") return allMapCountries;
+    return allMapCountries.filter((c) => c.region === region);
+  }
+  function pickRandomCountry() {
+    const pool = getRegionPool(currentRegionFilter);
+    if (!pool.length) return null;
+    let candidates = pool.filter((c) => !previousRandomIds.includes(c.id));
+    if (!candidates.length) candidates = pool.filter((c) => c.id !== previousRandomIds[0]);
+    if (!candidates.length) candidates = pool;
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    previousRandomIds.unshift(chosen.id);
+    previousRandomIds = previousRandomIds.slice(0, 5);
+    return chosen;
+  }
+  function handleRandomClick() {
+    const btn = $("map-random-btn");
+    if (btn.disabled) return;
+    const country = pickRandomCountry();
+    if (!country) return;
+    closeRegionList();
+    closeSearchSuggestions();
+    // ボタン連打で複数のカメラアニメーションが競合しないよう、
+    // 移動アニメーション中はボタンを一時的に無効化する
+    btn.disabled = true;
+    clearTimeout(randomFlightTimer);
+    randomFlightTimer = setTimeout(() => { btn.disabled = false; }, 1300);
+    // 検索選択と全く同じ経路(moveCamera:true)で選択するため、到着後の状態
+    // (選択表示・ピン非表示・ラベル・情報カード)は検索と完全に同一になる
+    selectCountry(country, { moveCamera: true });
   }
 
   // ---------- 画面の開閉(タブを行き来してもデータは再取得しない) ----------
@@ -668,6 +840,7 @@ const MapModule = (() => {
     if (globeInstance) globeInstance.pauseAnimation();
     stopLabelTracking();
     closeSearchSuggestions();
+    closeRegionList();
   }
 
   function initEvents() {
@@ -680,6 +853,10 @@ const MapModule = (() => {
     $("map-search-input").addEventListener("input", (e) => {
       renderSearchResults(e.target.value.trim());
     });
+    $("map-search-input").addEventListener("focus", closeRegionList);
+    buildRegionList();
+    $("map-region-btn").addEventListener("click", toggleRegionList);
+    $("map-random-btn").addEventListener("click", handleRandomClick);
   }
 
   return { open, close, initEvents };
