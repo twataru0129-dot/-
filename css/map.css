@@ -126,6 +126,24 @@
   display: block;
 }
 
+/* 小国・地域を選択した際、ピンの代わりに表示する国名ラベル。
+   地球儀の回転・ズームに合わせてJS側で毎フレームleft/topを更新する */
+.map-country-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: rgba(20, 24, 28, 0.82);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 999px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 6;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+.map-country-label.hidden { display: none; }
+
 .map-status {
   position: absolute;
   top: 50%;

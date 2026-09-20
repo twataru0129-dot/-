@@ -173,6 +173,7 @@
     </div>
 
     <div id="map-globe-container" class="map-globe-container"></div>
+    <div id="map-country-label" class="map-country-label hidden"></div>
 
     <p id="map-status" class="map-status hidden">世界地図を読み込んでいます…</p>
 
@@ -190,7 +191,7 @@
           <p id="map-card-region" class="map-card-region">アジア</p>
         </div>
       </div>
-      <p class="map-card-capital-label">首都：<span id="map-card-capital"></span></p>
+      <p class="map-card-capital-label"><span id="map-card-capital-label-text">首都</span>：<span id="map-card-capital"></span></p>
       <p id="map-card-desc" class="map-card-desc"></p>
     </div>
   </div>
@@ -267,6 +268,7 @@
 <canvas id="hidden-render-canvas" style="display:none;"></canvas>
 
 <script src="./js/countries.js"></script>
+<script src="./js/map-regions.js"></script>
 <script src="./js/storage.js"></script>
 <script src="./js/sound.js"></script>
 <script src="./js/quiz.js"></script>

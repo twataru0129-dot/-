@@ -1,0 +1,78 @@
+// ==========================================================
+// 世界地図モード専用の追加地域データ
+// 国旗クイズ・首都クイズの対象(js/countries.js の198件)には
+// 一切含めない。地図モードの探索対象としてのみ追加する。
+// mapOnly:true / quizEligible:false を必ず持たせ、
+// quiz.js側のロジックが誤ってこれらを問題に含めないようにする。
+// ==========================================================
+
+const MAP_ONLY_REGIONS = [
+  {
+    id: "gl",
+    name: "グリーンランド",
+    englishName: "Greenland",
+    region: "namerica",
+    regionJa: "北アメリカ",
+    flag: "./assets/flags/gl.svg",
+    aliases: ["グリーンランド", "Greenland"],
+    mapCode: "GRL",
+    lat: 71.7,
+    lng: -42.6,
+    infoLabel: "中心都市",
+    infoValue: "ヌーク",
+    description: "グリーンランドは世界最大の島で、大部分が氷床に覆われています。デンマーク王国を構成する自治領で、中心都市はヌークです。",
+    mapOnly: true,
+    quizEligible: false,
+  },
+  {
+    id: "hk",
+    name: "香港",
+    englishName: "Hong Kong",
+    region: "asia",
+    regionJa: "アジア",
+    flag: "./assets/flags/hk.svg",
+    aliases: ["香港", "ホンコン", "Hong Kong"],
+    mapCode: "HKG",
+    lat: 22.3,
+    lng: 114.2,
+    infoLabel: "区分",
+    infoValue: "中国の特別行政区",
+    description: "香港は中国南部に位置する特別行政区で、独自の行政・経済制度を持つ国際的な金融都市です。",
+    mapOnly: true,
+    quizEligible: false,
+  },
+  {
+    id: "mo",
+    name: "マカオ",
+    englishName: "Macao",
+    region: "asia",
+    regionJa: "アジア",
+    flag: "./assets/flags/mo.svg",
+    aliases: ["マカオ", "Macao", "Macau"],
+    mapCode: "MAC",
+    lat: 22.2,
+    lng: 113.5,
+    infoLabel: "区分",
+    infoValue: "中国の特別行政区",
+    description: "マカオは中国南部に位置する特別行政区で、かつてポルトガルの統治下にありました。カジノ産業で知られています。",
+    mapOnly: true,
+    quizEligible: false,
+  },
+  {
+    id: "fo",
+    name: "フェロー諸島",
+    englishName: "Faroe Islands",
+    region: "europe",
+    regionJa: "ヨーロッパ",
+    flag: "./assets/flags/fo.svg",
+    aliases: ["フェロー諸島", "Faroe Islands"],
+    mapCode: "FRO",
+    lat: 62.0,
+    lng: -6.8,
+    infoLabel: "中心都市",
+    infoValue: "トースハウン",
+    description: "フェロー諸島は北大西洋に浮かぶ島々で、デンマーク王国を構成する自治領です。中心都市はトースハウンです。",
+    mapOnly: true,
+    quizEligible: false,
+  },
+];
