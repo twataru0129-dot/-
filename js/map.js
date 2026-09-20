@@ -15,7 +15,7 @@ const MapModule = (() => {
   let globeInstance = null;
   let geoFeatures = [];
   let countryByMapCode = null;
-  let selectedFeature = null;
+  let selectedCountryId = null;
   let initPromise = null;
   let hasInteracted = false;
 
@@ -105,17 +105,21 @@ const MapModule = (() => {
 
   // ---------- 国のハイライト表示 ----------
   // 通常の国は緑系、選択中の国だけオレンジ系にする(他の国の色は変えない)
+  function isSelected(feat) {
+    const c = countryByMapCode.get(feat.id);
+    return !!c && c.id === selectedCountryId;
+  }
   function polygonCapColor(feat) {
-    return feat === selectedFeature ? "#ffb100" : "rgba(139, 195, 143, 0.95)";
+    return isSelected(feat) ? "#ffb100" : "rgba(139, 195, 143, 0.95)";
   }
   function polygonSideColor(feat) {
-    return feat === selectedFeature ? "rgba(255, 177, 0, 0.45)" : "rgba(90, 130, 100, 0.25)";
+    return isSelected(feat) ? "rgba(255, 177, 0, 0.45)" : "rgba(90, 130, 100, 0.25)";
   }
   function polygonStrokeColor(feat) {
-    return feat === selectedFeature ? "#8a5500" : "#3f5c4c";
+    return isSelected(feat) ? "#8a5500" : "#3f5c4c";
   }
   function polygonAltitude(feat) {
-    return feat === selectedFeature ? 0.02 : 0.006;
+    return isSelected(feat) ? 0.02 : 0.006;
   }
   function refreshPolygonStyles() {
     if (!globeInstance) return;
@@ -193,14 +197,13 @@ const MapModule = (() => {
   function handlePolygonClick(feature) {
     const country = feature && countryByMapCode.get(feature.id);
     if (!country) return;
-    selectCountry(country, feature);
+    selectCountry(country);
   }
 
   // 地図タップ・検索のどちらから来ても、この共通処理で国を選択する
-  function selectCountry(country, feature) {
+  function selectCountry(country) {
     hasInteracted = true;
-    selectedFeature =
-      feature || (country.mapCode ? geoFeatures.find((f) => f.id === country.mapCode) : null);
+    selectedCountryId = country.id;
 
     if (globeInstance) {
       globeInstance.controls().autoRotate = false;
@@ -234,7 +237,7 @@ const MapModule = (() => {
 
   function closeInfoCard() {
     $("map-info-card").classList.remove("open");
-    selectedFeature = null;
+    selectedCountryId = null;
     refreshPolygonStyles();
   }
 
