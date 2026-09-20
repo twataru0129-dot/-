@@ -12,8 +12,22 @@ const TITLES = [
   { count: 198, id: "legend", name: "国旗レジェンド", medalClass: "medal-legend", condition: "198問全問正解(WORLD COMPLETE)" },
 ];
 
-function getTitleByCount(count) {
-  return TITLES.find((t) => t.count === count) || null;
+// 首都クイズ専用の称号(国旗クイズの称号とは完全に別管理)
+const CAPITAL_TITLES = [
+  { count: 10, id: "cap_beginner", name: "首都ビギナー", medalClass: "medal-bronze", condition: "10問全問正解" },
+  { count: 20, id: "cap_challenger", name: "首都チャレンジャー", medalClass: "medal-green", condition: "20問全問正解" },
+  { count: 30, id: "cap_traveler", name: "世界都市トラベラー", medalClass: "medal-blue", condition: "30問全問正解" },
+  { count: 50, id: "cap_expert", name: "首都エキスパート", medalClass: "medal-purple", condition: "50問全問正解" },
+  { count: 100, id: "cap_master", name: "首都マスター", medalClass: "medal-gold", condition: "100問全問正解" },
+  { count: 198, id: "cap_legend", name: "首都レジェンド", medalClass: "medal-legend", condition: "198問全問正解(WORLD CAPITAL COMPLETE)" },
+];
+
+function getTitlesForMode(mode) {
+  return mode === "capital" ? CAPITAL_TITLES : TITLES;
+}
+
+function getTitleByCount(count, mode = "flag") {
+  return getTitlesForMode(mode).find((t) => t.count === count) || null;
 }
 
 // Fisher-Yates shuffle: 偏りの少ないシャッフルアルゴリズム
@@ -100,6 +114,63 @@ const QuizEngine = (() => {
     return { country, choices };
   }
 
+  // 首都クイズの6択候補を生成する。
+  // 誤答候補は「countries全198件から現在の正解国を除いた197件」から選ぶ
+  // (国旗クイズと同じ考え方。出題されなかった国だけに限定しない)。
+  // 優先順位: 1.同じ地域の首都 2.似ている国(similarCountriesを流用) 3.残りはランダム
+  // 表示文字列(capital)で重複が出ないよう、id と capital の両方で重複チェックする。
+  function buildCapitalChoices(correctCountry) {
+    const map = getCountryMap();
+    const usedIds = new Set([correctCountry.id]);
+    const usedCapitals = new Set([correctCountry.capital]);
+    const result = [];
+
+    function addFrom(pool) {
+      for (const c of pool) {
+        if (result.length >= 5) break;
+        if (!c || usedIds.has(c.id) || usedCapitals.has(c.capital)) continue;
+        result.push(c);
+        usedIds.add(c.id);
+        usedCapitals.add(c.capital);
+      }
+    }
+
+    // 優先1+2: 同じ地域の首都を使うが、その中でも混同しやすい国
+    // (similarCountriesデータを流用)を優先的に並べる。
+    // 地域が大きい(ヨーロッパ・アジア・アフリカ等)場合、地域だけで
+    // 5件埋まってしまい「混同しやすい国」が出てこなくなるのを防ぐため。
+    const simIds = new Set(correctCountry.similarCountries || []);
+    const sameRegion = COUNTRIES.filter((c) => c.region === correctCountry.region && c.id !== correctCountry.id);
+    const prioritized = shuffleArray(sameRegion.filter((c) => simIds.has(c.id)));
+    const restOfRegion = shuffleArray(sameRegion.filter((c) => !simIds.has(c.id)));
+    addFrom([...prioritized, ...restOfRegion]);
+
+    // 優先3: 似ている国が別地域にある場合の補完(不足時のみ)
+    if (result.length < 5 && correctCountry.similarCountries && correctCountry.similarCountries.length) {
+      const sims = shuffleArray(correctCountry.similarCountries).map((id) => map.get(id));
+      addFrom(sims);
+    }
+
+    // 優先4(不足分): 完全ランダム(198件全体から)
+    if (result.length < 5) {
+      addFrom(shuffleArray(COUNTRIES));
+    }
+
+    const choices = [correctCountry, ...result.slice(0, 5)];
+
+    // 最終安全チェック: 必ず6択・表示文字列の重複なしになっていることを保証する
+    console.assert(choices.length === 6, `capital choicesが6件ではありません: ${choices.length}`);
+    console.assert(new Set(choices.map((c) => c.capital)).size === 6, "capital choicesに重複があります");
+
+    return shuffleArray(choices);
+  }
+
+  // 首都クイズの1問分のデータを作る
+  function buildCapitalQuestion(country) {
+    const choices = buildCapitalChoices(country);
+    return { country, choices };
+  }
+
   return {
     THINK_SECONDS,
     COUNTDOWN_SECONDS,
@@ -107,6 +178,8 @@ const QuizEngine = (() => {
     buildQuestionSet,
     buildQuestion,
     buildChoices,
+    buildCapitalQuestion,
+    buildCapitalChoices,
   };
 })();
 

@@ -14,11 +14,14 @@ console.assert(COUNTRIES.length === 198, `countriesデータが198件ではあ�
   const codes = new Set();
   const flags = new Set();
   let dup = false;
+  let missingCapital = 0;
   COUNTRIES.forEach((c) => {
     if (ids.has(c.id) || codes.has(c.code) || flags.has(c.flag)) dup = true;
     ids.add(c.id); codes.add(c.code); flags.add(c.flag);
+    if (!c.capital) missingCapital++;
   });
   console.assert(!dup, "countriesデータにid/code/flagの重複があります");
+  console.assert(missingCapital === 0, `首都(capital)が未設定の国が${missingCapital}件あります`);
 })();
 
 const QUESTION_COUNTS = [10, 20, 30, 50, 100, 198];
@@ -26,6 +29,7 @@ const QUESTION_COUNTS = [10, 20, 30, 50, 100, 198];
 // アプリ全体の状態
 const state = {
   screenStack: ["screen-top"],
+  mode: "flag", // "flag"(国旗クイズ) | "capital"(首都クイズ)
   selectedCount: 20,
   questions: [],
   currentQuestionIndex: 0,
@@ -33,10 +37,14 @@ const state = {
   answered: false,
   timer: null,
   lastCountdownSecond: null, // カウントダウン効果音を秒が変わった瞬間だけ鳴らすための記録用
-  lastResult: null, // { correct, total, rate, titleObj, isNewTitle }
+  lastResult: null, // { correct, total, rate, titleObj, isNewTitle, mode }
   memorialType: "medal",
   memorialName: "",
 };
+
+function modeEmoji(mode) {
+  return mode === "capital" ? "🏙️" : "🌍";
+}
 
 function $(id) { return document.getElementById(id); }
 
@@ -53,9 +61,14 @@ function showScreen(id) {
 function initTopScreen() {
   updateSoundButton();
 
-  $("btn-start").addEventListener("click", () => {
-    SoundManager.unlock(); // 最初のユーザー操作でAudioContextを有効化
-    showScreen("screen-select");
+  // 🌍国旗クイズ / 🏙️首都クイズ、どちらのモードで始めるかをここで決める
+  document.querySelectorAll(".mode-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      SoundManager.unlock(); // 最初のユーザー操作でAudioContextを有効化
+      state.mode = card.dataset.mode;
+      renderSelectScreen();
+      showScreen("screen-select");
+    });
   });
 
   $("btn-collection").addEventListener("click", () => {
@@ -91,15 +104,20 @@ function updateSoundButton() {
 // ==========================================================
 // 問題数選択画面
 // ==========================================================
-function initSelectScreen() {
+// 国旗クイズ/首都クイズどちらのモードで来たかによって198問カードの
+// 文言だけを変える。呼び出しごとに作り直すので、モード選択のたびに
+// 正しい文言になる。
+function renderSelectScreen() {
   const grid = $("count-options");
   grid.innerHTML = "";
+  const isCapital = state.mode === "capital";
   QUESTION_COUNTS.forEach((count) => {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "count-card" + (count === 198 ? " special" : "");
     if (count === 198) {
-      card.innerHTML = `<div class="count-crown">👑</div><div class="count-num">198問</div><div class="count-complete">WORLD COMPLETE 全ての国旗</div>`;
+      const completeLabel = isCapital ? "WORLD CAPITAL COMPLETE 全ての首都" : "WORLD COMPLETE 全ての国旗";
+      card.innerHTML = `<div class="count-crown">👑</div><div class="count-num">198問</div><div class="count-complete">${completeLabel}</div>`;
     } else {
       card.innerHTML = `<div class="count-num">${count}</div><div class="count-unit">問</div>`;
     }
@@ -122,21 +140,39 @@ function startQuiz(count) {
   renderQuestion();
 }
 
+// 首都クイズの問題文を作る。南アフリカだけは複数の首都機能があるため
+// 「行政首都は？」という専用の問題文にして、正解をプレトリア1つに限定する
+function getCapitalQuestionText(country) {
+  if (country.id === "za") return "南アフリカの行政首都は？";
+  return `${country.name}の首都は？`;
+}
+
 function renderQuestion() {
   state.answered = false;
   const idx = state.currentQuestionIndex;
   const total = state.questions.length;
   const country = state.questions[idx];
+  const isCapitalMode = state.mode === "capital";
 
-  $("quiz-progress-text").textContent = `問題 ${idx + 1} / ${total}`;
+  $("quiz-progress-text").textContent = `${modeEmoji(state.mode)} 問題 ${idx + 1} / ${total}`;
   $("quiz-score-text").textContent = `正解 ${state.score}`;
   $("progress-bar-inner").style.width = `${Math.round((idx / total) * 100)}%`;
 
   $("flag-error").classList.add("hidden");
   const img = $("quiz-flag-img");
   img.src = country.flag;
-  img.alt = "国旗クイズ(国名は選択肢から選んでください)";
+  img.alt = isCapitalMode ? `${country.name}の国旗` : "国旗クイズ(国名は選択肢から選んでください)";
   img.onerror = () => { $("flag-error").classList.remove("hidden"); };
+
+  const countryNameEl = $("quiz-country-name");
+  if (isCapitalMode) {
+    countryNameEl.textContent = country.name;
+    countryNameEl.classList.remove("hidden");
+    $("quiz-instruction").textContent = getCapitalQuestionText(country);
+  } else {
+    countryNameEl.classList.add("hidden");
+    $("quiz-instruction").textContent = "この国旗はどこの国？";
+  }
 
   // 「よく見て考えよう！」とカウントダウンは同じ表示エリアを共有するため
   // 常にthinking側を表示・countdown側を非表示にリセットしてから開始する
@@ -146,12 +182,15 @@ function renderQuestion() {
   countdownDisplay.classList.remove("warn-3", "warn-2", "warn-1");
 
   $("result-overlay").classList.add("hidden");
+  $("result-note").classList.add("hidden");
   state.lastCountdownSecond = null; // カウントダウン効果音の重複再生防止用カウンタをリセット
 
   // 誤答候補はcountries全198件(現在の正解国のみ除外)から選ぶ。
   // このゲームで出題される他の国を除外しない(198問モードで
   // 誤答候補が0件になっていた不具合の原因だったため)。
-  const question = QuizEngine.buildQuestion(country);
+  const question = isCapitalMode
+    ? QuizEngine.buildCapitalQuestion(country)
+    : QuizEngine.buildQuestion(country);
   renderChoices(question.choices, country);
 
   if (state.timer) state.timer.stop();
@@ -196,11 +235,12 @@ function handleTimerTick(phase, secondsLeft) {
 function renderChoices(choices, correctCountry) {
   const grid = $("choices-grid");
   grid.innerHTML = "";
+  const isCapitalMode = state.mode === "capital";
   choices.forEach((c) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "choice-btn";
-    btn.textContent = c.name;
+    btn.textContent = isCapitalMode ? c.capital : c.name;
     btn.dataset.id = c.id;
     btn.addEventListener("click", () => handleAnswer(c.id));
     grid.appendChild(btn);
@@ -221,6 +261,8 @@ function handleAnswer(selectedId) {
   const correctCountry = state.questions[idx];
   const isTimeout = selectedId === null;
   const isCorrect = !isTimeout && selectedId === correctCountry.id;
+  const isCapitalMode = state.mode === "capital";
+  const correctText = isCapitalMode ? correctCountry.capital : correctCountry.name;
 
   buttons.forEach((b) => {
     if (b.dataset.id === correctCountry.id) {
@@ -246,8 +288,18 @@ function handleAnswer(selectedId) {
     overlay.classList.add("wrong");
     $("result-mark").textContent = "×";
     $("result-text").textContent = isTimeout ? "時間切れ！" : "不正解！";
-    $("result-answer").textContent = `正解は『${correctCountry.name}』です`;
+    $("result-answer").textContent = `正解は『${correctText}』です`;
     SoundManager.playWrong();
+  }
+
+  // 首都に特殊事情がある国は、正解・不正解に関わらず小さく補足を表示する
+  // (例: 南アフリカは首都機能が複数都市に分かれている)
+  const noteEl = $("result-note");
+  if (isCapitalMode && correctCountry.capitalNote) {
+    noteEl.textContent = correctCountry.capitalNote;
+    noteEl.classList.remove("hidden");
+  } else {
+    noteEl.classList.add("hidden");
   }
 
   $("quiz-score-text").textContent = `正解 ${state.score}`;
@@ -284,19 +336,21 @@ function finishQuiz() {
   const total = state.questions.length;
   const correct = state.score;
   const rate = Math.round((correct / total) * 100);
+  const mode = state.mode;
 
-  Storage.incrementAttempts();
-  Storage.updateBestRate(rate);
-  const best = Storage.updateBestRecord(total, correct, total);
+  // 国旗クイズ・首都クイズの記録は完全に別のlocalStorageキーに保存されるため混同しない
+  Storage.incrementAttempts(mode);
+  Storage.updateBestRate(rate, mode);
+  const best = Storage.updateBestRecord(total, correct, total, mode);
 
   const perfect = correct === total;
-  const titleObj = perfect ? getTitleByCount(total) : null;
+  const titleObj = perfect ? getTitleByCount(total, mode) : null;
   let isNewTitle = false;
   if (titleObj) {
-    isNewTitle = Storage.awardTitleIfNew(titleObj.id);
+    isNewTitle = Storage.awardTitleIfNew(titleObj.id, mode);
   }
 
-  state.lastResult = { correct, total, rate, titleObj, isNewTitle, best };
+  state.lastResult = { correct, total, rate, titleObj, isNewTitle, best, mode };
   renderResultScreen();
   showScreen("screen-result");
 }
@@ -328,7 +382,10 @@ function renderResultScreen() {
 
 function initResultScreen() {
   $("btn-result-retry").addEventListener("click", () => startQuiz(state.selectedCount));
-  $("btn-result-change-count").addEventListener("click", () => showScreen("screen-select"));
+  $("btn-result-change-count").addEventListener("click", () => {
+    renderSelectScreen();
+    showScreen("screen-select");
+  });
   $("btn-result-top").addEventListener("click", () => showScreen("screen-top"));
   $("btn-result-view-title").addEventListener("click", () => {
     renderTitleAwardScreen();
@@ -411,12 +468,13 @@ function runConfetti(container) {
 // ==========================================================
 // 称号コレクション画面
 // ==========================================================
-function renderCollectionScreen() {
-  const grid = $("collection-grid");
+// 国旗クイズ・首都クイズどちらの称号セクションも同じ描画処理を共有する
+function renderCollectionSection(titles, mode, gridId, recordListId) {
+  const grid = $(gridId);
   grid.innerHTML = "";
-  const earned = Storage.getEarnedTitles();
+  const earned = Storage.getEarnedTitles(mode);
 
-  TITLES.forEach((t) => {
+  titles.forEach((t) => {
     const data = earned[t.id];
     const card = document.createElement("div");
     card.className = "collection-card" + (data ? "" : " locked");
@@ -440,10 +498,10 @@ function renderCollectionScreen() {
     grid.appendChild(card);
   });
 
-  const recordList = $("record-list");
-  const records = Storage.getBestRecords();
-  const attempts = Storage.getAttempts();
-  const bestRate = Storage.getBestRate();
+  const recordList = $(recordListId);
+  const records = Storage.getBestRecords(mode);
+  const attempts = Storage.getAttempts(mode);
+  const bestRate = Storage.getBestRate(mode);
   let html = `<h3>記録</h3>`;
   html += `<div class="record-row"><span>挑戦回数</span><span>${attempts} 回</span></div>`;
   html += `<div class="record-row"><span>最高正答率</span><span>${bestRate}％</span></div>`;
@@ -457,14 +515,15 @@ function renderCollectionScreen() {
     const debugBox = document.createElement("div");
     debugBox.style.marginTop = "16px";
     debugBox.innerHTML = "<p style='font-size:12px;color:#999;'>DEBUG: 称号を強制表示</p>";
-    TITLES.forEach((t) => {
+    titles.forEach((t) => {
       const btn = document.createElement("button");
       btn.className = "btn btn-plain";
       btn.style.marginRight = "6px";
       btn.style.marginBottom = "6px";
       btn.textContent = `Test: ${t.name}`;
       btn.addEventListener("click", () => {
-        state.lastResult = { correct: t.count, total: t.count, rate: 100, titleObj: t, isNewTitle: true, best: { correct: t.count, total: t.count } };
+        state.mode = mode;
+        state.lastResult = { correct: t.count, total: t.count, rate: 100, titleObj: t, isNewTitle: true, best: { correct: t.count, total: t.count }, mode };
         renderTitleAwardScreen();
         showScreen("screen-title-award");
       });
@@ -472,6 +531,13 @@ function renderCollectionScreen() {
     });
     recordList.appendChild(debugBox);
   }
+}
+
+// 称号コレクション画面: 国旗クイズ・首都クイズを2セクションに分けて表示する
+// (称号・記録は別々のlocalStorageキーで管理されているため混同しない)
+function renderCollectionScreen() {
+  renderCollectionSection(TITLES, "flag", "collection-grid-flag", "record-list-flag");
+  renderCollectionSection(CAPITAL_TITLES, "capital", "collection-grid-capital", "record-list-capital");
 }
 
 // ==========================================================
@@ -487,22 +553,26 @@ function openMemorialScreen() {
 }
 
 function currentMemorialData() {
-  const { titleObj, total } = state.lastResult || {};
+  const { titleObj, total, mode } = state.lastResult || {};
   const name = $("memorial-name").value.trim();
   state.memorialName = name;
   const dateObj = new Date();
+  const resolvedMode = mode || state.mode || "flag";
   return {
-    titleObj: titleObj || TITLES[0],
+    titleObj: titleObj || getTitlesForMode(resolvedMode)[0],
     total: total || state.selectedCount,
     name,
     dateObj,
+    mode: resolvedMode,
   };
 }
 
 function updateMemorialPreview() {
-  const { titleObj, total, name, dateObj } = currentMemorialData();
+  const { titleObj, total, name, dateObj, mode } = currentMemorialData();
   const dateStr = formatJapaneseDate(dateObj);
+  const brand = mode === "capital" ? "WORLD CAPITAL QUIZ" : "WORLD FLAG QUIZ";
 
+  $("mc-brand").textContent = brand;
   $("mc-medal").className = `medal medal-lg ${titleObj.medalClass}`;
   $("mc-title").textContent = titleObj.name;
   $("mc-name").textContent = `${name || "挑戦者"} さん`;
@@ -511,16 +581,19 @@ function updateMemorialPreview() {
 
   const isLegend = total === 198;
   $("cert-title").textContent = isLegend ? "特別認定証" : "認定証";
-  const lines = buildCertificateBodyLines(titleObj, total, name);
+  const lines = buildCertificateBodyLines(titleObj, total, name, mode);
   $("cert-body").textContent = lines.join("\n");
   $("cert-date").textContent = dateStr;
+  $("cert-brand").textContent = mode === "capital" ? "世界の首都クイズ" : "世界の国旗クイズ";
 }
 
 // メダル/認定証のCanvasとファイル名を作る(保存ボタンがどちらでも
 // 名前入力は共通のcurrentMemorialData()を使うので入力し直す必要はない)
 function buildMemorialCanvas(type) {
-  const { titleObj, total, name, dateObj } = currentMemorialData();
+  const { titleObj, total, name, dateObj, mode } = currentMemorialData();
   const dateStr = formatJapaneseDate(dateObj);
+  const brand = mode === "capital" ? "WORLD CAPITAL QUIZ" : "WORLD FLAG QUIZ";
+  const appPrefix = mode === "capital" ? "world-capital-quiz" : "world-flag-quiz";
   if (type === "medal") {
     const canvas = renderMedalCanvas({
       titleName: titleObj.name,
@@ -528,17 +601,19 @@ function buildMemorialCanvas(type) {
       name,
       questionCount: total,
       dateStr: dateStr.replace(/年|月/g, ".").replace("日", ""),
+      brand,
     });
     // ファイル名は端末やブラウザによって日本語が正しく扱われない場合があるためASCIIにする
-    return { canvas, filename: `world-flag-quiz_medal_${titleObj.id}.png` };
+    return { canvas, filename: `${appPrefix}_medal_${titleObj.id}.png` };
   }
   const isLegend = total === 198;
   const canvas = renderCertificateCanvas({
     certTitle: isLegend ? "特別認定証" : "認定証",
-    bodyLines: buildCertificateBodyLines(titleObj, total, name),
+    bodyLines: buildCertificateBodyLines(titleObj, total, name, mode),
     dateStr,
+    appName: mode === "capital" ? "世界の首都クイズ" : "世界の国旗クイズ",
   });
-  return { canvas, filename: `world-flag-quiz_certificate_${titleObj.id}.png` };
+  return { canvas, filename: `${appPrefix}_certificate_${titleObj.id}.png` };
 }
 
 // 保存ボタン共通処理。iOSでは新しいタブを開かず、アプリ内モーダルに
@@ -618,7 +693,7 @@ function showConfirm(text) {
 // ==========================================================
 function initApp() {
   initTopScreen();
-  initSelectScreen();
+  renderSelectScreen();
   initQuizExit();
   initResultScreen();
   initTitleAwardScreen();
