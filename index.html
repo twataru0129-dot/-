@@ -25,7 +25,18 @@
     <h1 class="app-title">世界の国旗クイズ</h1>
     <p class="app-subtitle">世界198の国・地域に挑戦！</p>
 
-    <button id="btn-start" class="btn btn-primary btn-large">クイズをはじめる</button>
+    <div class="mode-select-grid">
+      <button id="btn-mode-flag" class="mode-card" data-mode="flag">
+        <span class="mode-card-icon">🌍</span>
+        <span class="mode-card-title">国旗クイズ</span>
+        <span class="mode-card-desc">国旗を見て国名を当てよう！</span>
+      </button>
+      <button id="btn-mode-capital" class="mode-card" data-mode="capital">
+        <span class="mode-card-icon">🏙️</span>
+        <span class="mode-card-title">首都クイズ</span>
+        <span class="mode-card-desc">国名を見て首都を当てよう！</span>
+      </button>
+    </div>
     <button id="btn-collection" class="btn btn-secondary">🏅 称号コレクション</button>
 
     <div class="top-footer">
@@ -67,6 +78,9 @@
       <div id="flag-error" class="flag-error hidden">国旗画像を読み込めませんでした</div>
     </div>
 
+    <!-- 首都クイズでは国旗の下に国名を表示する(国旗クイズでは非表示) -->
+    <p id="quiz-country-name" class="quiz-country-name hidden"></p>
+
     <div class="timer-area">
       <p id="thinking-message" class="timer-message">よく見て考えよう！</p>
       <div id="countdown-display" class="countdown-display hidden">
@@ -83,6 +97,7 @@
       <div id="result-mark" class="result-mark" aria-hidden="true">○</div>
       <div id="result-text" class="result-text">正解！</div>
       <div id="result-answer" class="result-answer"></div>
+      <div id="result-note" class="result-note hidden"></div>
     </div>
   </div>
 </section>
@@ -129,8 +144,14 @@
   <div class="panel">
     <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
     <h2 class="screen-title">称号コレクション</h2>
-    <div id="collection-grid" class="collection-grid"></div>
-    <div id="record-list" class="record-list"></div>
+
+    <h3 class="collection-section-title">🌍 国旗クイズ</h3>
+    <div id="collection-grid-flag" class="collection-grid"></div>
+    <div id="record-list-flag" class="record-list"></div>
+
+    <h3 class="collection-section-title">🏙️ 首都クイズ</h3>
+    <div id="collection-grid-capital" class="collection-grid"></div>
+    <div id="record-list-capital" class="record-list"></div>
   </div>
 </section>
 
@@ -151,7 +172,7 @@
 
     <div id="memorial-preview-wrap" class="memorial-preview-wrap">
       <div id="memorial-medal-card" class="memorial-card medal-card">
-        <p class="mc-brand">WORLD FLAG QUIZ</p>
+        <p id="mc-brand" class="mc-brand">WORLD FLAG QUIZ</p>
         <div id="mc-medal" class="medal medal-lg"></div>
         <p id="mc-title" class="mc-title">国旗マスター</p>
         <p id="mc-name" class="mc-name">山田 太郎 さん</p>
@@ -163,7 +184,7 @@
         <p id="cert-body" class="cert-body"></p>
         <div class="cert-footer">
           <p id="cert-date" class="cert-date">2026年9月17日</p>
-          <p class="cert-brand">世界の国旗クイズ</p>
+          <p id="cert-brand" class="cert-brand">世界の国旗クイズ</p>
         </div>
       </div>
     </div>

@@ -74,7 +74,7 @@ function fitText(ctx, text, maxWidth, baseSize, fontWeight = "800") {
 }
 
 // ---------- メダル画像 ----------
-function renderMedalCanvas({ titleName, medalClass, name, questionCount, dateStr }) {
+function renderMedalCanvas({ titleName, medalClass, name, questionCount, dateStr, brand = "WORLD FLAG QUIZ" }) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const W = 720, H = 960;
   const canvas = document.createElement("canvas");
@@ -99,7 +99,7 @@ function renderMedalCanvas({ titleName, medalClass, name, questionCount, dateStr
   ctx.globalAlpha = 0.85;
   ctx.save();
   ctx.letterSpacing = "6px";
-  ctx.fillText("WORLD FLAG QUIZ", W / 2, 130);
+  ctx.fillText(brand, W / 2, 130);
   ctx.restore();
   ctx.globalAlpha = 1;
 
@@ -130,7 +130,7 @@ function renderMedalCanvas({ titleName, medalClass, name, questionCount, dateStr
 }
 
 // ---------- 認定証画像 ----------
-function renderCertificateCanvas({ certTitle, bodyLines, dateStr }) {
+function renderCertificateCanvas({ certTitle, bodyLines, dateStr, appName = "世界の国旗クイズ" }) {
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   const W = 900, H = 1273; // A4比率に近い縦長
   const canvas = document.createElement("canvas");
@@ -167,18 +167,32 @@ function renderCertificateCanvas({ certTitle, bodyLines, dateStr }) {
   ctx.fillText(dateStr, W / 2, H - 140);
   ctx.font = "600 22px system-ui, sans-serif";
   ctx.fillStyle = "#8a6100";
-  ctx.fillText("世界の国旗クイズ", W / 2, H - 95);
+  ctx.fillText(appName, W / 2, H - 95);
 
   return canvas;
 }
 
-function buildCertificateBodyLines(titleObj, questionCount, name) {
+function buildCertificateBodyLines(titleObj, questionCount, name, mode = "flag") {
   const nameText = name ? `${name} 様` : "挑戦者 様";
+  const appName = mode === "capital" ? "世界の首都クイズ" : "世界の国旗クイズ";
   if (questionCount === 198) {
+    if (mode === "capital") {
+      return [
+        nameText,
+        "",
+        `あなたは『${appName}』において、`,
+        "198の国・地域すべての首都を見事正解し、",
+        "完全制覇を達成しました。",
+        "その卓越した知識と努力をたたえ、",
+        "ここに最高位称号",
+        "『首都レジェンド』",
+        "を認定します。",
+      ];
+    }
     return [
       nameText,
       "",
-      "あなたは『世界の国旗クイズ』において、",
+      `あなたは『${appName}』において、`,
       "198の国・地域すべての国旗を見事正解し、",
       "完全制覇を達成しました。",
       "その卓越した知識と努力をたたえ、",
@@ -190,7 +204,7 @@ function buildCertificateBodyLines(titleObj, questionCount, name) {
   return [
     nameText,
     "",
-    "あなたは『世界の国旗クイズ』において、",
+    `あなたは『${appName}』において、`,
     `${questionCount}問コースを見事全問正解しました。`,
     "その努力とすぐれた知識をたたえ、",
     `ここに『${titleObj.name}』の称号を認定します。`,
