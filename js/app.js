@@ -481,6 +481,8 @@ function openMemorialScreen() {
   const nameInput = $("memorial-name");
   nameInput.value = state.memorialName;
   updateMemorialPreview();
+  $("ios-save-hint").classList.add("hidden");
+  $("image-preview-modal").classList.add("hidden");
   showScreen("screen-memorial");
 }
 
@@ -514,6 +516,45 @@ function updateMemorialPreview() {
   $("cert-date").textContent = dateStr;
 }
 
+// メダル/認定証のCanvasとファイル名を作る(保存ボタンがどちらでも
+// 名前入力は共通のcurrentMemorialData()を使うので入力し直す必要はない)
+function buildMemorialCanvas(type) {
+  const { titleObj, total, name, dateObj } = currentMemorialData();
+  const dateStr = formatJapaneseDate(dateObj);
+  if (type === "medal") {
+    const canvas = renderMedalCanvas({
+      titleName: titleObj.name,
+      medalClass: titleObj.medalClass,
+      name,
+      questionCount: total,
+      dateStr: dateStr.replace(/年|月/g, ".").replace("日", ""),
+    });
+    // ファイル名は端末やブラウザによって日本語が正しく扱われない場合があるためASCIIにする
+    return { canvas, filename: `world-flag-quiz_medal_${titleObj.id}.png` };
+  }
+  const isLegend = total === 198;
+  const canvas = renderCertificateCanvas({
+    certTitle: isLegend ? "特別認定証" : "認定証",
+    bodyLines: buildCertificateBodyLines(titleObj, total, name),
+    dateStr,
+  });
+  return { canvas, filename: `world-flag-quiz_certificate_${titleObj.id}.png` };
+}
+
+// 保存ボタン共通処理。iOSでは新しいタブを開かず、アプリ内モーダルに
+// 画像を表示する(window.open()がブロックされた場合にアプリ画面が
+// 丸ごと画像に置き換わり、戻れなくなる不具合を避けるため)。
+// これにより画面は閉じず、続けてもう片方の画像も保存できる。
+function saveMemorialImage(type) {
+  const { canvas, filename } = buildMemorialCanvas(type);
+  const result = saveCanvasAsPNG(canvas, filename);
+  if (result.status === "ios") {
+    $("image-preview-img").src = result.dataUrl;
+    $("image-preview-modal").classList.remove("hidden");
+    $("ios-save-hint").classList.remove("hidden");
+  }
+}
+
 function initMemorialScreen() {
   $("memorial-name").addEventListener("input", updateMemorialPreview);
 
@@ -527,31 +568,26 @@ function initMemorialScreen() {
     });
   });
 
-  $("btn-save-image").addEventListener("click", () => {
-    const { titleObj, total, name, dateObj } = currentMemorialData();
-    const dateStr = formatJapaneseDate(dateObj);
-    let canvas, filename;
-    if (state.memorialType === "medal") {
-      canvas = renderMedalCanvas({
-        titleName: titleObj.name,
-        medalClass: titleObj.medalClass,
-        name,
-        questionCount: total,
-        dateStr: dateStr.replace(/年|月/g, ".").replace("日", ""),
-      });
-      // ファイル名は端末やブラウザによって日本語が正しく扱われない場合があるためASCIIにする
-      filename = `world-flag-quiz_medal_${titleObj.id}.png`;
-    } else {
-      const isLegend = total === 198;
-      canvas = renderCertificateCanvas({
-        certTitle: isLegend ? "特別認定証" : "認定証",
-        bodyLines: buildCertificateBodyLines(titleObj, total, name),
-        dateStr,
-      });
-      filename = `world-flag-quiz_certificate_${titleObj.id}.png`;
-    }
-    const result = saveCanvasAsPNG(canvas, filename);
-    $("ios-save-hint").classList.toggle("hidden", result !== "ios");
+  // メダル・認定証はそれぞれ専用ボタンで、プレビュータブの選択状態に関わらず保存できる
+  $("btn-save-medal").addEventListener("click", () => saveMemorialImage("medal"));
+  $("btn-save-certificate").addEventListener("click", () => saveMemorialImage("certificate"));
+
+  $("image-preview-close").addEventListener("click", () => {
+    $("image-preview-modal").classList.add("hidden");
+  });
+
+  // 記念画像作成画面がどのボタンからも行き止まりにならないようにする
+  $("btn-memorial-retry").addEventListener("click", () => {
+    $("image-preview-modal").classList.add("hidden");
+    startQuiz(state.selectedCount);
+  });
+  $("btn-memorial-back-result").addEventListener("click", () => {
+    $("image-preview-modal").classList.add("hidden");
+    showScreen("screen-result");
+  });
+  $("btn-memorial-top").addEventListener("click", () => {
+    $("image-preview-modal").classList.add("hidden");
+    showScreen("screen-top");
   });
 }
 
