@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-hi" viewBox="0 0 640 480">
+  <g fill-rule="evenodd">
+    <rect width="640" height="480" fill="#fff"/>
+    <rect y="60" width="640" height="60" fill="#c8102e"/>
+    <rect y="120" width="640" height="60" fill="#012169"/>
+    <rect y="240" width="640" height="60" fill="#c8102e"/>
+    <rect y="300" width="640" height="60" fill="#012169"/>
+    <rect y="420" width="640" height="60" fill="#c8102e"/>
+    <rect y="180" width="640" height="60" fill="#fff"/>
+    <rect y="360" width="640" height="60" fill="#fff"/>
+  </g>
+  <g clip-path="url(#hi-canton-clip)">
+    <rect width="280" height="240" fill="#012169"/>
+    <path d="M0 0L280 240M280 0L0 240" stroke="#fff" stroke-width="34"/>
+    <path d="M0 0L280 240M280 0L0 240" stroke="#c8102e" stroke-width="14"/>
+    <path d="M140 0V240M0 120H280" stroke="#fff" stroke-width="52"/>
+    <path d="M140 0V240M0 120H280" stroke="#c8102e" stroke-width="24"/>
+  </g>
+  <defs>
+    <clipPath id="hi-canton-clip">
+      <rect width="280" height="240"/>
+    </clipPath>
+  </defs>
+</svg>
