@@ -47,7 +47,7 @@ const MapModule = (() => {
   let previousRandomIds = []; // 直近に選ばれたID(最大5件)を保持し、連続・近接重複を避ける
 
   // ---------- 通常の小国ピン ON/OFF ----------
-  // 見た目(HTML要素の📍)だけを切り替える。pinEligibleIds/ALWAYS_PIN_IDSや
+  // 見た目(HTML要素の📍)だけを切り替える。PIN_TARGET_IDS/tapAssistIdsや
   // 近接タップ判定(handleContainerClick)はこのフラグに関係なく常に生きたままにする
   const PINS_VISIBLE_STORAGE_KEY = "wfq_v1_map_pins_visible";
   function loadPinsVisiblePref() {
@@ -69,21 +69,46 @@ const MapModule = (() => {
   }
   let pinsVisible = loadPinsVisiblePref();
 
-  // 実ポリゴンが極小で常にタップしづらい国・地域は、基準ズームでの判定結果に
-  // 関わらず常に小さいピンで表示し続ける(それ以外の国は下記pinEligibleIdsを参照)
+  // 実ポリゴンが極小で、基準ズームでの角度サイズ判定だけでは信頼できない
+  // (≒常にタップ補助が必要な)国・地域。この集合は下記tapAssistIds(タップ
+  // 補助対象)の算出にのみ使う。赤い📍を表示する対象はPIN_TARGET_IDS
+  // (固定リスト、下記)で別途管理しており、この集合とは目的が異なる。
   // nu(ニウエ)は実ポリゴンの角度サイズ自体が極小、ck(クック諸島)は
   // 散らばった離島まで含むバウンディングボックスが非常に広く、画面上サイズに
   // 基づく判定(estimateApparentPx)だとほぼ「大きい国」扱いになって
-  // ピン対象から外れてしまうため、常時ピン対象に加えている
+  // タップ補助対象から外れてしまうため、常時タップ補助対象に加えている
   const ALWAYS_PIN_IDS = new Set(["va", "mc", "sm", "mv", "nr", "tv", "nu", "ck"]);
+
+  // ---------- 見た目の通常ピン対象(固定リスト) ----------
+  // 「ズームしても場所や形が分かりづらい、本当に小さい国・地域」だけを
+  // 手動で選定した固定リスト。国の面積・見かけサイズから自動的に対象を
+  // 増減させる仕組みは通常ピンの表示には使わない(タップ補助用の
+  // tapAssistIdsとは別物で、ズーム操作によって増減することもない)。
+  // 通常ピン(赤い📍)・選択中のピン+国名ラベルの対象は、どちらもこの
+  // リストだけを見る(コスタリカ等、実際に形が見える国は含めない)。
+  const PIN_TARGET_IDS = new Set([
+    // ヨーロッパ
+    "va", "mc", "sm", "li", "ad", "mt",
+    // アジア
+    "sg", "hk", "mo",
+    // インド洋・太平洋
+    "mv", "nr", "tv", "mh", "fm", "pw", "sc", "nu", "ck", "guam",
+    // カリブ海
+    "kn", "ag", "dm", "lc", "vc", "gd", "bb", "curacao",
+    // 遠隔地で位置が分かりづらい地図専用地域
+    "gs",
+  ]);
+
   // 画面上のおおよその見かけサイズ(px)がこの値を下回る国を、世界地図モードを
-  // 開いたときの基準ズーム(INITIAL_VIEW_ALTITUDE)で一度だけ「ピン対象」として
-  // 確定する(pinEligibleIds、下記computePinEligibleIdsで算出)。以前はズーム操作
-  // のたびにこの判定をやり直して対象を増減させていたため、ピンONのまま拡大縮小
-  // するとピンが消える不具合があった。ズームに連動して対象を減らす仕組みは廃止し、
-  // 以降はピンON/OFFの表示切替・選択中の国だけを個別に隠す処理だけを行う
+  // 開いたときの基準ズーム(INITIAL_VIEW_ALTITUDE)で一度だけ判定し、
+  // タップ補助対象(tapAssistIds)として確定する。これは「近くをタップすると
+  // 選択しやすくなる」ための内部判定であり、赤い📍の表示/非表示には一切
+  // 連動しない(📍の表示はPIN_TARGET_IDSだけで決まる)。以前はズーム操作の
+  // たびにこの判定をやり直して対象を増減させていたため、ピンONのまま拡大縮小
+  // するとピンが消える不具合があったが、tapAssistIdsは表示に使わなくなった
+  // ため、その心配自体が無くなっている
   const PIN_SHOW_PX = 25;
-  let pinEligibleIds = new Set();
+  let tapAssistIds = new Set();
 
   // ピンはHTML要素(#map-normal-pins配下)で描画しているため、グラフィック自体は
   // クリックを受け取れない。ピン表示中の国をタップできるように、緯度経度の近さで
@@ -91,7 +116,7 @@ const MapModule = (() => {
   const HIT_RADIUS_DEG = { va: 1.6, mc: 1.5, sm: 1.4, mv: 1.5, nr: 1.3, tv: 1.3, nu: 1.5, ck: 1.5 };
   const DEFAULT_HIT_RADIUS_DEG = 1.4;
   const GLOBE_RADIUS = 100; // globe.glの基準球半径(getCoords()の結果から実測して確認済み)
-  const INITIAL_VIEW_ALTITUDE = 2.3; // 世界地図モードを開いたときの初期ズーム(pinEligibleIdsの基準にも使う)
+  const INITIAL_VIEW_ALTITUDE = 2.3; // 世界地図モードを開いたときの初期ズーム(tapAssistIdsの基準にも使う)
 
   function $(id) { return document.getElementById(id); }
 
@@ -228,9 +253,10 @@ const MapModule = (() => {
         // 描画時にエラーになるため、念のためここでも取り除いておく
         geoFeatures = geo.features.filter((f) => f && f.geometry);
         buildCountryIndex();
-        // 通常ピン対象の国を基準ズームで一度だけ確定し、対応するHTML要素を
-        // 作っておく(この後ズームしても増減させない)
-        pinEligibleIds = computePinEligibleIds();
+        // タップ補助対象を基準ズームで一度だけ確定する(近接タップ判定専用、
+        // 赤い📍の表示対象PIN_TARGET_IDSとは別物)。通常ピンのHTML要素は
+        // PIN_TARGET_IDS(固定リスト)から作る
+        tapAssistIds = computeTapAssistIds();
         buildNormalPinElements();
         buildGlobe();
         setStatus(null);
@@ -305,15 +331,15 @@ const MapModule = (() => {
   // (HTML要素 + projectLatLngToScreenでの画面座標追従)を使い、通常ピンも本物の
   // 📍として表示する。以前はglobe.gl自体のpointsDataレイヤー(WebGLの円柱)を
   // 使っていたが、ズームすると大きな円柱に見えてしまい📍らしくならないため、
-  // 選択中マーカーと同じ仕組みに統一した。対象はpinEligibleIds(実ポリゴンが
-  // 小さいと判定された国、数十件程度)だけなので、198件全体を毎フレーム計算する
-  // ような重い処理にはならない。選択中の国はここでは表示しない(選択用の
+  // 選択中マーカーと同じ仕組みに統一した。対象はPIN_TARGET_IDS(手動で選定した
+  // 固定リスト、数十件程度)だけなので、198件全体を毎フレーム計算するような
+  // 重い処理にはならない。選択中の国はここでは表示しない(選択用の
   // 赤📍+国名ラベル+実ポリゴンのオレンジ表示で位置・形を示すため)。
   function buildNormalPinElements() {
     const container = $("map-normal-pins");
     container.innerHTML = "";
     normalPinEls = new Map();
-    pinEligibleIds.forEach((id) => {
+    PIN_TARGET_IDS.forEach((id) => {
       const c = countryById.get(id);
       if (!c) return;
       const el = document.createElement("div");
@@ -330,7 +356,7 @@ const MapModule = (() => {
     if (!normalPinEls) return;
     const next = new Set();
     if (pinsVisible) {
-      pinEligibleIds.forEach((id) => {
+      PIN_TARGET_IDS.forEach((id) => {
         if (id === selectedCountryId) return; // 選択中の国は選択用マーカー側に任せる
         const c = countryById.get(id);
         if (!c) return;
@@ -428,16 +454,18 @@ const MapModule = (() => {
     card.style.top = `${cRect.top - wRect.top}px`;
   }
 
-  // ---------- 通常ピン対象国の判定(基準ズームで一度だけ) ----------
+  // ---------- タップ補助対象の判定(基準ズームで一度だけ) ----------
   // globe.glの透視投影を簡易近似した式(fov≈50°相当で較正)で、実ポリゴンの
   // おおよその画面上サイズ(px)を見積もる。世界地図モードを開いた直後の
   // 基準ズーム(INITIAL_VIEW_ALTITUDE)で一度だけ判定し、以降はズーム操作を
-  // 行ってもこの判定をやり直さない(常時表示のため)
+  // 行ってもこの判定をやり直さない。この結果(tapAssistIds)は近接タップ
+  // 判定の候補集合としてのみ使い、赤い📍の表示対象(PIN_TARGET_IDS)には
+  // 一切影響しない
   function estimateApparentPx(angularSizeDeg, altitude) {
     const CALIBRATION_K = 15.6;
     return (CALIBRATION_K * angularSizeDeg) / (1 + altitude);
   }
-  function computePinEligibleIds() {
+  function computeTapAssistIds() {
     const ids = new Set(ALWAYS_PIN_IDS);
     if (countryAngularSize) {
       countryAngularSize.forEach((deg, id) => {
@@ -608,8 +636,8 @@ const MapModule = (() => {
       const geo = screenToLatLng(px, py);
       if (!geo) return;
 
-      let candidateIds = new Set(pinEligibleIds);
-      candidateIds.delete(selectedCountryId); // 選択中の国はピンが無いので対象外
+      let candidateIds = new Set(tapAssistIds);
+      candidateIds.delete(selectedCountryId); // 選択中の国はタップ補助対象外
       if (currentRegionFilter !== "all") {
         // 非表示にしているピンは近接判定の対象からも外す(見えないピンがタップに反応すると混乱するため)
         candidateIds = new Set(
@@ -679,8 +707,8 @@ const MapModule = (() => {
     controls.minDistance = 120;
     controls.maxDistance = 500;
 
-    // ピン対象国の判定(pinEligibleIds)は基準ズームで一度だけ行うため、
-    // ドラッグ回転・ピンチ/ホイールズームのたびに再計算する必要はもう無い。
+    // 通常ピンの表示対象(PIN_TARGET_IDS)は固定リストなので、
+    // ドラッグ回転・ピンチ/ホイールズームのたびに再計算する必要はない。
     // 通常ピンの画面座標そのものはtickNormalPins()のRAFループが毎フレーム追従する。
 
     // 通常ピン(HTML要素)自体はクリックを受け取れないため、コンテナ側のclickで
@@ -731,8 +759,11 @@ const MapModule = (() => {
   // 地図タップ・検索のどちらから来ても、この共通処理で国を選択する。
   // moveCameraをfalseにすると、選択状態の更新と情報カード表示だけを行い、
   // 現在のズーム倍率・向き・位置には一切触れない
+  // 選択用の赤📍+国名ラベルを出す対象かどうかは、赤い📍を表示する対象と
+  // 同じPIN_TARGET_IDSで判定する。コスタリカなど普通に形が見える国を選択
+  // した場合は、黄色いポリゴン+情報カードだけでよく、この表示は出さない
   function isPinEligible(id) {
-    return pinEligibleIds.has(id);
+    return PIN_TARGET_IDS.has(id);
   }
 
   function selectCountry(country, options) {
