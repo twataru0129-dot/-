@@ -44,6 +44,29 @@ const MapModule = (() => {
   let randomFlightTimer = null;
   let previousRandomIds = []; // 直近に選ばれたID(最大5件)を保持し、連続・近接重複を避ける
 
+  // ---------- 通常の小国ピン ON/OFF ----------
+  // 見た目(pointsDataの丸いピン)だけを切り替える。dynamicPinIds/ALWAYS_PIN_IDSや
+  // 近接タップ判定(handleContainerClick)はこのフラグに関係なく常に生きたままにする
+  const PINS_VISIBLE_STORAGE_KEY = "wfq_v1_map_pins_visible";
+  function loadPinsVisiblePref() {
+    try {
+      const saved = localStorage.getItem(PINS_VISIBLE_STORAGE_KEY);
+      if (saved === "1") return true;
+      if (saved === "0") return false;
+    } catch (e) {
+      // localStorageが使えない環境では既定値を使う
+    }
+    return false; // 既定はOFF(カリブ海など小国密集地域でも見た目がすっきりするように)
+  }
+  function savePinsVisiblePref(value) {
+    try {
+      localStorage.setItem(PINS_VISIBLE_STORAGE_KEY, value ? "1" : "0");
+    } catch (e) {
+      // 保存できなくても表示切替そのものは継続する
+    }
+  }
+  let pinsVisible = loadPinsVisiblePref();
+
   // 実ポリゴンが極小で常にタップしづらい国・地域は、ズームレベルに関わらず
   // 常に小さいピンで表示し続ける(それ以外の国は下記の画面上サイズに応じた動的判定)
   const ALWAYS_PIN_IDS = new Set(["va", "mc", "sm", "mv", "nr", "tv"]);
@@ -275,6 +298,10 @@ const MapModule = (() => {
     return d._pinKind === "halo" ? 0.009 : 0.013;
   }
   function buildPinData() {
+    // ユーザーが通常ピンをOFFにしている間は見た目のデータだけを空にする。
+    // dynamicPinIds自体は生きたままなので、ズーム連動の対象判定や
+    // handleContainerClickの近接タップ判定には一切影響しない
+    if (!pinsVisible) return [];
     const ids = new Set(ALWAYS_PIN_IDS);
     dynamicPinIds.forEach((id) => ids.add(id));
     // 選択中の国は、ズームレベルに関わらずピンを常に非表示にする(通常のズーム連動
@@ -305,6 +332,32 @@ const MapModule = (() => {
       .pointResolution(16)
       .pointsMerge(false)
       .pointsTransitionDuration(0);
+  }
+
+  // ---------- 通常の小国ピン ON/OFFボタン ----------
+  function updatePinsToggleButton() {
+    const btn = $("map-pins-toggle-btn");
+    btn.textContent = pinsVisible ? "📍 ピン ON" : "📍 ピン OFF";
+    btn.classList.toggle("active", pinsVisible);
+    btn.setAttribute("aria-pressed", pinsVisible ? "true" : "false");
+  }
+  function togglePinsVisible() {
+    pinsVisible = !pinsVisible;
+    savePinsVisiblePref(pinsVisible);
+    updatePinsToggleButton();
+    refreshPins();
+  }
+  // ボタンは地球儀コンテナのDOM構造の外(兄弟要素)に置いているため、
+  // コンテナの実寸に合わせて右上の位置をJS側で計算する(ラベル/マーカーと同じ手法)
+  function positionPinsToggleButton() {
+    const btn = $("map-pins-toggle-btn");
+    const container = $("map-globe-container");
+    const wrap = document.querySelector(".map-wrap");
+    if (!container || !wrap) return;
+    const cRect = container.getBoundingClientRect();
+    const wRect = wrap.getBoundingClientRect();
+    btn.style.top = `${cRect.top - wRect.top + 10}px`;
+    btn.style.right = `${wRect.right - cRect.right + 10}px`;
   }
 
   // ---------- ズームに応じたピン表示の切り替え ----------
@@ -394,7 +447,26 @@ const MapModule = (() => {
     const cRect = container.getBoundingClientRect();
     const wRect = wrap.getBoundingClientRect();
     labelEl.style.left = `${cRect.left - wRect.left + pos.x}px`;
-    labelEl.style.top = `${cRect.top - wRect.top + pos.y - 14}px`;
+    // 赤い📍マーカーがラベルの少し下(選択地点そのもの)に表示されるため、
+    // マーカーと重ならないよう従来より少し高い位置に上げる
+    labelEl.style.top = `${cRect.top - wRect.top + pos.y - 30}px`;
+  }
+  // 選択中の極小国の実位置に表示する赤い📍マーカー。国名ラベルと全く同じ
+  // 画面座標計算(projectLatLngToScreen)を使い、同じRAFループで追従させる
+  function updateMarkerPosition(country) {
+    const markerEl = $("map-selected-marker");
+    const pos = projectLatLngToScreen(country.lat, country.lng, 0.02);
+    if (!pos) {
+      markerEl.classList.add("hidden");
+      return;
+    }
+    markerEl.classList.remove("hidden");
+    const container = $("map-globe-container");
+    const wrap = document.querySelector(".map-wrap");
+    const cRect = container.getBoundingClientRect();
+    const wRect = wrap.getBoundingClientRect();
+    markerEl.style.left = `${cRect.left - wRect.left + pos.x}px`;
+    markerEl.style.top = `${cRect.top - wRect.top + pos.y}px`;
   }
   function stopLabelTracking() {
     if (labelRAF !== null) {
@@ -402,6 +474,7 @@ const MapModule = (() => {
       labelRAF = null;
     }
     $("map-country-label").classList.add("hidden");
+    $("map-selected-marker").classList.add("hidden");
   }
   function startLabelTracking(country) {
     stopLabelTracking();
@@ -409,6 +482,7 @@ const MapModule = (() => {
     labelEl.textContent = country.name;
     const tick = () => {
       updateLabelPosition(country);
+      updateMarkerPosition(country);
       labelRAF = requestAnimationFrame(tick);
     };
     tick();
@@ -571,6 +645,7 @@ const MapModule = (() => {
     const container = $("map-globe-container");
     globeInstance.width(container.clientWidth);
     globeInstance.height(container.clientHeight);
+    positionPinsToggleButton();
   }
 
   function startAutoRotate() {
@@ -864,6 +939,8 @@ const MapModule = (() => {
     buildRegionList();
     $("map-region-btn").addEventListener("click", toggleRegionList);
     $("map-random-btn").addEventListener("click", handleRandomClick);
+    updatePinsToggleButton();
+    $("map-pins-toggle-btn").addEventListener("click", togglePinsVisible);
   }
 
   return { open, close, initEvents };
