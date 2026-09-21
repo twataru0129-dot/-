@@ -276,8 +276,11 @@ const MapModule = (() => {
     if (currentRegionFilter === "all") return "#3f5c4c";
     return isInActiveRegion(feat) ? "#345a42" : "rgba(90, 110, 95, 0.35)";
   }
-  function polygonAltitude(feat) {
-    return isSelected(feat) ? 0.02 : 0.006;
+  // 選択中の国だけ高度を上げていたが、地球儀を斜めから見たときに側面が
+  // 立体的な柱のように伸びて見えるため、選択の有無に関わらず全ポリゴンを
+  // 同じ高さ(通常国と同じ0.006)にする。選択の強調はcapColor/strokeColorのみで行う
+  function polygonAltitude() {
+    return 0.006;
   }
   function refreshPolygonStyles() {
     if (!globeInstance) return;
@@ -289,17 +292,19 @@ const MapModule = (() => {
   }
 
   // ---------- 小国ピン(見た目)。タップ判定はscreenToLatLngによる近接判定が担当する ----------
-  // 白い縁取り(halo)+ オレンジの本体(fill)の2層を同じ緯度経度に重ねて描画し、
-  // シンプルなピンに見せる。選択中の国はここには含めない(下記buildPinDataを参照)。
+  // 選択中の国の位置に表示する赤い📍マーカー(map-selected-marker)と系統を揃えた、
+  // 小さな単色の赤いマーカーを1国につき1点だけ描画する。以前の「白い縁取り+
+  // オレンジの丸」の2層構成(halo+fill)はやめ、密集地域(カリブ海等)でも
+  // 圧迫感が出ないようにしている。選択中の国はここには含めない(下記buildPinDataを参照)。
   // 選択中はピンの代わりに国名ラベルと実ポリゴンのオレンジ表示で位置・形を示す。
-  function pinColor(d) {
-    return d._pinKind === "halo" ? "#ffffff" : "#ffb100";
+  function pinColor() {
+    return "#ea4335";
   }
-  function pinRadius(d) {
-    return d._pinKind === "halo" ? 0.3 : 0.2;
+  function pinRadius() {
+    return 0.16;
   }
-  function pinAltitude(d) {
-    return d._pinKind === "halo" ? 0.009 : 0.013;
+  function pinAltitude() {
+    return 0.01;
   }
   function buildPinData() {
     // ユーザーが通常ピンをOFFにしている間は見た目のデータだけを空にする。
@@ -319,8 +324,7 @@ const MapModule = (() => {
       // 地域フィルター中は、他地域の小国ピンを非表示にして画面がピンだらけに
       // ならないようにする("all"のときは全ピンを従来どおり表示する)
       if (currentRegionFilter !== "all" && c.region !== currentRegionFilter) return;
-      data.push({ ...c, _pinKind: "halo" });
-      data.push({ ...c, _pinKind: "fill" });
+      data.push(c);
     });
     return data;
   }
