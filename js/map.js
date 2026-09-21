@@ -360,6 +360,26 @@ const MapModule = (() => {
     btn.style.right = `${wRect.right - cRect.right + 10}px`;
   }
 
+  // ---------- PC・タブレット版 国情報カードの開始位置 ----------
+  // PC版(min-width:700px)はCSSでtop:0固定だったため、上部2段のツールバーと
+  // カードが重なっていた。ツールバーの高さは端末・文字サイズ等で変わりうるため、
+  // 固定値ではなく地球儀コンテナの実際の位置(positionPinsToggleButtonと同じ手法)
+  // から動的に算出する。モバイル(下からのシート表示)では効かないよう、
+  // 幅がPCレイアウトのときだけstyle.topを設定し、それ以外は打ち消す
+  function positionInfoCardForDesktop() {
+    const card = $("map-info-card");
+    const container = $("map-globe-container");
+    const wrap = document.querySelector(".map-wrap");
+    if (!card || !container || !wrap) return;
+    if (!window.matchMedia("(min-width: 700px)").matches) {
+      card.style.top = ""; // モバイルは既存の下シート表示(bottom基準)に戻す
+      return;
+    }
+    const cRect = container.getBoundingClientRect();
+    const wRect = wrap.getBoundingClientRect();
+    card.style.top = `${cRect.top - wRect.top}px`;
+  }
+
   // ---------- ズームに応じたピン表示の切り替え ----------
   // globe.glの透視投影を簡易近似した式(fov≈50°相当で較正)で、実ポリゴンの
   // おおよその画面上サイズ(px)を見積もる。198件すべてに対して毎フレーム
@@ -646,6 +666,7 @@ const MapModule = (() => {
     globeInstance.width(container.clientWidth);
     globeInstance.height(container.clientHeight);
     positionPinsToggleButton();
+    positionInfoCardForDesktop();
   }
 
   function startAutoRotate() {
