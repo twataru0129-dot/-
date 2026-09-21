@@ -218,7 +218,14 @@ const MapModule = (() => {
   // 全ポリゴンに同一のシンプルな色・高度ロジックだけを適用する。
   function isSelected(feat) {
     const c = countryByMapCode.get(feat.id);
-    return !!c && c.id === selectedCountryId;
+    if (!c) return false;
+    if (c.id === selectedCountryId) return true;
+    // ハワイはアメリカ合衆国の一部でもあるため、アメリカ合衆国(countries.js側の
+    // 通常の国)が選択されている間は、ハワイの実ポリゴンも本土・アラスカと
+    // 一緒にオレンジ表示にする。ハワイ単独が選択されている場合はここに該当せず、
+    // 上のc.id === selectedCountryIdだけがtrueになるため、ハワイだけが色付く
+    if (c.parentQuizId && c.parentQuizId === selectedCountryId) return true;
+    return false;
   }
   // 地域フィルターが有効なとき、選択中の地域に属する国かどうか。
   // フィルターが"all"のときは常にtrue(＝既存の見た目を完全に維持する)

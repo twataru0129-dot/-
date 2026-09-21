@@ -4,6 +4,9 @@
 
 `assets/flags/` 内の国旗SVGは [flag-icons](https://github.com/lipis/flag-icons)
 (作者: Panayiotis Lipiridis)を利用しています。MITライセンスに基づき配布しています。
+ただし `hi.svg`(ハワイ)はflag-icons非対応(国単位のみでアメリカ合衆国の州は
+対象外)のため、公有のハワイ州旗デザイン(8本のストライプ+カントンの
+ユニオンジャック)を参考に独自にSVGを作成したものです。
 
 The MIT License (MIT)
 
