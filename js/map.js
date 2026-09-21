@@ -22,8 +22,10 @@ const MapModule = (() => {
   let selectedShowsLabel = false; // 選択中の国が「ピン→ラベル切り替え」対象かどうか(選択した瞬間に固定する)
   let initPromise = null;
   let hasInteracted = false;
-  let pinRecomputeTimer = null;
   let labelRAF = null;
+  let normalPinEls = null; // id -> HTMLElement(通常ピンの📍要素)。基準ズーム確定時に一度だけ構築する
+  let visibleNormalPinIds = new Set(); // 現在「論理的に表示すべき」通常ピンのID集合(位置追従RAFが参照する)
+  let normalPinsRAF = null;
 
   // ---------- 地域フィルター(v1.2) ----------
   // "all"のときは既存(v1.1以前)の見た目・挙動を完全に維持する。
@@ -45,7 +47,7 @@ const MapModule = (() => {
   let previousRandomIds = []; // 直近に選ばれたID(最大5件)を保持し、連続・近接重複を避ける
 
   // ---------- 通常の小国ピン ON/OFF ----------
-  // 見た目(pointsDataの丸いピン)だけを切り替える。dynamicPinIds/ALWAYS_PIN_IDSや
+  // 見た目(HTML要素の📍)だけを切り替える。pinEligibleIds/ALWAYS_PIN_IDSや
   // 近接タップ判定(handleContainerClick)はこのフラグに関係なく常に生きたままにする
   const PINS_VISIBLE_STORAGE_KEY = "wfq_v1_map_pins_visible";
   function loadPinsVisiblePref() {
@@ -67,26 +69,29 @@ const MapModule = (() => {
   }
   let pinsVisible = loadPinsVisiblePref();
 
-  // 実ポリゴンが極小で常にタップしづらい国・地域は、ズームレベルに関わらず
-  // 常に小さいピンで表示し続ける(それ以外の国は下記の画面上サイズに応じた動的判定)
+  // 実ポリゴンが極小で常にタップしづらい国・地域は、基準ズームでの判定結果に
+  // 関わらず常に小さいピンで表示し続ける(それ以外の国は下記pinEligibleIdsを参照)
   // nu(ニウエ)は実ポリゴンの角度サイズ自体が極小、ck(クック諸島)は
   // 散らばった離島まで含むバウンディングボックスが非常に広く、画面上サイズに
-  // 基づく動的判定(estimateApparentPx)だとほぼ「大きい国」扱いになって
+  // 基づく判定(estimateApparentPx)だとほぼ「大きい国」扱いになって
   // ピン対象から外れてしまうため、常時ピン対象に加えている
   const ALWAYS_PIN_IDS = new Set(["va", "mc", "sm", "mv", "nr", "tv", "nu", "ck"]);
-  // 画面上のおおよその見かけサイズ(px)がこの値を下回ったらピン表示、
-  // 上回ったらピンを消す。25〜35pxの間は前回の表示状態を維持する(ヒステリシス)ことで
-  // ズーム境界でピンが激しく点滅しないようにする
+  // 画面上のおおよその見かけサイズ(px)がこの値を下回る国を、世界地図モードを
+  // 開いたときの基準ズーム(INITIAL_VIEW_ALTITUDE)で一度だけ「ピン対象」として
+  // 確定する(pinEligibleIds、下記computePinEligibleIdsで算出)。以前はズーム操作
+  // のたびにこの判定をやり直して対象を増減させていたため、ピンONのまま拡大縮小
+  // するとピンが消える不具合があった。ズームに連動して対象を減らす仕組みは廃止し、
+  // 以降はピンON/OFFの表示切替・選択中の国だけを個別に隠す処理だけを行う
   const PIN_SHOW_PX = 25;
-  const PIN_HIDE_PX = 35;
-  let dynamicPinIds = new Set();
+  let pinEligibleIds = new Set();
 
-  // ピンはpointsDataレイヤーで描画しているが、このglobe.glビルドではpointsData自体は
-  // クリックを受け取れないため、ピン表示中の国をタップできるように、緯度経度の近さで
+  // ピンはHTML要素(#map-normal-pins配下)で描画しているため、グラフィック自体は
+  // クリックを受け取れない。ピン表示中の国をタップできるように、緯度経度の近さで
   // 判定する専用のヒット半径(度)を持たせる(実ポリゴンが小さすぎて直接タップしづらい国ほど広め)
   const HIT_RADIUS_DEG = { va: 1.6, mc: 1.5, sm: 1.4, mv: 1.5, nr: 1.3, tv: 1.3, nu: 1.5, ck: 1.5 };
   const DEFAULT_HIT_RADIUS_DEG = 1.4;
   const GLOBE_RADIUS = 100; // globe.glの基準球半径(getCoords()の結果から実測して確認済み)
+  const INITIAL_VIEW_ALTITUDE = 2.3; // 世界地図モードを開いたときの初期ズーム(pinEligibleIdsの基準にも使う)
 
   function $(id) { return document.getElementById(id); }
 
@@ -223,6 +228,10 @@ const MapModule = (() => {
         // 描画時にエラーになるため、念のためここでも取り除いておく
         geoFeatures = geo.features.filter((f) => f && f.geometry);
         buildCountryIndex();
+        // 通常ピン対象の国を基準ズームで一度だけ確定し、対応するHTML要素を
+        // 作っておく(この後ズームしても増減させない)
+        pinEligibleIds = computePinEligibleIds();
+        buildNormalPinElements();
         buildGlobe();
         setStatus(null);
       })
@@ -292,54 +301,85 @@ const MapModule = (() => {
   }
 
   // ---------- 小国ピン(見た目)。タップ判定はscreenToLatLngによる近接判定が担当する ----------
-  // 選択中の国の位置に表示する赤い📍マーカー(map-selected-marker)と系統を揃えた、
-  // 小さな単色の赤いマーカーを1国につき1点だけ描画する。以前の「白い縁取り+
-  // オレンジの丸」の2層構成(halo+fill)はやめ、密集地域(カリブ海等)でも
-  // 圧迫感が出ないようにしている。選択中の国はここには含めない(下記buildPinDataを参照)。
-  // 選択中はピンの代わりに国名ラベルと実ポリゴンのオレンジ表示で位置・形を示す。
-  function pinColor() {
-    return "#ea4335";
-  }
-  function pinRadius() {
-    return 0.16;
-  }
-  function pinAltitude() {
-    return 0.01;
-  }
-  function buildPinData() {
-    // ユーザーが通常ピンをOFFにしている間は見た目のデータだけを空にする。
-    // dynamicPinIds自体は生きたままなので、ズーム連動の対象判定や
-    // handleContainerClickの近接タップ判定には一切影響しない
-    if (!pinsVisible) return [];
-    const ids = new Set(ALWAYS_PIN_IDS);
-    dynamicPinIds.forEach((id) => ids.add(id));
-    // 選択中の国は、ズームレベルに関わらずピンを常に非表示にする(通常のズーム連動
-    // ロジックをオーバーライドする)。ピンの位置に実際の国・地域があることを
-    // ラベルと実ポリゴンのハイライトで示すため、ピンと同時には表示しない。
-    ids.delete(selectedCountryId);
-    const data = [];
-    ids.forEach((id) => {
+  // 選択中の国の位置に表示する赤い📍マーカー(#map-selected-marker)と全く同じ方式
+  // (HTML要素 + projectLatLngToScreenでの画面座標追従)を使い、通常ピンも本物の
+  // 📍として表示する。以前はglobe.gl自体のpointsDataレイヤー(WebGLの円柱)を
+  // 使っていたが、ズームすると大きな円柱に見えてしまい📍らしくならないため、
+  // 選択中マーカーと同じ仕組みに統一した。対象はpinEligibleIds(実ポリゴンが
+  // 小さいと判定された国、数十件程度)だけなので、198件全体を毎フレーム計算する
+  // ような重い処理にはならない。選択中の国はここでは表示しない(選択用の
+  // 赤📍+国名ラベル+実ポリゴンのオレンジ表示で位置・形を示すため)。
+  function buildNormalPinElements() {
+    const container = $("map-normal-pins");
+    container.innerHTML = "";
+    normalPinEls = new Map();
+    pinEligibleIds.forEach((id) => {
       const c = countryById.get(id);
       if (!c) return;
-      // 地域フィルター中は、他地域の小国ピンを非表示にして画面がピンだらけに
-      // ならないようにする("all"のときは全ピンを従来どおり表示する)
-      if (currentRegionFilter !== "all" && c.region !== currentRegionFilter) return;
-      data.push(c);
+      const el = document.createElement("div");
+      el.className = "map-normal-pin hidden";
+      el.textContent = "📍";
+      container.appendChild(el);
+      normalPinEls.set(id, el);
     });
-    return data;
   }
-  function refreshPins() {
-    if (!globeInstance) return;
-    globeInstance
-      .pointsData(buildPinData())
-      .pointLat((d) => d.lat)
-      .pointLng((d) => d.lng)
-      .pointColor(pinColor)
-      .pointRadius(pinRadius)
-      .pointAltitude(pinAltitude)
-      .pointResolution(16)
-      .pointsMerge(false)
-      .pointsTransitionDuration(0);
+  // ピンON/OFF・地域フィルター・選択中の国が変わったときだけ呼ぶ。「論理的に
+  // 表示すべきID集合」を作り直し、非表示になった要素を即座に隠し、表示すべき
+  // ものが1件でもあれば位置追従用RAFループを開始する(無ければ止めて休ませる)
+  function refreshNormalPinVisibility() {
+    if (!normalPinEls) return;
+    const next = new Set();
+    if (pinsVisible) {
+      pinEligibleIds.forEach((id) => {
+        if (id === selectedCountryId) return; // 選択中の国は選択用マーカー側に任せる
+        const c = countryById.get(id);
+        if (!c) return;
+        // 地域フィルター中は、他地域の小国ピンを非表示にして画面がピンだらけに
+        // ならないようにする("all"のときは全ピンを従来どおり表示する)
+        if (currentRegionFilter !== "all" && c.region !== currentRegionFilter) return;
+        next.add(id);
+      });
+    }
+    visibleNormalPinIds = next;
+    normalPinEls.forEach((el, id) => {
+      if (!visibleNormalPinIds.has(id)) el.classList.add("hidden");
+    });
+    if (visibleNormalPinIds.size > 0) {
+      if (normalPinsRAF === null) tickNormalPins();
+    } else if (normalPinsRAF !== null) {
+      cancelAnimationFrame(normalPinsRAF);
+      normalPinsRAF = null;
+    }
+  }
+  function updateNormalPinPositions() {
+    if (!visibleNormalPinIds.size) return;
+    const container = $("map-globe-container");
+    const wrap = document.querySelector(".map-wrap");
+    const cRect = container.getBoundingClientRect();
+    const wRect = wrap.getBoundingClientRect();
+    visibleNormalPinIds.forEach((id) => {
+      const el = normalPinEls.get(id);
+      const c = countryById.get(id);
+      if (!el || !c) return;
+      const pos = projectLatLngToScreen(c.lat, c.lng, 0.02);
+      if (!pos) {
+        el.classList.add("hidden"); // 地球の裏側にある間だけ一時的に隠す
+        return;
+      }
+      el.classList.remove("hidden");
+      el.style.left = `${cRect.left - wRect.left + pos.x}px`;
+      el.style.top = `${cRect.top - wRect.top + pos.y}px`;
+    });
+  }
+  function tickNormalPins() {
+    updateNormalPinPositions();
+    normalPinsRAF = requestAnimationFrame(tickNormalPins);
+  }
+  function stopNormalPinsLoop() {
+    if (normalPinsRAF !== null) {
+      cancelAnimationFrame(normalPinsRAF);
+      normalPinsRAF = null;
+    }
   }
 
   // ---------- 通常の小国ピン ON/OFFボタン ----------
@@ -353,7 +393,7 @@ const MapModule = (() => {
     pinsVisible = !pinsVisible;
     savePinsVisiblePref(pinsVisible);
     updatePinsToggleButton();
-    refreshPins();
+    refreshNormalPinVisibility();
   }
   // ボタンは地球儀コンテナのDOM構造の外(兄弟要素)に置いているため、
   // コンテナの実寸に合わせて右上の位置をJS側で計算する(ラベル/マーカーと同じ手法)
@@ -388,31 +428,23 @@ const MapModule = (() => {
     card.style.top = `${cRect.top - wRect.top}px`;
   }
 
-  // ---------- ズームに応じたピン表示の切り替え ----------
+  // ---------- 通常ピン対象国の判定(基準ズームで一度だけ) ----------
   // globe.glの透視投影を簡易近似した式(fov≈50°相当で較正)で、実ポリゴンの
-  // おおよその画面上サイズ(px)を見積もる。198件すべてに対して毎フレーム
-  // 計算するのではなく、ユーザーの操作が一段落したタイミングでのみ実行する
+  // おおよその画面上サイズ(px)を見積もる。世界地図モードを開いた直後の
+  // 基準ズーム(INITIAL_VIEW_ALTITUDE)で一度だけ判定し、以降はズーム操作を
+  // 行ってもこの判定をやり直さない(常時表示のため)
   function estimateApparentPx(angularSizeDeg, altitude) {
     const CALIBRATION_K = 15.6;
     return (CALIBRATION_K * angularSizeDeg) / (1 + altitude);
   }
-  function recomputePinVisibility() {
-    if (!globeInstance || !countryAngularSize) return;
-    const pov = globeInstance.pointOfView();
-    const altitude = pov && typeof pov.altitude === "number" ? pov.altitude : 2.3;
-    const next = new Set();
-    countryAngularSize.forEach((deg, id) => {
-      const px = estimateApparentPx(deg, altitude);
-      if (px < PIN_SHOW_PX) next.add(id);
-      else if (px <= PIN_HIDE_PX && dynamicPinIds.has(id)) next.add(id);
-    });
-    dynamicPinIds = next;
-    refreshPins();
-  }
-  // ドラッグ/ピンチ中に毎フレーム再計算しないよう、操作が止まってから実行する
-  function schedulePinRecompute(delay) {
-    clearTimeout(pinRecomputeTimer);
-    pinRecomputeTimer = setTimeout(recomputePinVisibility, delay);
+  function computePinEligibleIds() {
+    const ids = new Set(ALWAYS_PIN_IDS);
+    if (countryAngularSize) {
+      countryAngularSize.forEach((deg, id) => {
+        if (estimateApparentPx(deg, INITIAL_VIEW_ALTITUDE) < PIN_SHOW_PX) ids.add(id);
+      });
+    }
+    return ids;
   }
 
   // ---------- 選択中の国名ラベル(ピンの代わりに表示する) ----------
@@ -576,8 +608,7 @@ const MapModule = (() => {
       const geo = screenToLatLng(px, py);
       if (!geo) return;
 
-      let candidateIds = new Set(ALWAYS_PIN_IDS);
-      dynamicPinIds.forEach((id) => candidateIds.add(id));
+      let candidateIds = new Set(pinEligibleIds);
       candidateIds.delete(selectedCountryId); // 選択中の国はピンが無いので対象外
       if (currentRegionFilter !== "all") {
         // 非表示にしているピンは近接判定の対象からも外す(見えないピンがタップに反応すると混乱するため)
@@ -628,9 +659,9 @@ const MapModule = (() => {
       .onPolygonClick(handlePolygonClick)
       .onGlobeReady(() => {
         resizeGlobe();
-        globeInstance.pointOfView({ lat: 15, lng: 30, altitude: 2.3 }, 0);
+        globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
         startAutoRotate();
-        recomputePinVisibility();
+        refreshNormalPinVisibility();
       });
 
     // 衛星写真ではなく、国境が見やすい明るい水色の海にする。
@@ -648,11 +679,11 @@ const MapModule = (() => {
     controls.minDistance = 120;
     controls.maxDistance = 500;
 
-    // ドラッグ回転・ピンチ/ホイールズームのどれでも'change'が発火するので、
-    // ここでピン表示の再計算をdebounceする(毎フレーム計算する重い設計を避ける)
-    controls.addEventListener("change", () => schedulePinRecompute(200));
+    // ピン対象国の判定(pinEligibleIds)は基準ズームで一度だけ行うため、
+    // ドラッグ回転・ピンチ/ホイールズームのたびに再計算する必要はもう無い。
+    // 通常ピンの画面座標そのものはtickNormalPins()のRAFループが毎フレーム追従する。
 
-    // pointsData(ピン)自体はクリックを受け取れないため、コンテナ側のclickで
+    // 通常ピン(HTML要素)自体はクリックを受け取れないため、コンテナ側のclickで
     // 近接判定を行う。globe.gl自身のonPolygonClickはcanvas(コンテナの子要素)側で
     // 先に発火してからこのイベントがバブリングしてくるため、ピンに近い場合だけ
     // ここで選択内容を上書きする形になる
@@ -701,7 +732,7 @@ const MapModule = (() => {
   // moveCameraをfalseにすると、選択状態の更新と情報カード表示だけを行い、
   // 現在のズーム倍率・向き・位置には一切触れない
   function isPinEligible(id) {
-    return ALWAYS_PIN_IDS.has(id) || dynamicPinIds.has(id);
+    return pinEligibleIds.has(id);
   }
 
   function selectCountry(country, options) {
@@ -715,7 +746,7 @@ const MapModule = (() => {
     if (globeInstance) {
       globeInstance.controls().autoRotate = false;
       refreshPolygonStyles();
-      refreshPins();
+      refreshNormalPinVisibility();
       if (selectedShowsLabel) {
         startLabelTracking(country);
       } else {
@@ -724,8 +755,6 @@ const MapModule = (() => {
       if (moveCamera) {
         // 現在の視点を大きく失わない程度に、対象の国へゆっくり移動する
         globeInstance.pointOfView({ lat: country.lat, lng: country.lng, altitude: 1.5 }, 1200);
-        // 移動先でのズーム率に合わせて、ピン表示を移動完了後に再計算する
-        schedulePinRecompute(1300);
       }
     }
     renderInfoCard(country);
@@ -766,7 +795,7 @@ const MapModule = (() => {
     selectedShowsLabel = false;
     stopLabelTracking();
     refreshPolygonStyles();
-    refreshPins();
+    refreshNormalPinVisibility();
   }
 
   // ---------- 検索 ----------
@@ -884,14 +913,13 @@ const MapModule = (() => {
     $("map-region-btn-label").textContent = REGION_LABELS[region];
     updateRegionListHighlight();
     refreshPolygonStyles();
-    recomputePinVisibility();
+    refreshNormalPinVisibility();
     if (moveCamera && globeInstance && region !== "all") {
       const center = regionCenters && regionCenters[region];
       if (center) {
         hasInteracted = true;
         globeInstance.controls().autoRotate = false;
         globeInstance.pointOfView({ lat: center.lat, lng: center.lng, altitude: center.altitude }, 1400);
-        schedulePinRecompute(1500);
       }
     }
   }
@@ -938,6 +966,8 @@ const MapModule = (() => {
         if (globeInstance) {
           globeInstance.resumeAnimation();
           resizeGlobe();
+          // close()で止めた通常ピンの位置追従ループを再開する
+          refreshNormalPinVisibility();
         }
       })
       .catch(() => {
@@ -950,6 +980,7 @@ const MapModule = (() => {
   function close() {
     if (globeInstance) globeInstance.pauseAnimation();
     stopLabelTracking();
+    stopNormalPinsLoop();
     closeSearchSuggestions();
     closeRegionList();
   }
