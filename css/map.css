@@ -244,8 +244,28 @@
 }
 .map-country-label.hidden { display: none; }
 
+/* 通常の小国ピン(赤い📍、複数同時表示)。選択中マーカー(map-selected-marker)と
+   同じ「HTML要素 + JS側の画面座標計算」方式で、地球儀の回転・ズームに追従する。
+   コンテナ自体はクリックを透過させ(pointer-events:none)、実際のタップ判定は
+   従来どおり#map-globe-container側の近接判定(handleContainerClick)が行う */
+.map-normal-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.map-normal-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  font-size: 0.85rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
+  pointer-events: none;
+}
+.map-normal-pin.hidden { display: none; }
+
 /* 選択中の極小国(バチカン等)の実位置を示す赤い📍マーカー。
-   通常のオレンジ小国ピン(pointsDataの丸い点)とは別の役割・別の仕組みで、
+   通常ピン(map-normal-pin)より少し大きく、選択中であることが分かるようにする。
    国名ラベルと同じ画面座標計算(JS側)で追従させる */
 .map-selected-marker {
   position: absolute;
