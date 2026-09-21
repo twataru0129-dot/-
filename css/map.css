@@ -34,12 +34,13 @@
 }
 
 .map-topbar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 12px 12px;
   flex-shrink: 0;
-  z-index: 5;
+  z-index: 30;
 }
 
 .btn-map-back {
