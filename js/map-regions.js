@@ -261,4 +261,27 @@ const MAP_ONLY_REGIONS = [
     mapOnly: true,
     quizEligible: false,
   },
+  {
+    id: "antarctica",
+    name: "南極大陸",
+    englishName: "Antarctica",
+    region: "antarctica",
+    regionJa: "南極",
+    // 国家ではないため、他の国のような「国旗」画像は使わず、南極を表す
+    // 中立的なアイコン(雪の結晶)を代わりに表示する。renderInfoCard/
+    // renderSearchResultsは既存のまま(<img src>を流用)で済むように、
+    // 通常の国旗と同じ4:3のSVGとして用意してある
+    flag: "./assets/map/antarctica-icon.svg",
+    aliases: ["南極", "南極大陸", "Antarctica"],
+    mapCode: "ATA",
+    lat: -82,
+    lng: 0,
+    infoLabel: "区分",
+    infoValue: "大陸",
+    description: "南極大陸は地球の最南端に位置する大陸です。大部分が厚い氷に覆われ、各国の観測基地で科学研究が行われています。複数の国が領有権を主張していますが、南極条約では既存の主張を承認・否認せず、新たな主張や既存主張の拡大を認めない枠組みになっており、平和的利用と科学的調査が重視されています。",
+    mapOnly: true,
+    quizEligible: false,
+    // 国ではないため「ランダムな国へ」の候補から除外する
+    randomEligible: false,
+  },
 ];

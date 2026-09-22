@@ -31,7 +31,7 @@ const MapModule = (() => {
   // "all"のときは既存(v1.1以前)の見た目・挙動を完全に維持する。
   // countries.js / map-regions.jsのregionフィールドをそのまま再利用するため、
   // 新しいデータ構造は追加していない
-  const REGION_ORDER = ["all", "asia", "europe", "africa", "namerica", "samerica", "oceania"];
+  const REGION_ORDER = ["all", "asia", "europe", "africa", "namerica", "samerica", "oceania", "antarctica"];
   const REGION_LABELS = {
     all: "🌍 全世界",
     asia: "🌏 アジア",
@@ -40,6 +40,7 @@ const MapModule = (() => {
     namerica: "🌎 北アメリカ・中央アメリカ・カリブ",
     samerica: "🌎 南アメリカ",
     oceania: "🌏 オセアニア",
+    antarctica: "🧊 南極",
   };
   let currentRegionFilter = "all";
   let regionCenters = null; // region -> {lat,lng,altitude}。allMapCountriesから一度だけ算出する
@@ -194,6 +195,12 @@ const MapModule = (() => {
       const altitude = Math.min(2.6, Math.max(1.7, 1.1 + (maxLat - minLat) / 70));
       regionCenters[region] = { lat, lng, altitude };
     });
+    // 南極大陸は南極点を囲む特殊な形状で、経度の円周平均が不安定になりうる
+    // ため、南極地域(メンバーは南極大陸1件のみ)だけは専用の中心・高度を
+    // 固定で使う。大陸全体が画面に収まるよう、通常の地域より高めのズームにする
+    if (regionCenters.antarctica) {
+      regionCenters.antarctica = { lat: -82, lng: 0, altitude: 2.2 };
+    }
   }
 
   // 各国の実ポリゴンのバウンディングボックス角度(緯度幅・経度幅の大きい方)を
@@ -784,8 +791,11 @@ const MapModule = (() => {
         stopLabelTracking();
       }
       if (moveCamera) {
-        // 現在の視点を大きく失わない程度に、対象の国へゆっくり移動する
-        globeInstance.pointOfView({ lat: country.lat, lng: country.lng, altitude: 1.5 }, 1200);
+        // 現在の視点を大きく失わない程度に、対象の国へゆっくり移動する。
+        // 南極大陸は他の国よりはるかに広いため、通常の1.5では画面に収まりきらない。
+        // 大陸全体が見える高めのズームにする
+        const altitude = country.id === "antarctica" ? 2.0 : 1.5;
+        globeInstance.pointOfView({ lat: country.lat, lng: country.lng, altitude }, 1200);
       }
     }
     renderInfoCard(country);
@@ -795,7 +805,9 @@ const MapModule = (() => {
   function renderInfoCard(country) {
     const flagImg = $("map-card-flag");
     flagImg.src = country.flag;
-    flagImg.alt = `${country.name}の国旗`;
+    // 南極大陸は国家ではなく、公式な国旗が存在しないため「国旗」とは呼ばない
+    // (実際に表示しているのは中立的なアイコンで、国旗の代わりではない)
+    flagImg.alt = country.id === "antarctica" ? `${country.name}のアイコン` : `${country.name}の国旗`;
     $("map-card-name").textContent = country.name;
     $("map-card-region").textContent = country.regionJa;
 
@@ -959,8 +971,10 @@ const MapModule = (() => {
   // 現在の地域フィルターに応じた候補プールから1件選ぶ。直近に選ばれた
   // 最大5件は優先的に除外し、候補が尽きたら段階的に除外条件を緩める
   function getRegionPool(region) {
-    if (region === "all") return allMapCountries;
-    return allMapCountries.filter((c) => c.region === region);
+    const pool = region === "all" ? allMapCountries : allMapCountries.filter((c) => c.region === region);
+    // 南極大陸のように国ではない項目(randomEligible: false)は
+    // 「ランダムな国へ」の候補から除外する
+    return pool.filter((c) => c.randomEligible !== false);
   }
   function pickRandomCountry() {
     const pool = getRegionPool(currentRegionFilter);
