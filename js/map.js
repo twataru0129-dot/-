@@ -26,6 +26,7 @@ const MapModule = (() => {
   let normalPinEls = null; // id -> HTMLElement(通常ピンの📍要素)。基準ズーム確定時に一度だけ構築する
   let visibleNormalPinIds = new Set(); // 現在「論理的に表示すべき」通常ピンのID集合(位置追従RAFが参照する)
   let normalPinsRAF = null;
+  let pinAnchorById = new Map(); // id -> {lat,lng}。実ポリゴン上の代表点(GeoJSON読み込み時に一度だけ算出)
 
   // ---------- 地域フィルター(v1.2) ----------
   // "all"のときは既存(v1.1以前)の見た目・挙動を完全に維持する。
@@ -226,6 +227,105 @@ const MapModule = (() => {
     });
   }
 
+  // ---------- 通常ピン・選択用マーカーの表示位置(実ポリゴン上のアンカー) ----------
+  // 以前はcountry.lat/lngをそのままピン位置に使っていたが、この値は検索・
+  // カメラ移動用の代表座標であり、実ポリゴンの外(海上)にずれていることが
+  // ある。地球儀を真正面から見ている間は目立たなくても、回転させると遠近感
+  // により見た目のズレが拡大する。そのため、GeoJSON読み込み時に一度だけ、
+  // 実ポリゴン上(内部または境界上)の代表点を計算しておき、以降はこの値だけを使う。
+  function ringSignedArea(ring) {
+    let sum = 0;
+    for (let i = 0; i < ring.length - 1; i++) {
+      const [x1, y1] = ring[i]; const [x2, y2] = ring[i + 1];
+      sum += x1 * y2 - x2 * y1;
+    }
+    return sum / 2;
+  }
+  // 面積で重み付けした多角形の重心(シューレース公式)。符号付き面積aを使うため、
+  // 頂点の巻き方向(CW/CCW)に関わらず正しい重心が求まる
+  function ringCentroid(ring) {
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < ring.length - 1; i++) {
+      const [x1, y1] = ring[i]; const [x2, y2] = ring[i + 1];
+      const cross = x1 * y2 - x2 * y1;
+      a += cross;
+      cx += (x1 + x2) * cross;
+      cy += (y1 + y2) * cross;
+    }
+    a *= 0.5;
+    if (Math.abs(a) < 1e-12) {
+      // 面積がほぼ0(退化した形状)の場合は単純な頂点平均にフォールバックする
+      let sx = 0, sy = 0;
+      const n = ring.length - 1;
+      for (let i = 0; i < n; i++) { sx += ring[i][0]; sy += ring[i][1]; }
+      return { lng: sx / n, lat: sy / n };
+    }
+    return { lng: cx / (6 * a), lat: cy / (6 * a) };
+  }
+  // 標準的なレイキャスティング法による点内外判定(ringは閉じている前提、
+  // GeoJSONの慣習どおり先頭点=末尾点)
+  function pointInRing(lng, lat, ring) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 2; i < ring.length - 1; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1];
+      const xj = ring[j][0], yj = ring[j][1];
+      const intersect = (yi > lat) !== (yj > lat) &&
+        lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+  // poly = [外周リング, 穴リング1, 穴リング2, ...] (GeoJSON Polygonの1要素の形)
+  function pointInPolygonWithHoles(lng, lat, poly) {
+    if (!pointInRing(lng, lat, poly[0])) return false;
+    for (let i = 1; i < poly.length; i++) {
+      if (pointInRing(lng, lat, poly[i])) return false; // 穴の中は「内部」とみなさない
+    }
+    return true;
+  }
+  // 重心がポリゴンの外(凹型の湾など)に出てしまった場合、外周上で重心に最も
+  // 近い頂点を代わりに使う(必ず実ポリゴンの境界上に来る)
+  function nearestRingVertex(lng, lat, ring) {
+    let best = null, bestDist = Infinity;
+    for (let i = 0; i < ring.length - 1; i++) {
+      const [x, y] = ring[i];
+      const d = (x - lng) * (x - lng) + (y - lat) * (y - lat);
+      if (d < bestDist) { bestDist = d; best = { lng: x, lat: y }; }
+    }
+    return best;
+  }
+  // PIN_TARGET_IDSの各国・地域について、実ポリゴン上の代表点を一度だけ計算する。
+  // モルディブ・マーシャル諸島・クック諸島のように離島が散らばっている
+  // MultiPolygonでは、単純平均は取らず「面積が最大のサブポリゴン(代表ポリゴン)」
+  // だけを対象にする
+  function computePinAnchorById() {
+    const anchors = new Map();
+    geoFeatures.forEach((f) => {
+      const c = countryByMapCode.get(f.id);
+      if (!c || !PIN_TARGET_IDS.has(c.id)) return;
+      const polys = f.geometry.type === "MultiPolygon" ? f.geometry.coordinates : [f.geometry.coordinates];
+      let primary = polys[0];
+      let bestArea = 0;
+      polys.forEach((poly) => {
+        const area = Math.abs(ringSignedArea(poly[0]));
+        if (area > bestArea) { bestArea = area; primary = poly; }
+      });
+      const centroid = ringCentroid(primary[0]);
+      const anchor = pointInPolygonWithHoles(centroid.lng, centroid.lat, primary)
+        ? centroid
+        : nearestRingVertex(centroid.lng, centroid.lat, primary[0]);
+      anchors.set(c.id, anchor);
+    });
+    // 万一実ポリゴンが見つからなかった場合の安全策(理論上は起きないはずだが、
+    // データ上の代表座標にフォールバックして、ピン自体が消えないようにする)
+    PIN_TARGET_IDS.forEach((id) => {
+      if (anchors.has(id)) return;
+      const c = countryById.get(id);
+      if (c) anchors.set(id, { lat: c.lat, lng: c.lng });
+    });
+    return anchors;
+  }
+
   function setStatus(text, isError) {
     const el = $("map-status");
     if (!text) {
@@ -264,6 +364,8 @@ const MapModule = (() => {
         // 赤い📍の表示対象PIN_TARGET_IDSとは別物)。通常ピンのHTML要素は
         // PIN_TARGET_IDS(固定リスト)から作る
         tapAssistIds = computeTapAssistIds();
+        // 通常ピン・選択用マーカーが実ポリゴン上に来るよう、代表点を一度だけ算出する
+        pinAnchorById = computePinAnchorById();
         buildNormalPinElements();
         buildGlobe();
         setStatus(null);
@@ -392,9 +494,9 @@ const MapModule = (() => {
     const wRect = wrap.getBoundingClientRect();
     visibleNormalPinIds.forEach((id) => {
       const el = normalPinEls.get(id);
-      const c = countryById.get(id);
-      if (!el || !c) return;
-      const pos = projectLatLngToScreen(c.lat, c.lng, 0.02);
+      const anchor = pinAnchorById.get(id);
+      if (!el || !anchor) return;
+      const pos = projectLatLngToScreen(anchor.lat, anchor.lng, 0.02);
       if (!pos) {
         el.classList.add("hidden"); // 地球の裏側にある間だけ一時的に隠す
         return;
@@ -510,6 +612,17 @@ const MapModule = (() => {
     if (!globeInstance) return null;
     const camera = globeInstance.camera();
     if (!camera || !camera.matrixWorldInverse || !camera.projectionMatrix) return null;
+
+    // globe.gl自身の描画ループは別のrequestAnimationFrameで動いており、
+    // 指で素早く地球儀を回転させたときにこの関数が呼ばれるタイミングによっては
+    // camera.matrixWorldInverseがまだ前フレームの値のままのことがある(WebGL側は
+    // 最新の位置に描画されるのに、HTML側のピンだけ1フレーム遅れて追従し、実際の
+    // 国・島からズレて見える不具合の原因)。OrbitControlsが更新したcamera.position/
+    // quaternionから、matrixWorld・matrixWorldInverseをここで自分で再計算し、
+    // WebGL描画側と必ず同じカメラ状態を使うようにする
+    camera.updateMatrixWorld(true);
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+
     const world = globeInstance.getCoords(lat, lng, altitude);
 
     // カメラから見て地球の裏側(水平線の向こう)にある地点は表示しない
@@ -529,9 +642,17 @@ const MapModule = (() => {
     const h = container.clientHeight;
     return { x: (ndcX * 0.5 + 0.5) * w, y: (1 - (ndcY * 0.5 + 0.5)) * h };
   }
+  // 通常ピンと同じ実ポリゴン上のアンカー座標(pinAnchorById)を使う。これにより、
+  // 「通常ピン→選択して消える→選択用ピン+ラベルに切り替わる」際に、📍の
+  // 先端位置が全く動かない(通常ピン対象=PIN_TARGET_IDSのときだけ呼ばれるため、
+  // 基本的にアンカーは必ず存在するが、念のためcountry.lat/lngにフォールバックする)
+  function pinAnchorFor(country) {
+    return pinAnchorById.get(country.id) || { lat: country.lat, lng: country.lng };
+  }
   function updateLabelPosition(country) {
     const labelEl = $("map-country-label");
-    const pos = projectLatLngToScreen(country.lat, country.lng, 0.02);
+    const anchor = pinAnchorFor(country);
+    const pos = projectLatLngToScreen(anchor.lat, anchor.lng, 0.02);
     if (!pos) {
       labelEl.classList.add("hidden");
       return;
@@ -550,7 +671,8 @@ const MapModule = (() => {
   // 画面座標計算(projectLatLngToScreen)を使い、同じRAFループで追従させる
   function updateMarkerPosition(country) {
     const markerEl = $("map-selected-marker");
-    const pos = projectLatLngToScreen(country.lat, country.lng, 0.02);
+    const anchor = pinAnchorFor(country);
+    const pos = projectLatLngToScreen(anchor.lat, anchor.lng, 0.02);
     if (!pos) {
       markerEl.classList.add("hidden");
       return;
