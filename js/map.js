@@ -585,8 +585,16 @@ const MapModule = (() => {
   }
 
   // ---------- 選択中の国名ラベル(ピンの代わりに表示する) ----------
-  // このglobe.glビルドのhtmlElementsData/labelレイヤーには背景色を付けられないため、
-  // カスタムのHTML<div>を自前のスクリーン座標計算で追従させる。
+  // カスタムのHTML<div>を自前のスクリーン座標計算で追従させる。以前は
+  // globe.gl自身のhtmlElementsDataレイヤー(標準のHTML要素オーバーレイ機能)への
+  // 移行を試みたが、このリポジトリにvendorしているglobe.glビルドでは、
+  // .htmlElementsData()/.htmlLat()/.htmlLng()/.htmlElement()等のメソッド自体は
+  // 呼び出せてエラーにもならないものの、実際にはDOM要素が一切挿入されない
+  // (コンテナの子要素数・innerHTMLが増えないことを実機で確認済み)ことが分かった。
+  // そのため、地球儀本体(globe.gl)が持つ画面座標変換メソッド
+  // globeInstance.getScreenCoords(lat, lng, altitude) を使う方式に切り替えた。
+  // 自前で行列計算をやり直すのではなく、globe.gl自身に現在のカメラ状態での
+  // 投影結果を問い合わせるため、WebGL描画側との整合性がより確実になる。
   // 計算対象は「現在選択中の1地点」だけであり、198件全体を毎フレーム計算するような
   // 重い処理ではないため、requestAnimationFrameで継続更新してもパフォーマンス上問題ない。
   function normalizeVec(v) {
@@ -596,51 +604,35 @@ const MapModule = (() => {
   function dotVec(a, b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
   }
-  // 4x4行列(three.jsのcolumn-major elements配列)とベクトルの掛け算
-  function transformVec4(elements, x, y, z, w) {
-    const e = elements;
-    return {
-      x: e[0] * x + e[4] * y + e[8] * z + e[12] * w,
-      y: e[1] * x + e[5] * y + e[9] * z + e[13] * w,
-      z: e[2] * x + e[6] * y + e[10] * z + e[14] * w,
-      w: e[3] * x + e[7] * y + e[11] * z + e[15] * w,
-    };
-  }
   // 緯度経度(+高度)をスクリーン上のピクセル座標に変換する。
   // 地球の裏側にある場合や画面外に大きく外れる場合はnullを返す。
   function projectLatLngToScreen(lat, lng, altitude) {
     if (!globeInstance) return null;
     const camera = globeInstance.camera();
-    if (!camera || !camera.matrixWorldInverse || !camera.projectionMatrix) return null;
+    if (!camera || typeof globeInstance.getScreenCoords !== "function") return null;
 
-    // globe.gl自身の描画ループは別のrequestAnimationFrameで動いており、
-    // 指で素早く地球儀を回転させたときにこの関数が呼ばれるタイミングによっては
-    // camera.matrixWorldInverseがまだ前フレームの値のままのことがある(WebGL側は
-    // 最新の位置に描画されるのに、HTML側のピンだけ1フレーム遅れて追従し、実際の
-    // 国・島からズレて見える不具合の原因)。OrbitControlsが更新したcamera.position/
-    // quaternionから、matrixWorld・matrixWorldInverseをここで自分で再計算し、
-    // WebGL描画側と必ず同じカメラ状態を使うようにする
+    // OrbitControlsが更新したcamera.position/quaternionから、matrixWorldを
+    // 念のため最新化しておく(getScreenCoords自体が内部で行っている場合でも、
+    // 呼んでおいて害はない安全策)
     camera.updateMatrixWorld(true);
-    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
 
     const world = globeInstance.getCoords(lat, lng, altitude);
-
-    // カメラから見て地球の裏側(水平線の向こう)にある地点は表示しない
+    // カメラから見て地球の裏側(水平線の向こう)にある地点は表示しない。
+    // getScreenCoords自体にはこの判定が無いため、引き続き自前で行う
     const camDir = normalizeVec(camera.position);
     const pointDir = normalizeVec(world);
     if (dotVec(camDir, pointDir) < 0.15) return null;
 
-    const view = transformVec4(camera.matrixWorldInverse.elements, world.x, world.y, world.z, 1);
-    const clip = transformVec4(camera.projectionMatrix.elements, view.x, view.y, view.z, view.w);
-    if (clip.w <= 0) return null;
-    const ndcX = clip.x / clip.w;
-    const ndcY = clip.y / clip.w;
-    if (ndcX < -1.15 || ndcX > 1.15 || ndcY < -1.15 || ndcY > 1.15) return null;
+    const screen = globeInstance.getScreenCoords(lat, lng, altitude);
+    if (!screen || !Number.isFinite(screen.x) || !Number.isFinite(screen.y)) return null;
 
     const container = $("map-globe-container");
     const w = container.clientWidth;
     const h = container.clientHeight;
-    return { x: (ndcX * 0.5 + 0.5) * w, y: (1 - (ndcY * 0.5 + 0.5)) * h };
+    // 画面から大きく外れた位置(以前のNDC±1.15相当のマージン)は非表示にする
+    if (screen.x < -0.15 * w || screen.x > 1.15 * w || screen.y < -0.15 * h || screen.y > 1.15 * h) return null;
+
+    return { x: screen.x, y: screen.y };
   }
   // 通常ピンと同じ実ポリゴン上のアンカー座標(pinAnchorById)を使う。これにより、
   // 「通常ピン→選択して消える→選択用ピン+ラベルに切り替わる」際に、📍の
