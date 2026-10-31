@@ -22,10 +22,9 @@ const MapModule = (() => {
   let selectedShowsLabel = false; // 選択中の国が「ピン→ラベル切り替え」対象かどうか(選択した瞬間に固定する)
   let initPromise = null;
   let hasInteracted = false;
-  let labelRAF = null;
   let normalPinEls = null; // id -> HTMLElement(通常ピンの📍要素)。基準ズーム確定時に一度だけ構築する
-  let visibleNormalPinIds = new Set(); // 現在「論理的に表示すべき」通常ピンのID集合(位置追従RAFが参照する)
-  let normalPinsRAF = null;
+  let visibleNormalPinIds = new Set(); // 現在「論理的に表示すべき」通常ピンのID集合(レンダー後フックが参照する)
+  let trackedCountry = null; // 選択中で、国名ラベル+マーカーを追従させる対象(非選択時はnull)
   let pinAnchorById = new Map(); // id -> {lat,lng}。実ポリゴン上の代表点(GeoJSON読み込み時に一度だけ算出)
 
   // ---------- 地域フィルター(v1.2) ----------
@@ -489,8 +488,10 @@ const MapModule = (() => {
     });
   }
   // ピンON/OFF・地域フィルター・選択中の国が変わったときだけ呼ぶ。「論理的に
-  // 表示すべきID集合」を作り直し、非表示になった要素を即座に隠し、表示すべき
-  // ものが1件でもあれば位置追従用RAFループを開始する(無ければ止めて休ませる)
+  // 表示すべきID集合」を作り直し、非表示になった要素を即座に隠す。実際の画面
+  // 座標の追従はonAfterRender()(地球儀の実際の描画タイミングに同期したフック、
+  // 下記参照)が担当するが、カメラが止まっている間は次の描画が起きるとは限らない
+  // ため、ここでも一度だけ即座に位置を合わせておく
   function refreshNormalPinVisibility() {
     if (!normalPinEls) return;
     const next = new Set();
@@ -509,12 +510,7 @@ const MapModule = (() => {
     normalPinEls.forEach((el, id) => {
       if (!visibleNormalPinIds.has(id)) el.classList.add("hidden");
     });
-    if (visibleNormalPinIds.size > 0) {
-      if (normalPinsRAF === null) tickNormalPins();
-    } else if (normalPinsRAF !== null) {
-      cancelAnimationFrame(normalPinsRAF);
-      normalPinsRAF = null;
-    }
+    updateNormalPinPositions();
   }
   function updateNormalPinPositions() {
     if (!visibleNormalPinIds.size) return;
@@ -535,16 +531,6 @@ const MapModule = (() => {
       el.style.left = `${cRect.left - wRect.left + pos.x}px`;
       el.style.top = `${cRect.top - wRect.top + pos.y}px`;
     });
-  }
-  function tickNormalPins() {
-    updateNormalPinPositions();
-    normalPinsRAF = requestAnimationFrame(tickNormalPins);
-  }
-  function stopNormalPinsLoop() {
-    if (normalPinsRAF !== null) {
-      cancelAnimationFrame(normalPinsRAF);
-      normalPinsRAF = null;
-    }
   }
 
   // ---------- 通常の小国ピン ON/OFFボタン ----------
@@ -690,7 +676,7 @@ const MapModule = (() => {
     labelEl.style.top = `${cRect.top - wRect.top + pos.y - 30}px`;
   }
   // 選択中の極小国の実位置に表示する赤い📍マーカー。国名ラベルと全く同じ
-  // 画面座標計算(projectLatLngToScreen)を使い、同じRAFループで追従させる
+  // 画面座標計算(projectLatLngToScreen)を使い、通常ピンと同じonAfterRender()フックで追従させる
   function updateMarkerPosition(country) {
     const markerEl = $("map-selected-marker");
     const anchor = pinAnchorFor(country);
@@ -708,23 +694,52 @@ const MapModule = (() => {
     markerEl.style.top = `${cRect.top - wRect.top + pos.y}px`;
   }
   function stopLabelTracking() {
-    if (labelRAF !== null) {
-      cancelAnimationFrame(labelRAF);
-      labelRAF = null;
-    }
+    trackedCountry = null;
     $("map-country-label").classList.add("hidden");
     $("map-selected-marker").classList.add("hidden");
   }
   function startLabelTracking(country) {
-    stopLabelTracking();
+    trackedCountry = country;
     const labelEl = $("map-country-label");
     labelEl.textContent = country.name;
-    const tick = () => {
-      updateLabelPosition(country);
-      updateMarkerPosition(country);
-      labelRAF = requestAnimationFrame(tick);
+    // カメラが止まっている間は次の描画が起きるとは限らないため、ここでも
+    // 一度だけ即座に位置を合わせておく(以降はonAfterRender()が追従する)
+    updateLabelPosition(country);
+    updateMarkerPosition(country);
+  }
+  // ---------- 地球儀の実際の描画タイミングに同期したピン・ラベル位置更新 ----------
+  // 以前は通常ピン・選択中マーカー/ラベルをそれぞれ独立したrequestAnimationFrame
+  // ループで追従させていたが、このループは地球儀本体(three.js)自身の描画ループと
+  // 完全に同期しているわけではない。回転操作の直後など、慣性(OrbitControlsの
+  // ダンピング)でカメラが減速しながら動き続けている間は、毎フレーム必ず再描画
+  // されるとは限らず(このglobe.glビルドは変化があったときだけ再描画する
+  // 「オンデマンド」方式)、かつ再描画の間隔も一定ではないため、独立したRAF
+  // ループで読んだカメラの状態と、実際に直前に描画されたフレームのカメラの
+  // 状態がわずかにずれることがあった。カリブ海の密集した小島のように、わずかな
+  // ズレが見た目に大きく響く場所で、📍が実際の島から浮いて見える不具合の原因は
+  // これだった。
+  // 対策として、three.jsのレンダラー自身のrender()呼び出しを直接フックし、
+  // 「実際に描画されたのと全く同じタイミング・同じカメラ状態」でピン位置を
+  // 再計算する。これにより、独立したRAFループとの間に発生しうるタイミングの
+  // ズレが原理的になくなる
+  function hookRendererForPinSync() {
+    if (!globeInstance) return;
+    const renderer = globeInstance.renderer();
+    if (!renderer || typeof renderer.render !== "function" || renderer.__wfqPinSyncHooked) return;
+    const originalRender = renderer.render.bind(renderer);
+    renderer.render = function (...args) {
+      const result = originalRender(...args);
+      onAfterRender();
+      return result;
     };
-    tick();
+    renderer.__wfqPinSyncHooked = true;
+  }
+  function onAfterRender() {
+    if (visibleNormalPinIds.size > 0) updateNormalPinPositions();
+    if (trackedCountry) {
+      updateLabelPosition(trackedCountry);
+      updateMarkerPosition(trackedCountry);
+    }
   }
 
   // ---------- ピン表示中の国をタップできるようにする近接判定 ----------
@@ -840,6 +855,7 @@ const MapModule = (() => {
         resizeGlobe();
         globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
         startAutoRotate();
+        hookRendererForPinSync();
         refreshNormalPinVisibility();
       });
 
@@ -887,6 +903,9 @@ const MapModule = (() => {
     globeInstance.height(container.clientHeight);
     positionPinsToggleButton();
     positionInfoCardForDesktop();
+    // リサイズ直後、カメラが静止していて次の描画が起きるとは限らないため、
+    // ここでも一度だけ即座にピン・ラベル位置を合わせておく
+    onAfterRender();
   }
 
   function startAutoRotate() {
@@ -1167,11 +1186,12 @@ const MapModule = (() => {
       });
   }
 
-  // 画面を離れるときはレンダリングを止めてバッテリー消費を抑える
+  // 画面を離れるときはレンダリングを止めてバッテリー消費を抑える。
+  // ピン・ラベルの位置更新はonAfterRender()(実際の描画に同期したフック)が
+  // 行うため、pauseAnimation()で描画自体が止まれば自動的に更新も止まる
   function close() {
     if (globeInstance) globeInstance.pauseAnimation();
     stopLabelTracking();
-    stopNormalPinsLoop();
     closeSearchSuggestions();
     closeRegionList();
   }
