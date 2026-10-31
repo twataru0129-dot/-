@@ -379,7 +379,13 @@ const MapModule = (() => {
   }
 
   // ---------- 国のハイライト表示 ----------
-  // 通常の国は緑系、選択中の国だけオレンジ系にする(他の国の色は変えない)。
+  // 通常の国はjs/map-colors.jsの事前生成データ(国境を共有する国どうしは
+  // 必ず別の色になるよう、グラフ彩色アルゴリズムDSATURで決めた6色の
+  // パステルカラー)で塗り分け、選択中の国だけオレンジ系にする(他の国の
+  // 色は変えない)。以前は単純に地域フィルターの有無だけで緑一色/地域内外の
+  // 2パターンしか出し分けていなかったが、国ごとの配色データが増えた今は、
+  // 地域フィルターで対象外になった国も「その国自身の色を薄くする」形に
+  // 変える(緑一色に潰さない)。
   // 以前は極小国のタップ判定に「透明・高高度の合成円」を重ねていたが、
   // 透明(alpha=0)なのに周辺国より高い高度を持つポリゴンはWebGLの深度バッファに
   // 書き込みだけ行って可視化はされないため、真下にある隣国(モナコ→フランス、
@@ -387,6 +393,24 @@ const MapModule = (() => {
   // 見えてしまう不具合の原因になっていた。極小国も含め全ポリゴンが実形状の
   // GeoJSONを持つようになったため、この合成円・透明化・高高度化の仕組みは廃止し、
   // 全ポリゴンに同一のシンプルな色・高度ロジックだけを適用する。
+  const FALLBACK_FILL_COLOR = "#BFD9A8"; // MAP_COUNTRY_COLORSに無いfeat.id(理論上は起きないはずの安全策)
+  function hexToRgb(hex) {
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return m
+      ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) }
+      : { r: 191, g: 217, b: 168 };
+  }
+  function rgba(hex, alpha) {
+    const { r, g, b } = hexToRgb(hex);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  // 国・地域ごとに固定された基本色(js/map-colors.jsで事前生成、実行時の計算なし)
+  function baseFillColor(feat) {
+    if (typeof MAP_COUNTRY_COLORS !== "undefined" && MAP_COUNTRY_COLORS[feat.id]) {
+      return MAP_COUNTRY_COLORS[feat.id];
+    }
+    return FALLBACK_FILL_COLOR;
+  }
   function isSelected(feat) {
     const c = countryByMapCode.get(feat.id);
     if (!c) return false;
@@ -407,18 +431,24 @@ const MapModule = (() => {
   }
   function polygonCapColor(feat) {
     if (isSelected(feat)) return "#ffb100";
-    if (currentRegionFilter === "all") return "rgba(139, 195, 143, 0.95)";
-    return isInActiveRegion(feat) ? "rgba(150, 214, 154, 0.97)" : "rgba(150, 178, 150, 0.28)";
+    const base = baseFillColor(feat);
+    if (currentRegionFilter === "all") return rgba(base, 0.95);
+    // 地域フィルターで対象外になった国も、緑一色に潰さずその国自身の色を薄くする
+    return isInActiveRegion(feat) ? rgba(base, 0.97) : rgba(base, 0.25);
   }
   function polygonSideColor(feat) {
     if (isSelected(feat)) return "rgba(255, 177, 0, 0.45)";
-    if (currentRegionFilter === "all") return "rgba(90, 130, 100, 0.25)";
-    return isInActiveRegion(feat) ? "rgba(90, 140, 100, 0.32)" : "rgba(110, 130, 110, 0.08)";
+    const base = baseFillColor(feat);
+    if (currentRegionFilter === "all") return rgba(base, 0.4);
+    return isInActiveRegion(feat) ? rgba(base, 0.45) : rgba(base, 0.1);
   }
+  // 国境線は国ごとの色に関わらず、やさしい単色(#7E9A8A)で統一し、
+  // 地図全体の国境が細く自然に見えるようにする
+  const BORDER_STROKE_COLOR = "#7E9A8A";
   function polygonStrokeColor(feat) {
     if (isSelected(feat)) return "#8a5500";
-    if (currentRegionFilter === "all") return "#3f5c4c";
-    return isInActiveRegion(feat) ? "#345a42" : "rgba(90, 110, 95, 0.35)";
+    if (currentRegionFilter === "all") return BORDER_STROKE_COLOR;
+    return isInActiveRegion(feat) ? BORDER_STROKE_COLOR : "rgba(126, 154, 138, 0.3)";
   }
   // 選択中の国だけ高度を上げていたが、地球儀を斜めから見たときに側面が
   // 立体的な柱のように伸びて見えるため、選択の有無に関わらず全ポリゴンを
@@ -814,12 +844,14 @@ const MapModule = (() => {
       });
 
     // 衛星写真ではなく、国境が見やすい明るい水色の海にする。
+    // 陸地を国ごとのやさしいパステルカラーで塗り分けるのに合わせ、海も
+    // 落ち着いたパステル寄りの水色(#A9D3E8)にする。
     // このglobe.glビルドはwindow.THREEを公開していないため、new THREE.Material(...)は使えない。
     // 代わりにglobeMaterial()を引数なしで呼び、既存のマテリアルインスタンスを取得して
     // その場でcolorだけ書き換える(Kapsuleアクセサの取得/設定パターン)
     const material = globeInstance.globeMaterial();
     if (material && material.color && typeof material.color.set === "function") {
-      material.color.set("#8ecae6");
+      material.color.set("#A9D3E8");
       if ("shininess" in material) material.shininess = 6;
     }
 
