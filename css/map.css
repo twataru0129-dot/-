@@ -244,40 +244,6 @@
 }
 .map-country-label.hidden { display: none; }
 
-/* 通常の小国ピン(赤い📍、複数同時表示)。選択中マーカー(map-selected-marker)と
-   同じ「HTML要素 + JS側の画面座標計算」方式で、地球儀の回転・ズームに追従する。
-   コンテナ自体はクリックを透過させ(pointer-events:none)、実際のタップ判定は
-   従来どおり#map-globe-container側の近接判定(handleContainerClick)が行う */
-.map-normal-pins {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 4;
-}
-.map-normal-pin {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  font-size: 0.85rem;
-  line-height: 1;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.4));
-  pointer-events: none;
-}
-.map-normal-pin.hidden { display: none; }
-
-/* 選択中の極小国(バチカン等)の実位置を示す赤い📍マーカー。
-   通常ピン(map-normal-pin)より少し大きく、選択中であることが分かるようにする。
-   国名ラベルと同じ画面座標計算(JS側)で追従させる */
-.map-selected-marker {
-  position: absolute;
-  transform: translate(-50%, -100%);
-  font-size: 1.15rem;
-  line-height: 1;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
-  pointer-events: none;
-  z-index: 7;
-}
-.map-selected-marker.hidden { display: none; }
-
 /* 通常の小国ピン(オレンジ)のON/OFFフローティングボタン。
    地球儀表示エリアの右上付近に、検索候補・地域フィルター・情報カードと
    重ならない高さで浮かせる(位置はJS側でコンテナ基準に計算する) */

@@ -22,10 +22,9 @@ const MapModule = (() => {
   let selectedShowsLabel = false; // 選択中の国が「ピン→ラベル切り替え」対象かどうか(選択した瞬間に固定する)
   let initPromise = null;
   let hasInteracted = false;
-  let normalPinEls = null; // id -> HTMLElement(通常ピンの📍要素)。基準ズーム確定時に一度だけ構築する
-  let visibleNormalPinIds = new Set(); // 現在「論理的に表示すべき」通常ピンのID集合(レンダー後フックが参照する)
-  let trackedCountry = null; // 選択中で、国名ラベル+マーカーを追従させる対象(非選択時はnull)
+  let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
   let pinAnchorById = new Map(); // id -> {lat,lng}。実ポリゴン上の代表点(GeoJSON読み込み時に一度だけ算出)
+  let pinClasses = null; // 📍の3Dオブジェクト構築に使うThree.jsクラス一式(起動時に一度だけ取得する、下記参照)
 
   // ---------- 地域フィルター(v1.2) ----------
   // "all"のときは既存(v1.1以前)の見た目・挙動を完全に維持する。
@@ -111,13 +110,21 @@ const MapModule = (() => {
   const PIN_SHOW_PX = 25;
   let tapAssistIds = new Set();
 
-  // ピンはHTML要素(#map-normal-pins配下)で描画しているため、グラフィック自体は
+  // 📍は3Dオブジェクト(objectsData)で描画しているため、グラフィック自体は
   // クリックを受け取れない。ピン表示中の国をタップできるように、緯度経度の近さで
   // 判定する専用のヒット半径(度)を持たせる(実ポリゴンが小さすぎて直接タップしづらい国ほど広め)
   const HIT_RADIUS_DEG = { va: 1.6, mc: 1.5, sm: 1.4, mv: 1.5, nr: 1.3, tv: 1.3, nu: 1.5, ck: 1.5 };
   const DEFAULT_HIT_RADIUS_DEG = 1.4;
   const GLOBE_RADIUS = 100; // globe.glの基準球半径(getCoords()の結果から実測して確認済み)
   const INITIAL_VIEW_ALTITUDE = 2.3; // 世界地図モードを開いたときの初期ズーム(tapAssistIdsの基準にも使う)
+
+  // ---------- 📍ピンの3Dオブジェクト化(v2) ----------
+  // 国ポリゴン(polygonAltitude、下記)と同じ高度にすることで、ピンの先端
+  // (針の先、下記buildPinObject参照)がちょうどポリゴン表面に接する
+  const PIN_OBJECT_ALTITUDE = 0.006;
+  const PIN_NEEDLE_COLOR = 0xb91c1c;
+  const PIN_HEAD_COLOR = 0xef4444;
+  const PIN_SELECTED_SCALE = 1.3; // 選択中の国のピンは少し大きくし、選択状態を分かりやすくする
 
   function $(id) { return document.getElementById(id); }
 
@@ -363,9 +370,8 @@ const MapModule = (() => {
         // 赤い📍の表示対象PIN_TARGET_IDSとは別物)。通常ピンのHTML要素は
         // PIN_TARGET_IDS(固定リスト)から作る
         tapAssistIds = computeTapAssistIds();
-        // 通常ピン・選択用マーカーが実ポリゴン上に来るよう、代表点を一度だけ算出する
+        // 通常ピン・選択中ピンが実ポリゴン上に来るよう、代表点を一度だけ算出する
         pinAnchorById = computePinAnchorById();
-        buildNormalPinElements();
         buildGlobe();
         setStatus(null);
       })
@@ -453,7 +459,7 @@ const MapModule = (() => {
   // 立体的な柱のように伸びて見えるため、選択の有無に関わらず全ポリゴンを
   // 同じ高さ(通常国と同じ0.006)にする。選択の強調はcapColor/strokeColorのみで行う
   function polygonAltitude() {
-    return 0.006;
+    return PIN_OBJECT_ALTITUDE;
   }
   function refreshPolygonStyles() {
     if (!globeInstance) return;
@@ -465,72 +471,133 @@ const MapModule = (() => {
   }
 
   // ---------- 小国ピン(見た目)。タップ判定はscreenToLatLngによる近接判定が担当する ----------
-  // 選択中の国の位置に表示する赤い📍マーカー(#map-selected-marker)と全く同じ方式
-  // (HTML要素 + projectLatLngToScreenでの画面座標追従)を使い、通常ピンも本物の
-  // 📍として表示する。以前はglobe.gl自体のpointsDataレイヤー(WebGLの円柱)を
-  // 使っていたが、ズームすると大きな円柱に見えてしまい📍らしくならないため、
-  // 選択中マーカーと同じ仕組みに統一した。対象はPIN_TARGET_IDS(手動で選定した
-  // 固定リスト、数十件程度)だけなので、198件全体を毎フレーム計算するような
-  // 重い処理にはならない。選択中の国はここでは表示しない(選択用の
-  // 赤📍+国名ラベル+実ポリゴンのオレンジ表示で位置・形を示すため)。
-  function buildNormalPinElements() {
-    const container = $("map-normal-pins");
-    container.innerHTML = "";
-    normalPinEls = new Map();
-    PIN_TARGET_IDS.forEach((id) => {
-      const c = countryById.get(id);
-      if (!c) return;
-      const el = document.createElement("div");
-      el.className = "map-normal-pin hidden";
-      el.textContent = "📍";
-      container.appendChild(el);
-      normalPinEls.set(id, el);
-    });
-  }
-  // ピンON/OFF・地域フィルター・選択中の国が変わったときだけ呼ぶ。「論理的に
-  // 表示すべきID集合」を作り直し、非表示になった要素を即座に隠す。実際の画面
-  // 座標の追従はonAfterRender()(地球儀の実際の描画タイミングに同期したフック、
-  // 下記参照)が担当するが、カメラが止まっている間は次の描画が起きるとは限らない
-  // ため、ここでも一度だけ即座に位置を合わせておく
-  function refreshNormalPinVisibility() {
-    if (!normalPinEls) return;
-    const next = new Set();
-    if (pinsVisible) {
-      PIN_TARGET_IDS.forEach((id) => {
-        if (id === selectedCountryId) return; // 選択中の国は選択用マーカー側に任せる
-        const c = countryById.get(id);
-        if (!c) return;
-        // 地域フィルター中は、他地域の小国ピンを非表示にして画面がピンだらけに
-        // ならないようにする("all"のときは全ピンを従来どおり表示する)
-        if (currentRegionFilter !== "all" && c.region !== currentRegionFilter) return;
-        next.add(id);
-      });
+  // 以前はHTML要素(📍)をJS側の画面座標計算(projectLatLngToScreen)で毎フレーム
+  // 追従させていたが、この方式は「地球儀が実際に描画した直後の最新カメラ状態」を
+  // 読めてはいても、HTML要素自体はWebGLの深度バッファ・透視変換の外側にある
+  // 別レイヤーであるため、原理的に数ピクセル単位のズレが生じうる(カリブ海の
+  // ような小島密集地域、iPhone実機でこのズレが visible な不具合として繰り返し
+  // 報告された)。そこで、ピンそのものをglobe.gl/three.jsの3D空間に実オブジェクトとして
+  // 配置するobjectsData()レイヤーに全面移行した。objectLat/objectLng/objectAltitudeで
+  // 指定した緯度経度・高度は、国ポリゴン(polygonsData)と全く同じ3Dシーン・同じ
+  // カメラ行列で描画されるため、回転・ズーム中であっても地球儀本体の地形とズレる
+  // 余地が無い。このvendor版globe.glはwindow.THREEを公開していないため、
+  // Three.jsのクラス(Group/Mesh/SphereGeometry等)はbootstrapPinClasses()で
+  // 間接的に一度だけ取得する(下記参照)。
+  function dumpSceneUuids() {
+    const result = [];
+    function walk(obj) {
+      result.push(obj.uuid);
+      (obj.children || []).forEach(walk);
     }
-    visibleNormalPinIds = next;
-    normalPinEls.forEach((el, id) => {
-      if (!visibleNormalPinIds.has(id)) el.classList.add("hidden");
-    });
-    updateNormalPinPositions();
+    walk(globeInstance.scene());
+    return result;
   }
-  function updateNormalPinPositions() {
-    if (!visibleNormalPinIds.size) return;
-    const container = $("map-globe-container");
-    const wrap = document.querySelector(".map-wrap");
-    const cRect = container.getBoundingClientRect();
-    const wRect = wrap.getBoundingClientRect();
-    visibleNormalPinIds.forEach((id) => {
-      const el = normalPinEls.get(id);
-      const anchor = pinAnchorById.get(id);
-      if (!el || !anchor) return;
-      const pos = projectLatLngToScreen(anchor.lat, anchor.lng, 0.02);
-      if (!pos) {
-        el.classList.add("hidden"); // 地球の裏側にある間だけ一時的に隠す
-        return;
+  function findMeshByUuid(uuid, obj) {
+    if (obj.uuid === uuid && obj.type === "Mesh") return obj;
+    for (const child of obj.children || []) {
+      const found = findMeshByUuid(uuid, child);
+      if (found) return found;
+    }
+    return null;
+  }
+  // beforeUuidsに無い新規ノードの中からMeshを見つかるまでrequestAnimationFrameで
+  // 待つ(固定時間sleepではなく、実際にKapsule側の描画ダイジェストが完了して
+  // シーングラフにメッシュが追加されたことを確認してから次に進むため、
+  // 環境によるタイミングのばらつきに左右されない)
+  function waitForNewMesh(beforeUuids, maxFrames) {
+    const beforeSet = new Set(beforeUuids);
+    return new Promise((resolve) => {
+      let frames = 0;
+      function check() {
+        frames++;
+        const afterUuids = dumpSceneUuids();
+        let mesh = null;
+        for (const uuid of afterUuids) {
+          if (beforeSet.has(uuid)) continue;
+          mesh = findMeshByUuid(uuid, globeInstance.scene());
+          if (mesh) break;
+        }
+        if (mesh || frames >= maxFrames) {
+          resolve(mesh);
+          return;
+        }
+        requestAnimationFrame(check);
       }
-      el.classList.remove("hidden");
-      el.style.left = `${cRect.left - wRect.left + pos.x}px`;
-      el.style.top = `${cRect.top - wRect.top + pos.y}px`;
+      requestAnimationFrame(check);
     });
+  }
+  // window.THREEが存在しないため、objectsData/pointsDataにカスタムの
+  // objectThreeObjectを渡さず一度だけ「既定の見た目」で描画させ、その結果
+  // 生成される実際のThree.jsインスタンスからconstructorを借りる。objectsDataと
+  // pointsDataを同時に走らせるとどちらの新規メッシュか区別できなくなるため、
+  // 必ず1つ目の描画完了(waitForNewMesh解決)を待ってから2つ目を投入する
+  function bootstrapPinClasses() {
+    if (pinClasses) return Promise.resolve(pinClasses);
+    const before1 = dumpSceneUuids();
+    globeInstance.objectsData([{ lat: 0, lng: 0 }]).objectLat("lat").objectLng("lng").objectAltitude(10);
+    return waitForNewMesh(before1, 180).then((objMesh) => {
+      const before2 = dumpSceneUuids();
+      globeInstance.pointsData([{ lat: 0, lng: 0 }]).pointLat("lat").pointLng("lng").pointAltitude(10).pointRadius(0.001);
+      return waitForNewMesh(before2, 180).then((ptMesh) => {
+        globeInstance.objectsData([]);
+        globeInstance.pointsData([]);
+        if (!objMesh || !ptMesh) return null;
+        pinClasses = {
+          Group: objMesh.parent.constructor,
+          Mesh: objMesh.constructor,
+          SphereGeometry: objMesh.geometry.constructor,
+          MeshLambertMaterial: objMesh.material.constructor,
+          CylinderGeometry: ptMesh.geometry.constructor,
+        };
+        return pinClasses;
+      });
+    });
+  }
+  // 📍本体(球形の頭+円錐の針)を構築する。Group原点(=objectLat/Lng/Altitudeで
+  // 指定した地点)がちょうど針の先端に来るよう、各メッシュをy方向にオフセットする。
+  // globe.glはGroupのquaternionを地表の外向き法線に自動で合わせるため、
+  // ローカルの+Y軸がそのまま「地表から外向き」になり、針の先端が常に
+  // 指定した緯度経度・高度の1点に固定される
+  function buildPinObject(d) {
+    const C = pinClasses;
+    const group = new C.Group();
+    const headR = 0.8, needleH = 1.6, needleBaseR = 0.35;
+    const needleGeom = new C.CylinderGeometry(needleBaseR, 0, needleH, 12);
+    const needleMesh = new C.Mesh(needleGeom, new C.MeshLambertMaterial({ color: PIN_NEEDLE_COLOR }));
+    needleMesh.position.y = needleH / 2;
+    const headGeom = new C.SphereGeometry(headR, 16, 16);
+    const headMesh = new C.Mesh(headGeom, new C.MeshLambertMaterial({ color: PIN_HEAD_COLOR }));
+    headMesh.position.y = needleH + headR * 0.55;
+    group.add(needleMesh);
+    group.add(headMesh);
+    if (d && d.selected) group.scale.setScalar(PIN_SELECTED_SCALE);
+    return group;
+  }
+  // ピンON/OFF・地域フィルター・選択中の国が変わったときに呼ぶ。表示すべき
+  // ピンのデータ配列を作り直し、objectsData()に渡し直す(globe.glは配列の
+  // 参照が変わるたびobjectThreeObjectを呼び直すため、これだけで再構築される)。
+  // 選択中の国はpinsVisible/地域フィルターの状態に関わらず常に表示する
+  // (以前の選択中マーカーも同じ扱いだった)
+  function refreshPinLayer() {
+    if (!globeInstance || !pinClasses) return;
+    const data = [];
+    PIN_TARGET_IDS.forEach((id) => {
+      const anchor = pinAnchorById.get(id);
+      const c = countryById.get(id);
+      if (!anchor || !c) return;
+      const isSelectedPin = id === selectedCountryId;
+      if (!isSelectedPin) {
+        if (!pinsVisible) return;
+        if (currentRegionFilter !== "all" && c.region !== currentRegionFilter) return;
+      }
+      data.push({ id, lat: anchor.lat, lng: anchor.lng, selected: isSelectedPin });
+    });
+    globeInstance
+      .objectsData(data)
+      .objectLat("lat")
+      .objectLng("lng")
+      .objectAltitude(PIN_OBJECT_ALTITUDE)
+      .objectThreeObject(buildPinObject);
   }
 
   // ---------- 通常の小国ピン ON/OFFボタン ----------
@@ -544,7 +611,7 @@ const MapModule = (() => {
     pinsVisible = !pinsVisible;
     savePinsVisiblePref(pinsVisible);
     updatePinsToggleButton();
-    refreshNormalPinVisibility();
+    refreshPinLayer();
   }
   // ボタンは地球儀コンテナのDOM構造の外(兄弟要素)に置いているため、
   // コンテナの実寸に合わせて右上の位置をJS側で計算する(ラベル/マーカーと同じ手法)
@@ -675,28 +742,9 @@ const MapModule = (() => {
     // マーカーと重ならないよう従来より少し高い位置に上げる
     labelEl.style.top = `${cRect.top - wRect.top + pos.y - 30}px`;
   }
-  // 選択中の極小国の実位置に表示する赤い📍マーカー。国名ラベルと全く同じ
-  // 画面座標計算(projectLatLngToScreen)を使い、通常ピンと同じonAfterRender()フックで追従させる
-  function updateMarkerPosition(country) {
-    const markerEl = $("map-selected-marker");
-    const anchor = pinAnchorFor(country);
-    const pos = projectLatLngToScreen(anchor.lat, anchor.lng, 0.02);
-    if (!pos) {
-      markerEl.classList.add("hidden");
-      return;
-    }
-    markerEl.classList.remove("hidden");
-    const container = $("map-globe-container");
-    const wrap = document.querySelector(".map-wrap");
-    const cRect = container.getBoundingClientRect();
-    const wRect = wrap.getBoundingClientRect();
-    markerEl.style.left = `${cRect.left - wRect.left + pos.x}px`;
-    markerEl.style.top = `${cRect.top - wRect.top + pos.y}px`;
-  }
   function stopLabelTracking() {
     trackedCountry = null;
     $("map-country-label").classList.add("hidden");
-    $("map-selected-marker").classList.add("hidden");
   }
   function startLabelTracking(country) {
     trackedCountry = country;
@@ -705,24 +753,18 @@ const MapModule = (() => {
     // カメラが止まっている間は次の描画が起きるとは限らないため、ここでも
     // 一度だけ即座に位置を合わせておく(以降はonAfterRender()が追従する)
     updateLabelPosition(country);
-    updateMarkerPosition(country);
   }
-  // ---------- 地球儀の実際の描画タイミングに同期したピン・ラベル位置更新 ----------
-  // 以前は通常ピン・選択中マーカー/ラベルをそれぞれ独立したrequestAnimationFrame
-  // ループで追従させていたが、このループは地球儀本体(three.js)自身の描画ループと
-  // 完全に同期しているわけではない。回転操作の直後など、慣性(OrbitControlsの
-  // ダンピング)でカメラが減速しながら動き続けている間は、毎フレーム必ず再描画
-  // されるとは限らず(このglobe.glビルドは変化があったときだけ再描画する
-  // 「オンデマンド」方式)、かつ再描画の間隔も一定ではないため、独立したRAF
-  // ループで読んだカメラの状態と、実際に直前に描画されたフレームのカメラの
-  // 状態がわずかにずれることがあった。カリブ海の密集した小島のように、わずかな
-  // ズレが見た目に大きく響く場所で、📍が実際の島から浮いて見える不具合の原因は
-  // これだった。
-  // 対策として、three.jsのレンダラー自身のrender()呼び出しを直接フックし、
-  // 「実際に描画されたのと全く同じタイミング・同じカメラ状態」でピン位置を
-  // 再計算する。これにより、独立したRAFループとの間に発生しうるタイミングの
-  // ズレが原理的になくなる
-  function hookRendererForPinSync() {
+  // ---------- 地球儀の実際の描画タイミングに同期したラベル位置更新 ----------
+  // 📍本体は3Dオブジェクト化(objectsData、上記)したため、国ポリゴンと全く同じ
+  // カメラ行列で描画され、個別の位置追従コードは不要になった。国名ラベルだけは
+  // 従来どおりHTML要素(黒いピル型)なので、画面座標への変換・追従が引き続き必要。
+  // 以前は独立したrequestAnimationFrameループで追従させていたが、地球儀本体
+  // (three.js)自身の「オンデマンド」描画(変化があったときだけ再描画)とは
+  // 完全には同期しておらず、回転の慣性が残っている間などにわずかなタイミングの
+  // ズレが生じうる。そのため、レンダラー自身のrender()呼び出しを直接フックし、
+  // 「実際に描画されたのと全く同じタイミング・同じカメラ状態」でラベル位置を
+  // 再計算する
+  function hookRendererForLabelSync() {
     if (!globeInstance) return;
     const renderer = globeInstance.renderer();
     if (!renderer || typeof renderer.render !== "function" || renderer.__wfqPinSyncHooked) return;
@@ -735,11 +777,7 @@ const MapModule = (() => {
     renderer.__wfqPinSyncHooked = true;
   }
   function onAfterRender() {
-    if (visibleNormalPinIds.size > 0) updateNormalPinPositions();
-    if (trackedCountry) {
-      updateLabelPosition(trackedCountry);
-      updateMarkerPosition(trackedCountry);
-    }
+    if (trackedCountry) updateLabelPosition(trackedCountry);
   }
 
   // ---------- ピン表示中の国をタップできるようにする近接判定 ----------
@@ -855,8 +893,16 @@ const MapModule = (() => {
         resizeGlobe();
         globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
         startAutoRotate();
-        hookRendererForPinSync();
-        refreshNormalPinVisibility();
+        hookRendererForLabelSync();
+        // 📍の3Dオブジェクト化に使うThree.jsクラスをここで一度だけ取得してから、
+        // 実際のピンレイヤーを構築する(取得完了まで📍は一時的に表示されない)
+        bootstrapPinClasses().then((classes) => {
+          if (!classes) {
+            console.error("📍の3Dオブジェクト化に必要なThree.jsクラスを取得できませんでした");
+            return;
+          }
+          refreshPinLayer();
+        });
       });
 
     // 衛星写真ではなく、国境が見やすい明るい水色の海にする。
@@ -949,7 +995,7 @@ const MapModule = (() => {
     if (globeInstance) {
       globeInstance.controls().autoRotate = false;
       refreshPolygonStyles();
-      refreshNormalPinVisibility();
+      refreshPinLayer();
       if (selectedShowsLabel) {
         startLabelTracking(country);
       } else {
@@ -1003,7 +1049,7 @@ const MapModule = (() => {
     selectedShowsLabel = false;
     stopLabelTracking();
     refreshPolygonStyles();
-    refreshNormalPinVisibility();
+    refreshPinLayer();
   }
 
   // ---------- 検索 ----------
@@ -1121,7 +1167,7 @@ const MapModule = (() => {
     $("map-region-btn-label").textContent = REGION_LABELS[region];
     updateRegionListHighlight();
     refreshPolygonStyles();
-    refreshNormalPinVisibility();
+    refreshPinLayer();
     if (moveCamera && globeInstance && region !== "all") {
       const center = regionCenters && regionCenters[region];
       if (center) {
@@ -1176,8 +1222,8 @@ const MapModule = (() => {
         if (globeInstance) {
           globeInstance.resumeAnimation();
           resizeGlobe();
-          // close()で止めた通常ピンの位置追従ループを再開する
-          refreshNormalPinVisibility();
+          // close()で止めたラベル位置追従・📍レイヤーを再開/再構築する
+          refreshPinLayer();
         }
       })
       .catch(() => {
