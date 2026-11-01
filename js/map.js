@@ -25,6 +25,7 @@ const MapModule = (() => {
   let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
   let pinAnchorById = new Map(); // id -> {lat,lng}。実ポリゴン上の代表点(GeoJSON読み込み時に一度だけ算出)
   let pinClasses = null; // 📍の3Dオブジェクト構築に使うThree.jsクラス一式(起動時に一度だけ取得する、下記参照)
+  let currentPinData = []; // 現在objectsData()に渡しているピンのデータ(描画直前のサイズ調整に使う)
 
   // ---------- 地域フィルター(v1.2) ----------
   // "all"のときは既存(v1.1以前)の見た目・挙動を完全に維持する。
@@ -123,8 +124,15 @@ const MapModule = (() => {
   // (針の先、下記buildPinObject参照)がちょうどポリゴン表面に接する
   const PIN_OBJECT_ALTITUDE = 0.006;
   const PIN_NEEDLE_COLOR = 0xb91c1c;
-  const PIN_HEAD_COLOR = 0xef4444;
+  const PIN_HEAD_COLOR = 0xe53935;
   const PIN_SELECTED_SCALE = 1.3; // 選択中の国のピンは少し大きくし、選択状態を分かりやすくする
+  // 📍の画面上の高さ(CSSピクセル)。iPhoneの文章中に表示される絵文字「📍」程度の
+  // 大きさを基準にする。ワールド座標の固定サイズだと、ズームインで巨大化・
+  // ズームアウトで極小化するため、描画直前にカメラとの距離から3Dオブジェクトの
+  // スケールを毎フレーム計算し直し、画面上の見かけの大きさを一定に保つ
+  // (CSSピクセル基準なので、iPhone・iPad・PCで見た目の大きさがほぼ揃う)。
+  // スケールの基準点はGroup原点(=針の先端)なので、拡大縮小しても先端の位置は動かない
+  const PIN_SCREEN_HEIGHT_PX = 18;
 
   function $(id) { return document.getElementById(id); }
 
@@ -441,11 +449,19 @@ const MapModule = (() => {
     // 地域フィルターで対象外になった国も、緑一色に潰さずその国自身の色を薄くする
     return isInActiveRegion(feat) ? rgba(base, 0.97) : rgba(base, 0.25);
   }
-  function polygonSideColor(feat) {
-    if (isSelected(feat)) return "rgba(255, 177, 0, 0.45)";
-    const base = baseFillColor(feat);
-    if (currentRegionFilter === "all") return rgba(base, 0.4);
-    return isInActiveRegion(feat) ? rgba(base, 0.45) : rgba(base, 0.1);
+  // 国ポリゴンは、地球儀の球面(半径100)から高度0.006(=0.6単位)だけ押し出した
+  // 「薄い板」として描画される。以前はこの板の側面(高さ0〜0.6の壁)を国の色の
+  // 半透明(40%)で塗っていたが、画面中央から外れた海岸線や斜め視点では、この壁が
+  // 上面(国の形)の外側に帯状に見え、半透明の国色と海の水色が混ざって灰色っぽい
+  // 縁＝「輪郭が二重にずれて見える」原因になっていた(側面だけを消すと縁が消え、
+  // 国境線を消しても縁が残ることをスクリーンショット比較で確認済み)。
+  // そこで側面の色をnullにする。globe.glは側面の色・マテリアルが無いとき、
+  // 側面ジオメトリ自体を生成しない(includeSides:false)ため、透明な壁が深度
+  // バッファに残るといった副作用も無い。上面の高さ(polygonAltitude)は
+  // 地球儀表面とのZファイティングを避けるため従来どおり0.006のまま維持し、
+  // 📍の先端の高さ(PIN_OBJECT_ALTITUDE)との一致も崩さない
+  function polygonSideColor() {
+    return null;
   }
   // 国境線は国ごとの色に関わらず、やさしい単色(#7E9A8A)で統一し、
   // 地図全体の国境が細く自然に見えるようにする
@@ -555,23 +571,67 @@ const MapModule = (() => {
   }
   // 📍本体(球形の頭+円錐の針)を構築する。Group原点(=objectLat/Lng/Altitudeで
   // 指定した地点)がちょうど針の先端に来るよう、各メッシュをy方向にオフセットする。
-  // globe.glはGroupのquaternionを地表の外向き法線に自動で合わせるため、
-  // ローカルの+Y軸がそのまま「地表から外向き」になり、針の先端が常に
-  // 指定した緯度経度・高度の1点に固定される
+  // globe.glはこのGroupを位置合わせ用の外側Groupで包み、原点を指定地点に置く。
+  // 実測では、ローカルの+Y軸は地表に沿った(接線方向の)向きになっており
+  // (外向き法線との内積≒0)、そのため真上から見ても📍が横向きの形で見える。
+  // どの向きでも針の先端=原点が指定した緯度経度・高度の1点に固定される
+  // 形状は「全高=1(ワールド単位)」に正規化して作り、実際の大きさは
+  // updatePinScreenScales()が描画直前にgroup.scaleで決める。
+  // 絵文字「📍」に近づけるため、丸い頭+細く短い針のシンプルな形にし、
+  // 陰影が強く出すぎないよう自己発光(emissive)で明るさを底上げして平面的に見せる
   function buildPinObject(d) {
     const C = pinClasses;
     const group = new C.Group();
-    const headR = 0.8, needleH = 1.6, needleBaseR = 0.35;
-    const needleGeom = new C.CylinderGeometry(needleBaseR, 0, needleH, 12);
-    const needleMesh = new C.Mesh(needleGeom, new C.MeshLambertMaterial({ color: PIN_NEEDLE_COLOR }));
-    needleMesh.position.y = needleH / 2;
-    const headGeom = new C.SphereGeometry(headR, 16, 16);
-    const headMesh = new C.Mesh(headGeom, new C.MeshLambertMaterial({ color: PIN_HEAD_COLOR }));
-    headMesh.position.y = needleH + headR * 0.55;
+    const headR = 0.3, needleH = 0.48, needleBaseR = 0.085;
+    const headCenterY = needleH + headR * 0.75; // 頭と針の付け根を少し重ねる
+    const totalH = headCenterY + headR; // =1.005 → 下で1に正規化
+    const k = 1 / totalH;
+    const needleGeom = new C.CylinderGeometry(needleBaseR * k, 0, needleH * k, 10);
+    const needleMat = new C.MeshLambertMaterial({ color: PIN_NEEDLE_COLOR });
+    if (needleMat.emissive) needleMat.emissive.setHex(0x5a0d0d);
+    const needleMesh = new C.Mesh(needleGeom, needleMat);
+    needleMesh.position.y = (needleH * k) / 2;
+    const headGeom = new C.SphereGeometry(headR * k, 20, 16);
+    const headMat = new C.MeshLambertMaterial({ color: PIN_HEAD_COLOR });
+    if (headMat.emissive) headMat.emissive.setHex(0x7a1414);
+    const headMesh = new C.Mesh(headGeom, headMat);
+    headMesh.position.y = headCenterY * k;
     group.add(needleMesh);
     group.add(headMesh);
-    if (d && d.selected) group.scale.setScalar(PIN_SELECTED_SCALE);
+    // 通常ピン・選択中ピンとも同じ基準(PIN_SCREEN_HEIGHT_PX)で大きさを決め、
+    // 選択中だけPIN_SELECTED_SCALE倍にする。初回描画前に一瞬大きく出ないよう、
+    // ここでも一度スケールを計算しておく
+    group.userData.pinSizeFactor = d && d.selected ? PIN_SELECTED_SCALE : 1;
+    // globe.glはこのGroupを位置合わせ用の外側のGroupで包むため、
+    // スケールを掛ける対象(=この内側のGroup)をデータ側に直接覚えておく
+    if (d) d.pinGroup = group;
+    applyPinScreenScale(group, d);
     return group;
+  }
+  // 1ピン分のスケールを、現在のカメラ状態から計算する。
+  // 透視投影では「画面の高さ(CSSpx)＝視錐台の高さ(=2·距離·tan(fov/2))」なので、
+  // 1ワールド単位あたりのpx数はH/(2·d·tan(fov/2))。目標px数をこれで割ればスケールになる
+  function applyPinScreenScale(group, d) {
+    if (!globeInstance || !group || !d) return;
+    const camera = globeInstance.camera();
+    const container = $("map-globe-container");
+    const viewH = container ? container.clientHeight : 0;
+    if (!camera || !viewH) return;
+    const p = globeInstance.getCoords(d.lat, d.lng, PIN_OBJECT_ALTITUDE);
+    const cp = camera.position;
+    const dist = Math.sqrt((cp.x - p.x) ** 2 + (cp.y - p.y) ** 2 + (cp.z - p.z) ** 2);
+    if (!Number.isFinite(dist) || dist <= 0) return;
+    const fovRad = ((camera.fov || 50) * Math.PI) / 180;
+    const pxPerUnit = viewH / (2 * dist * Math.tan(fovRad / 2));
+    const factor = group.userData.pinSizeFactor || 1;
+    group.scale.setScalar((PIN_SCREEN_HEIGHT_PX * factor) / pxPerUnit);
+  }
+  // 描画の直前(hookRendererForLabelSync参照)に毎回呼ぶ。ピンは最大30件弱なので軽い
+  function updatePinScreenScales() {
+    if (!globeInstance || !currentPinData.length) return;
+    for (const d of currentPinData) {
+      applyPinScreenScale(d.pinGroup, d);
+    }
   }
   // ピンON/OFF・地域フィルター・選択中の国が変わったときに呼ぶ。表示すべき
   // ピンのデータ配列を作り直し、objectsData()に渡し直す(globe.glは配列の
@@ -592,6 +652,7 @@ const MapModule = (() => {
       }
       data.push({ id, lat: anchor.lat, lng: anchor.lng, selected: isSelectedPin });
     });
+    currentPinData = data;
     globeInstance
       .objectsData(data)
       .objectLat("lat")
@@ -770,6 +831,9 @@ const MapModule = (() => {
     if (!renderer || typeof renderer.render !== "function" || renderer.__wfqPinSyncHooked) return;
     const originalRender = renderer.render.bind(renderer);
     renderer.render = function (...args) {
+      // 📍の見かけの大きさは、これから描画するのと同じカメラ状態で決める
+      // (描画後に直すと1フレーム遅れて大きさが揺れるため、必ず描画の直前に行う)
+      updatePinScreenScales();
       const result = originalRender(...args);
       onAfterRender();
       return result;
