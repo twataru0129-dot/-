@@ -983,7 +983,11 @@ const MapModule = (() => {
 
     const controls = globeInstance.controls();
     controls.enableDamping = true;
-    controls.minDistance = 120;
+    // 以前は120(=GLOBE_RADIUS+20、地表からの距離20)が最大ズームイン時の
+    // カメラ距離だった。モナコ・バチカン・サンマリノ等の小さな国が見づらいとの
+    // 要望に対応し、見かけの拡大率(画面上のサイズ)が約3倍になるよう、
+    // 地表からの距離を1/3にする(透視投影では画面上のサイズは距離にほぼ反比例するため)
+    controls.minDistance = GLOBE_RADIUS + (120 - GLOBE_RADIUS) / 3; // ≈106.67
     controls.maxDistance = 500;
 
     // 通常ピンの表示対象(PIN_TARGET_IDS)は固定リストなので、
