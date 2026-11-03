@@ -1061,7 +1061,11 @@ const MapModule = (() => {
   // computeCountryGeoInfo参照)の中で最も近いものを使う。セントビンセント・
   // グレナディーンのように本島から離れた小島(飛び地)を持つ場合、本島だけを
   // 基準にすると距離が候補失格ライン(TAP_ASSIST_RADIUS_PX)を超えてしまい、
-  // たまたま画面上近くに見える別の国に奪われることがあるため
+  // たまたま画面上近くに見える別の国に奪われることがあるため。
+  // 各島の代表点を投影する高度は、実際に描画される地形・📍の先端と同じ
+  // PIN_OBJECT_ALTITUDEを使う(screenToLatLngと同じ理由。画面中央から離れた
+  // 位置では、高度が違うだけで投影先の画面座標が数十px単位でずれるため、
+  // 実際に見えている島の位置とタップ補助の基準点がずれてしまう)
   function findNearestTapAssistCandidate(px, py) {
     if (!countryGeoById.size || !globeInstance) return null;
     const camera = globeInstance.camera();
@@ -1079,7 +1083,7 @@ const MapModule = (() => {
       const anchors = info.subAnchors && info.subAnchors.length ? info.subAnchors : [{ lat: info.lat, lng: info.lng }];
       let nearestDist = Infinity;
       for (const a of anchors) {
-        const pos = projectLatLngToScreen(a.lat, a.lng, 0.02);
+        const pos = projectLatLngToScreen(a.lat, a.lng, PIN_OBJECT_ALTITUDE);
         if (!pos) continue;
         const dx = pos.x - px;
         const dy = pos.y - py;
@@ -1211,7 +1215,9 @@ const MapModule = (() => {
       const anchors = info.subAnchors && info.subAnchors.length ? info.subAnchors : [{ lat: info.lat, lng: info.lng }];
       let nearestDist = Infinity;
       anchors.forEach((a) => {
-        const pos = projectLatLngToScreen(a.lat, a.lng, 0.02);
+        // findNearestTapAssistCandidateと同じ高度(PIN_OBJECT_ALTITUDE)を使う。
+        // 診断表示用の距離が実際の判定と食い違わないようにするため
+        const pos = projectLatLngToScreen(a.lat, a.lng, PIN_OBJECT_ALTITUDE);
         if (!pos) return;
         const dx = pos.x - px, dy = pos.y - py;
         const d = Math.sqrt(dx * dx + dy * dy);
