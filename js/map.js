@@ -17,13 +17,13 @@ const MapModule = (() => {
   let allMapCountries = []; // COUNTRIES(198件、クイズ対象) + MAP_ONLY_REGIONS(地図モード専用の追加地域)
   let countryByMapCode = null;
   let countryById = null;
-  let countryAngularSize = null; // country.id -> 実ポリゴンのバウンディングボックス角度(度)
   let selectedCountryId = null;
   let selectedShowsLabel = false; // 選択中の国が「ピン→ラベル切り替え」対象かどうか(選択した瞬間に固定する)
   let initPromise = null;
   let hasInteracted = false;
   let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
-  let pinAnchorById = new Map(); // id -> {lat,lng}。実ポリゴン上の代表点(GeoJSON読み込み時に一度だけ算出)
+  let countryGeoById = new Map(); // id -> {lat,lng,area,sizeDeg,minLat,maxLat,minLng,maxLng,polys}(GeoJSON読み込み時に一度だけ算出、下記computeCountryGeoInfo参照)
+  let pinAnchorById = new Map(); // id -> {lat,lng}。countryGeoByIdのうちPIN_TARGET_IDSだけを抜き出したもの(📍表示用)
   let pinClasses = null; // 📍の3Dオブジェクト構築に使うThree.jsクラス一式(起動時に一度だけ取得する、下記参照)
   let currentPinData = []; // 現在objectsData()に渡しているピンのデータ(描画直前のサイズ調整に使う)
 
@@ -48,8 +48,8 @@ const MapModule = (() => {
   let previousRandomIds = []; // 直近に選ばれたID(最大5件)を保持し、連続・近接重複を避ける
 
   // ---------- 通常の小国ピン ON/OFF ----------
-  // 見た目(HTML要素の📍)だけを切り替える。PIN_TARGET_IDS/tapAssistIdsや
-  // 近接タップ判定(handleContainerClick)はこのフラグに関係なく常に生きたままにする
+  // 見た目(📍の3Dオブジェクト)だけを切り替える。PIN_TARGET_IDSや
+  // タップ判定(handleMapTap)はこのフラグに関係なく常に生きたままにする
   const PINS_VISIBLE_STORAGE_KEY = "wfq_v1_map_pins_visible";
   function loadPinsVisiblePref() {
     try {
@@ -70,21 +70,11 @@ const MapModule = (() => {
   }
   let pinsVisible = loadPinsVisiblePref();
 
-  // 実ポリゴンが極小で、基準ズームでの角度サイズ判定だけでは信頼できない
-  // (≒常にタップ補助が必要な)国・地域。この集合は下記tapAssistIds(タップ
-  // 補助対象)の算出にのみ使う。赤い📍を表示する対象はPIN_TARGET_IDS
-  // (固定リスト、下記)で別途管理しており、この集合とは目的が異なる。
-  // nu(ニウエ)は実ポリゴンの角度サイズ自体が極小、ck(クック諸島)は
-  // 散らばった離島まで含むバウンディングボックスが非常に広く、画面上サイズに
-  // 基づく判定(estimateApparentPx)だとほぼ「大きい国」扱いになって
-  // タップ補助対象から外れてしまうため、常時タップ補助対象に加えている
-  const ALWAYS_PIN_IDS = new Set(["va", "mc", "sm", "mv", "nr", "tv", "nu", "ck"]);
-
   // ---------- 見た目の通常ピン対象(固定リスト) ----------
   // 「ズームしても場所や形が分かりづらい、本当に小さい国・地域」だけを
   // 手動で選定した固定リスト。国の面積・見かけサイズから自動的に対象を
-  // 増減させる仕組みは通常ピンの表示には使わない(タップ補助用の
-  // tapAssistIdsとは別物で、ズーム操作によって増減することもない)。
+  // 増減させる仕組みは通常ピンの表示には使わない(タップ判定は別の仕組み
+  // (下記、全ての国・地域が対象)で行うため、こことは目的が異なる)。
   // 通常ピン(赤い📍)・選択中のピン+国名ラベルの対象は、どちらもこの
   // リストだけを見る(コスタリカ等、実際に形が見える国は含めない)。
   const PIN_TARGET_IDS = new Set([
@@ -100,24 +90,23 @@ const MapModule = (() => {
     "gs",
   ]);
 
-  // 画面上のおおよその見かけサイズ(px)がこの値を下回る国を、世界地図モードを
-  // 開いたときの基準ズーム(INITIAL_VIEW_ALTITUDE)で一度だけ判定し、
-  // タップ補助対象(tapAssistIds)として確定する。これは「近くをタップすると
-  // 選択しやすくなる」ための内部判定であり、赤い📍の表示/非表示には一切
-  // 連動しない(📍の表示はPIN_TARGET_IDSだけで決まる)。以前はズーム操作の
-  // たびにこの判定をやり直して対象を増減させていたため、ピンONのまま拡大縮小
-  // するとピンが消える不具合があったが、tapAssistIdsは表示に使わなくなった
-  // ため、その心配自体が無くなっている
-  const PIN_SHOW_PX = 25;
-  let tapAssistIds = new Set();
-
-  // 📍は3Dオブジェクト(objectsData)で描画しているため、グラフィック自体は
-  // クリックを受け取れない。ピン表示中の国をタップできるように、緯度経度の近さで
-  // 判定する専用のヒット半径(度)を持たせる(実ポリゴンが小さすぎて直接タップしづらい国ほど広め)
-  const HIT_RADIUS_DEG = { va: 1.6, mc: 1.5, sm: 1.4, mv: 1.5, nr: 1.3, tv: 1.3, nu: 1.5, ck: 1.5 };
-  const DEFAULT_HIT_RADIUS_DEG = 1.4;
+  // ---------- タップ判定(v3、全国・地域を対象にした一般化版) ----------
+  // 画面上の見かけサイズ(px)がこの値を下回る国・地域は「タップしづらい小さな
+  // 対象」とみなし、下記のタップ補助(画面座標ベースの近接判定)の対象になる。
+  // PIN_TARGET_IDSのような固定リストではなく、現在のズーム状態から毎回動的に
+  // 判定するため、将来国・地域が追加されても自動的に対応し、ズームすれば
+  // 自然に補助対象から外れる(直接タップだけで選択できるようになる)
+  const TAP_ASSIST_ELIGIBLE_PX = 30;
+  // タップ補助の実際のヒット半径(画面CSSピクセル)。指で押しやすい範囲を
+  // 確保しつつ、近接する小国同士(グレナダ/セントビンセント、香港/マカオ等)で
+  // 誤判定が起きないよう、実測を踏まえて小さめに抑えている
+  const TAP_ASSIST_RADIUS_PX = 20;
+  // タップ(クリック)とドラッグ/ピンチ操作を区別するための移動量のしきい値。
+  // pointerdown〜click(≒pointerup)の間にこれを超えて指/マウスが動いていたら、
+  // 回転・ズーム操作とみなしてタップ選択は行わない
+  const TAP_MAX_MOVE_PX = 10;
   const GLOBE_RADIUS = 100; // globe.glの基準球半径(getCoords()の結果から実測して確認済み)
-  const INITIAL_VIEW_ALTITUDE = 2.3; // 世界地図モードを開いたときの初期ズーム(tapAssistIdsの基準にも使う)
+  const INITIAL_VIEW_ALTITUDE = 2.3; // 世界地図モードを開いたときの初期ズーム
 
   // ---------- 📍ピンの3Dオブジェクト化(v2) ----------
   // 国ポリゴン(polygonAltitude、下記)と同じ高度にすることで、ピンの先端
@@ -179,7 +168,6 @@ const MapModule = (() => {
       countryById.set(c.id, c);
       if (c.mapCode) countryByMapCode.set(c.mapCode, c);
     });
-    buildAngularSizeIndex();
     buildRegionCenters();
   }
 
@@ -216,29 +204,6 @@ const MapModule = (() => {
     if (regionCenters.antarctica) {
       regionCenters.antarctica = { lat: -82, lng: 0, altitude: 2.2 };
     }
-  }
-
-  // 各国の実ポリゴンのバウンディングボックス角度(緯度幅・経度幅の大きい方)を
-  // 一度だけ計算しておく
-  function buildAngularSizeIndex() {
-    countryAngularSize = new Map();
-    geoFeatures.forEach((f) => {
-      const c = countryByMapCode.get(f.id);
-      if (!c) return;
-      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
-      const polys = f.geometry.type === "MultiPolygon" ? f.geometry.coordinates : [f.geometry.coordinates];
-      polys.forEach((poly) => {
-        poly.forEach((ring) => {
-          ring.forEach(([lng, lat]) => {
-            if (lat < minLat) minLat = lat;
-            if (lat > maxLat) maxLat = lat;
-            if (lng < minLng) minLng = lng;
-            if (lng > maxLng) maxLng = lng;
-          });
-        });
-      });
-      countryAngularSize.set(c.id, Math.max(maxLat - minLat, maxLng - minLng));
-    });
   }
 
   // ---------- 通常ピン・選択用マーカーの表示位置(実ポリゴン上のアンカー) ----------
@@ -308,15 +273,30 @@ const MapModule = (() => {
     }
     return best;
   }
-  // PIN_TARGET_IDSの各国・地域について、実ポリゴン上の代表点を一度だけ計算する。
-  // モルディブ・マーシャル諸島・クック諸島のように離島が散らばっている
-  // MultiPolygonでは、単純平均は取らず「面積が最大のサブポリゴン(代表ポリゴン)」
-  // だけを対象にする
-  function computePinAnchorById() {
-    const anchors = new Map();
+  // 全ての国・地域について、実ポリゴンに基づく情報を一度だけまとめて計算する。
+  // 以前は📍の表示対象(PIN_TARGET_IDSのみ)の代表点(computePinAnchorById)と、
+  // タップ補助の判定基準(固定リストの角度サイズ)を別々に計算していたが、
+  // タップ補助を「固定リストに限定しない、全ての国・地域を対象にした仕組み」へ
+  // 一般化するにあたり、両方を1つの処理にまとめた。各国・地域について:
+  //   - lat/lng: 実ポリゴン上の代表点(面積最大のサブポリゴンの重心、または
+  //     重心が外に出た場合はその外周上の最近傍点)。📍の表示位置にも使う
+  //   - area: 代表サブポリゴンの面積(度²、他国との相対比較のみに使う)。
+  //     バチカン/サンマリノのようにイタリアの中に完全に囲まれる飛び地で、
+  //     タップ地点がどちらのポリゴンにも内包される場合、面積が小さい方(＝より
+  //     具体的な方)を優先して選ぶために使う
+  //   - sizeDeg: 代表サブポリゴンのバウンディングボックス角度(緯度幅・経度幅の
+  //     大きい方)。離島が散らばる国(クック諸島等)で、全体のバウンディング
+  //     ボックスを使うと「大きい国」と誤判定されてしまう問題を避けるため、
+  //     代表サブポリゴンだけを見る
+  //   - minLat/maxLat/minLng/maxLng: 全サブポリゴンを含む外側のバウンディング
+  //     ボックス(タップ判定での高速な足切りに使う。日付変更線をまたぐ国では
+  //     正確な範囲にならないが、影響は限定的なため現時点では許容する)
+  //   - polys: GeoJSONのポリゴン配列(タップ判定の点内外テストにそのまま使う)
+  function computeCountryGeoInfo() {
+    const info = new Map();
     geoFeatures.forEach((f) => {
       const c = countryByMapCode.get(f.id);
-      if (!c || !PIN_TARGET_IDS.has(c.id)) return;
+      if (!c) return;
       const polys = f.geometry.type === "MultiPolygon" ? f.geometry.coordinates : [f.geometry.coordinates];
       let primary = polys[0];
       let bestArea = 0;
@@ -328,16 +308,46 @@ const MapModule = (() => {
       const anchor = pointInPolygonWithHoles(centroid.lng, centroid.lat, primary)
         ? centroid
         : nearestRingVertex(centroid.lng, centroid.lat, primary[0]);
-      anchors.set(c.id, anchor);
+
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      let pMinLat = 90, pMaxLat = -90, pMinLng = 180, pMaxLng = -180;
+      polys.forEach((poly) => {
+        const isPrimary = poly === primary;
+        poly[0].forEach(([lng, lat]) => {
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+          if (lng < minLng) minLng = lng;
+          if (lng > maxLng) maxLng = lng;
+          if (isPrimary) {
+            if (lat < pMinLat) pMinLat = lat;
+            if (lat > pMaxLat) pMaxLat = lat;
+            if (lng < pMinLng) pMinLng = lng;
+            if (lng > pMaxLng) pMaxLng = lng;
+          }
+        });
+      });
+
+      info.set(c.id, {
+        lat: anchor.lat,
+        lng: anchor.lng,
+        area: bestArea,
+        sizeDeg: Math.max(pMaxLat - pMinLat, pMaxLng - pMinLng),
+        minLat, maxLat, minLng, maxLng,
+        polys,
+      });
     });
     // 万一実ポリゴンが見つからなかった場合の安全策(理論上は起きないはずだが、
-    // データ上の代表座標にフォールバックして、ピン自体が消えないようにする)
-    PIN_TARGET_IDS.forEach((id) => {
-      if (anchors.has(id)) return;
-      const c = countryById.get(id);
-      if (c) anchors.set(id, { lat: c.lat, lng: c.lng });
+    // データ上の代表座標にフォールバックして、ピン・タップ補助の対象から
+    // 漏れないようにする)。polysが空なので直接タップ判定の対象にはならないが、
+    // タップ補助(画面座標ベースの近接判定)の対象としては機能する
+    allMapCountries.forEach((c) => {
+      if (info.has(c.id)) return;
+      info.set(c.id, {
+        lat: c.lat, lng: c.lng, area: 0, sizeDeg: 0,
+        minLat: c.lat, maxLat: c.lat, minLng: c.lng, maxLng: c.lng, polys: [],
+      });
     });
-    return anchors;
+    return info;
   }
 
   function setStatus(text, isError) {
@@ -374,12 +384,15 @@ const MapModule = (() => {
         // 描画時にエラーになるため、念のためここでも取り除いておく
         geoFeatures = geo.features.filter((f) => f && f.geometry);
         buildCountryIndex();
-        // タップ補助対象を基準ズームで一度だけ確定する(近接タップ判定専用、
-        // 赤い📍の表示対象PIN_TARGET_IDSとは別物)。通常ピンのHTML要素は
-        // PIN_TARGET_IDS(固定リスト)から作る
-        tapAssistIds = computeTapAssistIds();
-        // 通常ピン・選択中ピンが実ポリゴン上に来るよう、代表点を一度だけ算出する
-        pinAnchorById = computePinAnchorById();
+        // 全ての国・地域について、実ポリゴンに基づくアンカー・サイズ・形状を
+        // 一度だけ算出する(タップ判定・📍の表示位置の両方で使う)
+        countryGeoById = computeCountryGeoInfo();
+        // 📍の表示対象(PIN_TARGET_IDS、固定リスト)だけを抜き出しておく
+        pinAnchorById = new Map();
+        PIN_TARGET_IDS.forEach((id) => {
+          const info = countryGeoById.get(id);
+          if (info) pinAnchorById.set(id, { lat: info.lat, lng: info.lng });
+        });
         buildGlobe();
         setStatus(null);
       })
@@ -707,25 +720,23 @@ const MapModule = (() => {
     card.style.top = `${cRect.top - wRect.top}px`;
   }
 
-  // ---------- タップ補助対象の判定(基準ズームで一度だけ) ----------
+  // ---------- タップ補助対象の判定(タップのたびに現在のズームで判定) ----------
   // globe.glの透視投影を簡易近似した式(fov≈50°相当で較正)で、実ポリゴンの
-  // おおよその画面上サイズ(px)を見積もる。世界地図モードを開いた直後の
-  // 基準ズーム(INITIAL_VIEW_ALTITUDE)で一度だけ判定し、以降はズーム操作を
-  // 行ってもこの判定をやり直さない。この結果(tapAssistIds)は近接タップ
-  // 判定の候補集合としてのみ使い、赤い📍の表示対象(PIN_TARGET_IDS)には
-  // 一切影響しない
+  // おおよその画面上サイズ(px)を見積もる。以前は世界地図モードを開いた直後の
+  // 基準ズームで一度だけ判定し、以降は固定していたが、タップ補助を全ての
+  // 国・地域を対象にした仕組みへ一般化するにあたり、タップのたびに「今の
+  // ズームでその国・地域が実際にどれくらい小さく見えているか」を計算し直す
+  // ようにした。これにより、ズームインすれば自然に補助対象から外れて直接
+  // タップだけで選択できるようになり(「拡大・縮小しても判定が不自然に広がらない」)、
+  // 固定リストを持たないため将来国・地域が追加されても自動的に対応する。
   function estimateApparentPx(angularSizeDeg, altitude) {
     const CALIBRATION_K = 15.6;
     return (CALIBRATION_K * angularSizeDeg) / (1 + altitude);
   }
-  function computeTapAssistIds() {
-    const ids = new Set(ALWAYS_PIN_IDS);
-    if (countryAngularSize) {
-      countryAngularSize.forEach((deg, id) => {
-        if (estimateApparentPx(deg, INITIAL_VIEW_ALTITUDE) < PIN_SHOW_PX) ids.add(id);
-      });
-    }
-    return ids;
+  function currentViewAltitude() {
+    if (!globeInstance) return INITIAL_VIEW_ALTITUDE;
+    const pov = globeInstance.pointOfView();
+    return pov && Number.isFinite(pov.altitude) ? pov.altitude : INITIAL_VIEW_ALTITUDE;
   }
 
   // ---------- 選択中の国名ラベル(ピンの代わりに表示する) ----------
@@ -844,11 +855,34 @@ const MapModule = (() => {
     if (trackedCountry) updateLabelPosition(trackedCountry);
   }
 
-  // ---------- ピン表示中の国をタップできるようにする近接判定 ----------
+  // ---------- タップ判定(v3、1つの同期処理に統合) ----------
+  // 以前はglobe.gl自身のonPolygonClick(3Dオブジェクトへのレイキャスト)と、
+  // 自前のhandleContainerClick(setTimeout(0)で遅延実行する近接判定)という
+  // 2つの独立した選択処理が存在していた。この2つが同じタップ操作に対して
+  // 競合し、以下の不具合を引き起こしていた:
+  //   1. onPolygonClickは、globe.glの汎用レイキャスト・クリックシステム
+  //      (シーン内の全オブジェクトを対象に最も近い交差物を1つだけ採用し、
+  //      その種類に対応するコールバックだけを呼ぶ実装)に乗っているため、
+  //      📍の3Dオブジェクト(objectsDataレイヤー、カメラに最も近い)がタップ地点の
+  //      手前にあると、交差判定はピン自体にヒットしてしまい(ピンにはクリック
+  //      コールバックを登録していないため)、ポリゴン側のonPolygonClickが
+  //      そもそも呼ばれない。グレナダ・セントビンセント・香港・マカオは
+  //      いずれも📍が表示される対象であり、ピンの頭や針をタップするとこの
+  //      現象が起きていたと考えられる。
+  //   2. 仮にonPolygonClickが正しく発火しても、遅延実行されるhandleContainerClick
+  //      側が緯度経度の固定角度半径(最大1.4度、カリブ海や香港/マカオ間の
+  //      実際の距離に対して広すぎる)で近隣の別の小国を拾ってしまい、
+  //      正しく選択された国を後から上書きすることがあった。
+  // この2つを廃止し、1回のクリックイベント内で同期的に完結する単一の判定に
+  // 統合した。globe.glのレイキャストには一切頼らず、タップ地点の緯度経度を
+  // 自前で計算した上で、(a)実ポリゴンへの直接ヒット判定、(b)画面ピクセル距離
+  // ベースのタップ補助、の順で評価する。ピンは3Dオブジェクトだが、この判定
+  // 自体はメッシュへのレイキャストを一切行わないため、ピンがタップ判定を
+  // 遮ることは原理的に無くなる。
   // pointsDataレイヤーはこのglobe.glビルドではクリックイベントを受け取れないため、
   // 地球儀コンテナへの生のclickイベントから「画面上のどの地点をタップしたか」を
-  // 緯度経度に変換し、現在ピン表示されている国の座標に近ければその国を選択する。
-  // 透明・高高度ポリゴンを使わないため、深度バッファを汚染する副作用が一切ない。
+  // 緯度経度に変換する。透明・高高度ポリゴンを使わないため、深度バッファを
+  // 汚染する副作用が一切ない。
   function screenToLatLng(px, py) {
     if (!globeInstance) return null;
     const camera = globeInstance.camera();
@@ -891,50 +925,115 @@ const MapModule = (() => {
     if (a < -Math.PI / 2) lng -= 360;
     return { lat, lng };
   }
-  function handleContainerClick(evt) {
+  // タップ地点(緯度経度)が実際にどの国・地域のポリゴンの内側にあるかを判定する。
+  // 全geoFeaturesに対してバウンディングボックスで高速に足切りしたあと、
+  // 候補として残ったものだけ実際の点内外判定(pointInPolygonWithHoles)を行う
+  // ため、ロシア・カナダのような頂点数の多い国が混ざっていても軽い。
+  // バチカン/サンマリノのようにイタリアの領域に完全に囲まれる飛び地では、
+  // タップ地点が両方のポリゴンに内包されることがあるため、複数ヒットした
+  // 場合は面積が最も小さい(＝最も具体的な)ものを採用する
+  function findDirectPolygonHit(lat, lng) {
+    if (!countryGeoById.size) return null;
+    let bestId = null;
+    let bestArea = Infinity;
+    countryGeoById.forEach((info, id) => {
+      if (!info.polys.length) return;
+      if (lat < info.minLat || lat > info.maxLat || lng < info.minLng || lng > info.maxLng) return;
+      let inside = false;
+      for (const poly of info.polys) {
+        if (pointInPolygonWithHoles(lng, lat, poly)) { inside = true; break; }
+      }
+      if (!inside) return;
+      if (info.area < bestArea) {
+        bestArea = info.area;
+        bestId = id;
+      }
+    });
+    return bestId ? countryById.get(bestId) : null;
+  }
+  // 現在のズームで画面上小さく見える国・地域の中から、タップ地点(画面ピクセル
+  // 座標)に最も近いものを探す。実ポリゴンへの直接タップがわずかに外れた場合
+  // (📍の頭をタップした場合も含む)の補助として使う。PIN_TARGET_IDSのような
+  // 固定リストではなく全ての国・地域を対象にするため、将来追加される国・地域にも
+  // 自動的に対応する。複数の候補が範囲内にある場合は最も近いものを優先し、
+  // 地球の裏側にある国はprojectLatLngToScreenが自動的にnullを返すため対象外になる
+  function findNearestTapAssistCandidate(px, py) {
+    if (!countryGeoById.size) return null;
+    const altitude = currentViewAltitude();
+    let best = null;
+    let bestDist = Infinity;
+    countryGeoById.forEach((info, id) => {
+      if (estimateApparentPx(info.sizeDeg, altitude) >= TAP_ASSIST_ELIGIBLE_PX) return;
+      if (currentRegionFilter !== "all") {
+        const c = countryById.get(id);
+        if (!c || c.region !== currentRegionFilter) return; // 非表示の地域は補助対象外
+      }
+      const pos = projectLatLngToScreen(info.lat, info.lng, 0.02);
+      if (!pos) return;
+      const dx = pos.x - px;
+      const dy = pos.y - py;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist <= TAP_ASSIST_RADIUS_PX && dist < bestDist) {
+        bestDist = dist;
+        best = countryById.get(id);
+      }
+    });
+    return best;
+  }
+  // タップとドラッグ/ピンチ操作を区別するため、pointerdownの位置を記録しておく。
+  // 2本目の指が触れたら(ピンチ操作)、その後のclickはタップ選択の対象外にする
+  let tapPointerDownPos = null;
+  let tapMultiPointerActive = false;
+  function handleContainerPointerDown(evt) {
+    if (evt.isPrimary) {
+      tapPointerDownPos = { x: evt.clientX, y: evt.clientY };
+      tapMultiPointerActive = false;
+    } else {
+      tapMultiPointerActive = true;
+      tapPointerDownPos = null;
+    }
+  }
+  // タップ操作1回につき1度だけ、同期的に国・地域を決定する。タップ補助
+  // (画面上小さく見える国・地域だけを対象にした、精密なアンカー座標からの
+  // 画面ピクセル距離判定)が候補を見つけた場合はそちらを優先し、見つからな
+  // かった場合は実ポリゴンへの直接ヒットを使う。大きな国の通常のタップ操作は、
+  // そもそもタップ補助が発火しない(画面上十分に大きく見えるため)ので、
+  // 常に直接ヒットどおりに選択され、この優先順位による影響を受けない
+  function handleMapTap(evt) {
     if (!globeInstance || !countryById) return;
+    const downPos = tapPointerDownPos;
+    const wasMultiPointer = tapMultiPointerActive;
+    tapPointerDownPos = null;
+    tapMultiPointerActive = false;
+    if (wasMultiPointer) return; // ピンチ操作の名残のclickは無視する
+    if (downPos) {
+      const dx = evt.clientX - downPos.x;
+      const dy = evt.clientY - downPos.y;
+      if (Math.sqrt(dx * dx + dy * dy) > TAP_MAX_MOVE_PX) return; // 回転・ドラッグ操作とみなす
+    }
+
     const container = $("map-globe-container");
     const rect = container.getBoundingClientRect();
     const px = evt.clientX - rect.left;
     const py = evt.clientY - rect.top;
-    // globe.gl自身のonPolygonClickが、このイベントより後(または別タイミング)で
-    // 選択を上書きしてしまうことがあるため、ピンとの近接一致による選択は
-    // 次のタスクに遅延させ、必ず最後に(=確実に)反映されるようにする
-    setTimeout(() => {
-      const geo = screenToLatLng(px, py);
-      if (!geo) return;
+    const geo = screenToLatLng(px, py);
+    if (!geo) return; // 地球の外(背景)をタップした
 
-      let candidateIds = new Set(tapAssistIds);
-      candidateIds.delete(selectedCountryId); // 選択中の国はタップ補助対象外
-      if (currentRegionFilter !== "all") {
-        // 非表示にしているピンは近接判定の対象からも外す(見えないピンがタップに反応すると混乱するため)
-        candidateIds = new Set(
-          [...candidateIds].filter((id) => {
-            const c = countryById.get(id);
-            return c && c.region === currentRegionFilter;
-          })
-        );
-      }
-
-      let best = null;
-      let bestDist = Infinity;
-      candidateIds.forEach((id) => {
-        const c = countryById.get(id);
-        if (!c) return;
-        const dLat = geo.lat - c.lat;
-        let dLng = geo.lng - c.lng;
-        if (dLng > 180) dLng -= 360;
-        if (dLng < -180) dLng += 360;
-        const dist = Math.sqrt(dLat * dLat + dLng * dLng);
-        const radius = HIT_RADIUS_DEG[id] || DEFAULT_HIT_RADIUS_DEG;
-        if (dist <= radius && dist < bestDist) {
-          best = c;
-          bestDist = dist;
-        }
-      });
-      // 一致するピンが無ければ何もしない(onPolygonClickが選択した内容をそのまま活かす)
-      if (best) selectCountry(best, { moveCamera: false });
-    }, 0);
+    const directHit = findDirectPolygonHit(geo.lat, geo.lng);
+    const assist = findNearestTapAssistCandidate(px, py);
+    // 補助候補が見つかった場合は、原則としてそちらを優先する。補助は「画面上
+    // 小さく見える国・地域の、精密なアンカー座標から画面ピクセルで20px以内」
+    // という厳しい条件で絞り込んだ候補であり、直接ヒットと食い違うのは主に
+    // (a) バチカン/サンマリノのようにイタリアの中に完全に囲まれる極小の飛び地で、
+    //     タップ地点の緯度経度への変換(画面→球面交点)にわずかな誤差があるだけで
+    //     極小ポリゴンの境界からはみ出し、代わりに周囲の大きな国に直接ヒットして
+    //     しまう場合、(b) 📍の頭(アンカーよりやや上に表示される)をタップした
+    //     場合、のいずれかであり、どちらも補助側の判定のほうがユーザーの意図に
+    //     近い。直接ヒットと補助が同じ国を指している場合はそのまま一致するだけ
+    // なので、常に補助を優先しても大きな国の通常のタップ操作には影響しない
+    // (補助自体が「画面上小さく見える」国・地域にしか発火しないため)
+    const target = assist || directHit;
+    if (target) selectCountry(target, { moveCamera: false });
   }
 
   function buildGlobe() {
@@ -952,7 +1051,6 @@ const MapModule = (() => {
       .polygonStrokeColor(polygonStrokeColor)
       .polygonAltitude(polygonAltitude)
       .polygonsTransitionDuration(200)
-      .onPolygonClick(handlePolygonClick)
       .onGlobeReady(() => {
         resizeGlobe();
         globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
@@ -990,15 +1088,12 @@ const MapModule = (() => {
     controls.minDistance = GLOBE_RADIUS + (120 - GLOBE_RADIUS) / 3; // ≈106.67
     controls.maxDistance = 500;
 
-    // 通常ピンの表示対象(PIN_TARGET_IDS)は固定リストなので、
-    // ドラッグ回転・ピンチ/ホイールズームのたびに再計算する必要はない。
-    // 通常ピンの画面座標そのものはtickNormalPins()のRAFループが毎フレーム追従する。
-
-    // 通常ピン(HTML要素)自体はクリックを受け取れないため、コンテナ側のclickで
-    // 近接判定を行う。globe.gl自身のonPolygonClickはcanvas(コンテナの子要素)側で
-    // 先に発火してからこのイベントがバブリングしてくるため、ピンに近い場合だけ
-    // ここで選択内容を上書きする形になる
-    container.addEventListener("click", handleContainerClick);
+    // 国・地域の選択は、globe.gl自身のレイキャスト・クリックシステムには頼らず
+    // handleMapTap(上記)に一本化している。pointerdownでタップ開始位置を記録し
+    // (ドラッグ/ピンチとの区別、複数指の検出に使う)、実際の判定はclick
+    // (=pointerup相当、タップ/クリックのみで発火しドラッグ操作とは区別される)で行う
+    container.addEventListener("pointerdown", handleContainerPointerDown, { passive: true });
+    container.addEventListener("click", handleMapTap);
     // 地球儀を直接操作し始めたら、開いたままの地域ドロップダウンは閉じる
     container.addEventListener("pointerdown", closeRegionList, { passive: true });
 
@@ -1034,15 +1129,10 @@ const MapModule = (() => {
     globeInstance.controls().autoRotate = false;
   }
 
-  // 地球儀への直接タップは「今見ている画面をユーザーが自分で作った状態」として
-  // 一切動かさない。検索からの選択だけ、その国までカメラを移動してよい
-  function handlePolygonClick(feature) {
-    const country = feature && countryByMapCode.get(feature.id);
-    if (!country) return;
-    selectCountry(country, { moveCamera: false });
-  }
-
   // 地図タップ・検索のどちらから来ても、この共通処理で国を選択する。
+  // 地球儀への直接タップ(handleMapTap)は「今見ている画面をユーザーが自分で
+  // 作った状態」として一切動かさない(moveCamera:false)。検索からの選択だけ、
+  // その国までカメラを移動してよい
   // moveCameraをfalseにすると、選択状態の更新と情報カード表示だけを行い、
   // 現在のズーム倍率・向き・位置には一切触れない
   // 選択用の赤📍+国名ラベルを出す対象かどうかは、赤い📍を表示する対象と
