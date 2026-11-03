@@ -204,6 +204,20 @@
       <p class="map-card-capital-label"><span id="map-card-capital-label-text">首都</span>：<span id="map-card-capital"></span></p>
       <p id="map-card-desc" class="map-card-desc"></p>
     </div>
+
+    <!-- タップ診断モード(開発・実機調査用)。URLに ?mapTapDebug=1 を付けて
+         開いたときだけ表示される。通常利用では常に非表示・無効 -->
+    <div id="map-tap-debug-panel" class="map-tap-debug-panel hidden" aria-hidden="true">
+      <div class="map-tap-debug-header">
+        <span class="map-tap-debug-title">タップ診断モード</span>
+        <div class="map-tap-debug-actions">
+          <button id="map-tap-debug-copy" class="map-tap-debug-btn" type="button">コピー</button>
+          <button id="map-tap-debug-clear" class="map-tap-debug-btn" type="button">クリア</button>
+          <button id="map-tap-debug-close" class="map-tap-debug-btn" type="button" aria-label="診断パネルを閉じる">×</button>
+        </div>
+      </div>
+      <textarea id="map-tap-debug-log" class="map-tap-debug-log" readonly placeholder="地球儀をタップすると、ここに判定の内部状態が記録されます"></textarea>
+    </div>
   </div>
 </section>
 

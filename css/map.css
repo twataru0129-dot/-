@@ -401,3 +401,66 @@
 @media (prefers-reduced-motion: reduce) {
   .map-info-card { transition-duration: 0.001ms; }
 }
+
+/* ==========================================================
+   タップ診断モード(開発・実機調査用、通常は?mapTapDebug=1が無いと表示されない)
+   ========================================================== */
+.map-tap-debug-panel {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 24, 32, 0.92);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  max-height: 42vh;
+  padding: 8px;
+  gap: 6px;
+}
+
+.map-tap-debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+.map-tap-debug-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.map-tap-debug-btn {
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.map-tap-debug-btn:active {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.map-tap-debug-log {
+  flex: 1;
+  width: 100%;
+  min-height: 120px;
+  resize: none;
+  background: rgba(0, 0, 0, 0.35);
+  color: #d8f5c8;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  border: none;
+  border-radius: 6px;
+  padding: 6px;
+  white-space: pre-wrap;
+}

@@ -26,6 +26,9 @@ const MapModule = (() => {
   let pinAnchorById = new Map(); // id -> {lat,lng}。countryGeoByIdのうちPIN_TARGET_IDSだけを抜き出したもの(📍表示用)
   let pinClasses = null; // 📍の3Dオブジェクト構築に使うThree.jsクラス一式(起動時に一度だけ取得する、下記参照)
   let currentPinData = []; // 現在objectsData()に渡しているピンのデータ(描画直前のサイズ調整に使う)
+  let tapDebugEnabled = false; // タップ診断モード(下記「タップ診断モード」セクション参照)
+  let tapDebugLog = [];
+  let tapDebugPendingDown = null; // {x,y} | null。pointerdown後にclickが来たかどうかの判定に使う
 
   // ---------- 地域フィルター(v1.2) ----------
   // "all"のときは既存(v1.1以前)の見た目・挙動を完全に維持する。
@@ -114,6 +117,16 @@ const MapModule = (() => {
   const TAP_MAX_MOVE_PX = 10;
   const GLOBE_RADIUS = 100; // globe.glの基準球半径(getCoords()の結果から実測して確認済み)
   const INITIAL_VIEW_ALTITUDE = 2.3; // 世界地図モードを開いたときの初期ズーム
+
+  // ---------- タップ診断モード(開発・実機調査用、既定では常に無効) ----------
+  // URLに ?mapTapDebug=1 を付けて開いたときだけ有効になる、タップ判定の内部
+  // 状態を画面上に表示するための開発者向け機能。通常の利用では一切表示されず、
+  // 外部への送信も行わない(画面上の表示とクリップボードへのコピーのみ)。
+  // iPhone本体だけで「実際に何が起きたか」を確認できるようにするための機能で、
+  // ブラウザの開発者ツールが使えない環境(実機のSafari等)での原因調査を想定している
+  const TAP_DEBUG_QUERY_PARAM = "mapTapDebug";
+  const TAP_DEBUG_MAX_ENTRIES = 40; // ログが無限に増え続けないよう直近の件数だけ保持
+  const TAP_DEBUG_PENDING_TIMEOUT_MS = 900; // pointerdown後、この時間内にclickが来なければ「click未発生」として記録
 
   // ---------- 📍ピンの3Dオブジェクト化(v2) ----------
   // 国ポリゴン(polygonAltitude、下記)と同じ高度にすることで、ピンの先端
@@ -342,6 +355,19 @@ const MapModule = (() => {
       const anchor = pointInPolygonWithHoles(centroid.lng, centroid.lat, primary)
         ? centroid
         : nearestRingVertex(centroid.lng, centroid.lat, primary[0]);
+      // セントビンセント・グレナディーンやグレナダのように、本土から数十〜100km近く
+      // 離れた小島(飛び地)を持つ国・地域では、タップ補助(findNearestTapAssistCandidate)が
+      // anchor(本島など最大の島1つだけの代表点)との画面距離だけで判定すると、本島から
+      // 離れた小島をタップした際にその距離が候補失格ラインを超えてしまい、たまたま画面上
+      // 近くに見える別の国(例: グレナダのアンカーの方が近く見える)に誤って奪われることが
+      // ある。これを避けるため、全てのサブポリゴン(飛び地含む)それぞれの代表点も保持し、
+      // タップ補助側では「その国の中で最も近い島」との距離で判定できるようにする
+      const subAnchors = polys.map((poly) => {
+        const subCentroid = ringCentroid(poly[0]);
+        return pointInPolygonWithHoles(subCentroid.lng, subCentroid.lat, poly)
+          ? subCentroid
+          : nearestRingVertex(subCentroid.lng, subCentroid.lat, poly[0]);
+      });
 
       let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
       let pMinLat = 90, pMaxLat = -90, pMinLng = 180, pMaxLng = -180;
@@ -364,6 +390,7 @@ const MapModule = (() => {
       info.set(c.id, {
         lat: anchor.lat,
         lng: anchor.lng,
+        subAnchors,
         area: bestArea,
         sizeDeg: Math.max(pMaxLat - pMinLat, pMaxLng - pMinLng),
         minLat, maxLat, minLng, maxLng,
@@ -377,7 +404,7 @@ const MapModule = (() => {
     allMapCountries.forEach((c) => {
       if (info.has(c.id)) return;
       info.set(c.id, {
-        lat: c.lat, lng: c.lng, area: 0, sizeDeg: 0,
+        lat: c.lat, lng: c.lng, subAnchors: [{ lat: c.lat, lng: c.lng }], area: 0, sizeDeg: 0,
         minLat: c.lat, maxLat: c.lat, minLng: c.lng, maxLng: c.lng, polys: [],
       });
     });
@@ -973,9 +1000,17 @@ const MapModule = (() => {
     });
     const origin = camera.position;
 
-    // 原点中心・半径GLOBE_RADIUSの球とのレイの交点を求める
+    // 原点中心の球とのレイの交点を求める。国ポリゴン(polygonAltitude、下記
+    // polygonAltitude()参照)は地球儀の基準球(半径GLOBE_RADIUS、高度0)からPIN_OBJECT_ALTITUDE
+    // だけ外側に押し出した位置に描画されるため、交点判定も同じ半径(POLYGON_SURFACE_RADIUS)の
+    // 球を使う。画面中央をタップした場合はどちらの半径でも結果は変わらないが、画面中央から
+    // 離れた位置(典型的には海岸線や小さな島)をタップした場合、視線がこの2つの球面を
+    // 斜めに貫くため、半径0のまま判定すると実際に表示されている地形の緯度経度から
+    // 数km単位でずれる(最大ズーム・画面端に近いほど顕著)。実際に見えている地形の
+    // 真上をタップしたと判定するには、その地形と同じ高度の球を使う必要がある
+    const POLYGON_SURFACE_RADIUS = GLOBE_RADIUS * (1 + PIN_OBJECT_ALTITUDE);
     const b = origin.x * dir.x + origin.y * dir.y + origin.z * dir.z;
-    const c = origin.x * origin.x + origin.y * origin.y + origin.z * origin.z - GLOBE_RADIUS * GLOBE_RADIUS;
+    const c = origin.x * origin.x + origin.y * origin.y + origin.z * origin.z - POLYGON_SURFACE_RADIUS * POLYGON_SURFACE_RADIUS;
     const disc = b * b - c;
     if (disc < 0) return null; // 地球の外(背景)をタップした
     const t = -b - Math.sqrt(disc);
@@ -1021,7 +1056,16 @@ const MapModule = (() => {
   // (📍の頭をタップした場合も含む)の補助として使う。PIN_TARGET_IDSのような
   // 固定リストではなく全ての国・地域を対象にするため、将来追加される国・地域にも
   // 自動的に対応する。複数の候補が範囲内にある場合は最も近いものを優先し、
-  // 地球の裏側にある国はprojectLatLngToScreenが自動的にnullを返すため対象外になる
+  // 地球の裏側にある国はprojectLatLngToScreenが自動的にnullを返すため対象外になる。
+  // 距離の判定自体は、本島だけでなくその国・地域が持つ全ての島(subAnchors、
+  // computeCountryGeoInfo参照)の中で最も近いものを使う。セントビンセント・
+  // グレナディーンのように本島から離れた小島(飛び地)を持つ場合、本島だけを
+  // 基準にすると距離が候補失格ライン(TAP_ASSIST_RADIUS_PX)を超えてしまい、
+  // たまたま画面上近くに見える別の国に奪われることがあるため。
+  // 各島の代表点を投影する高度は、実際に描画される地形・📍の先端と同じ
+  // PIN_OBJECT_ALTITUDEを使う(screenToLatLngと同じ理由。画面中央から離れた
+  // 位置では、高度が違うだけで投影先の画面座標が数十px単位でずれるため、
+  // 実際に見えている島の位置とタップ補助の基準点がずれてしまう)
   function findNearestTapAssistCandidate(px, py) {
     if (!countryGeoById.size || !globeInstance) return null;
     const camera = globeInstance.camera();
@@ -1036,13 +1080,18 @@ const MapModule = (() => {
         const c = countryById.get(id);
         if (!c || c.region !== currentRegionFilter) return; // 非表示の地域は補助対象外
       }
-      const pos = projectLatLngToScreen(info.lat, info.lng, 0.02);
-      if (!pos) return;
-      const dx = pos.x - px;
-      const dy = pos.y - py;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist <= TAP_ASSIST_RADIUS_PX && dist < bestDist) {
-        bestDist = dist;
+      const anchors = info.subAnchors && info.subAnchors.length ? info.subAnchors : [{ lat: info.lat, lng: info.lng }];
+      let nearestDist = Infinity;
+      for (const a of anchors) {
+        const pos = projectLatLngToScreen(a.lat, a.lng, PIN_OBJECT_ALTITUDE);
+        if (!pos) continue;
+        const dx = pos.x - px;
+        const dy = pos.y - py;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < nearestDist) nearestDist = dist;
+      }
+      if (nearestDist <= TAP_ASSIST_RADIUS_PX && nearestDist < bestDist) {
+        bestDist = nearestDist;
         best = countryById.get(id);
         bestInfo = info;
       }
@@ -1136,6 +1185,164 @@ const MapModule = (() => {
     }
     return false;
   }
+  // ---------- タップ診断モード本体 ----------
+  // URLクエリパラメータだけで判定する(localStorageに保存しない)。意図せず
+  // 有効なままになって一般利用者の画面に表示され続ける事故を避けるため、
+  // 毎回明示的に ?mapTapDebug=1 を付けて開いたときだけ有効にする
+  function isTapDebugRequested() {
+    try {
+      return new URLSearchParams(location.search).get(TAP_DEBUG_QUERY_PARAM) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+  // 現在のズームで画面上小さく見える国・地域について、タップ地点からの距離
+  // (その国・地域が持つ全ての島のうち最も近いもの、findNearestTapAssistCandidate
+  // と同じ基準)を、実際に補助として採用されるかどうかに関わらず近い順にlimit件
+  // 集める。診断表示専用で、選択結果そのものには一切影響しない
+  function collectTapAssistCandidatesForDebug(px, py, limit) {
+    if (!countryGeoById.size || !globeInstance) return [];
+    const camera = globeInstance.camera();
+    const container = $("map-globe-container");
+    const viewH = container ? container.clientHeight : 0;
+    const results = [];
+    countryGeoById.forEach((info, id) => {
+      if (estimateApparentPx(info, camera, viewH) >= TAP_ASSIST_ELIGIBLE_PX) return;
+      if (currentRegionFilter !== "all") {
+        const c = countryById.get(id);
+        if (!c || c.region !== currentRegionFilter) return;
+      }
+      const anchors = info.subAnchors && info.subAnchors.length ? info.subAnchors : [{ lat: info.lat, lng: info.lng }];
+      let nearestDist = Infinity;
+      anchors.forEach((a) => {
+        // findNearestTapAssistCandidateと同じ高度(PIN_OBJECT_ALTITUDE)を使う。
+        // 診断表示用の距離が実際の判定と食い違わないようにするため
+        const pos = projectLatLngToScreen(a.lat, a.lng, PIN_OBJECT_ALTITUDE);
+        if (!pos) return;
+        const dx = pos.x - px, dy = pos.y - py;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < nearestDist) nearestDist = d;
+      });
+      if (Number.isFinite(nearestDist)) {
+        const c = countryById.get(id);
+        results.push({ id, name: c ? c.name : id, dist: nearestDist });
+      }
+    });
+    results.sort((a, b) => a.dist - b.dist);
+    return results.slice(0, limit);
+  }
+  function formatTapDebugEntry(e) {
+    const lines = [];
+    const time = new Date().toISOString().slice(11, 23);
+    lines.push(`[${time}] ${e.kind}`);
+    if (e.kind === "pointerdown-no-click") {
+      lines.push(`  pointerdown座標: (${e.x.toFixed(0)}, ${e.y.toFixed(0)})`);
+      lines.push(`  → ${TAP_DEBUG_PENDING_TIMEOUT_MS}ms以内にclickイベントが発生しませんでした`);
+      return lines.join("\n");
+    }
+    lines.push(`  タップ座標(コンテナ内px): (${e.px?.toFixed?.(1)}, ${e.py?.toFixed?.(1)})`);
+    if (e.pov) {
+      lines.push(`  カメラ: lat=${e.pov.lat.toFixed(3)} lng=${e.pov.lng.toFixed(3)} altitude=${e.pov.altitude.toFixed(4)}`);
+    }
+    if (e.camPos) {
+      lines.push(`  カメラ位置(xyz): (${e.camPos.x.toFixed(1)}, ${e.camPos.y.toFixed(1)}, ${e.camPos.z.toFixed(1)})`);
+    }
+    if (e.kind === "ignored-drag") {
+      lines.push(`  → ドラッグ/回転操作と判定しタップ選択を行いませんでした(移動量 ${e.moveDist.toFixed(1)}px > ${TAP_MAX_MOVE_PX}px)`);
+      return lines.join("\n");
+    }
+    if (e.kind === "ignored-multi-pointer") {
+      lines.push("  → ピンチ操作の名残のclickと判定し、タップ選択を行いませんでした");
+      return lines.join("\n");
+    }
+    if (e.kind === "no-geo") {
+      lines.push("  screenToLatLng: null(地球の外・背景をタップ)");
+      lines.push("  → 選択結果なし(理由: 地球儀の外をタップした)");
+      return lines.join("\n");
+    }
+    lines.push(`  screenToLatLng: lat=${e.geo.lat.toFixed(4)} lng=${e.geo.lng.toFixed(4)}`);
+    lines.push(`  findDirectPolygonHit: ${e.directHitName || "なし"}`);
+    if (e.candidates && e.candidates.length) {
+      const list = e.candidates.map((c) => `${c.name}(${c.dist.toFixed(1)}px${c.dist <= TAP_ASSIST_RADIUS_PX ? "・圏内" : "・圏外"})`).join(", ");
+      lines.push(`  タップ補助候補(近い順、上位${e.candidates.length}件): ${list}`);
+    } else {
+      lines.push("  タップ補助候補: なし(現在のズームで補助対象になる小さな国・地域が無い)");
+    }
+    if (e.assistName) {
+      lines.push(`  → 採用されたタップ補助候補: ${e.assistName}(${e.assistDist.toFixed(1)}px)`);
+    }
+    if (e.bboxContainsTap !== undefined) {
+      lines.push(`  bboxContainsTap(飛び地救済): ${e.bboxContainsTap}`);
+    }
+    if (e.isNearPinShapeResult !== undefined) {
+      lines.push(`  isNearPinShape: ${e.isNearPinShapeResult}`);
+    }
+    if (e.target) {
+      lines.push(`  → 選択結果: ${e.target}`);
+    } else {
+      lines.push(`  → 選択結果なし(理由: ${e.noSelectionReason || "直接ヒットなし・タップ補助候補も無しまたは不採用"})`);
+    }
+    return lines.join("\n");
+  }
+  function renderTapDebugPanel() {
+    const textarea = $("map-tap-debug-log");
+    if (!textarea) return;
+    textarea.value = tapDebugLog.map(formatTapDebugEntry).join("\n\n");
+    textarea.scrollTop = textarea.scrollHeight;
+  }
+  function logTapDebug(entry) {
+    if (!tapDebugEnabled) return;
+    tapDebugLog.push(entry);
+    if (tapDebugLog.length > TAP_DEBUG_MAX_ENTRIES) tapDebugLog.shift();
+    renderTapDebugPanel();
+  }
+  // コピー・クリア・閉じるボタンの初期化(診断モード有効時のみ呼ばれる)。
+  // navigator.clipboard.writeText()が使えない場合(古いSafari等)は、
+  // textarea自体を選択してdocument.execCommand("copy")にフォールバックする。
+  // いずれの方法でも外部への送信は発生しない(ブラウザのクリップボードのみ)
+  function setupTapDebugUI() {
+    const panel = $("map-tap-debug-panel");
+    if (!panel) return;
+    panel.classList.remove("hidden");
+    panel.setAttribute("aria-hidden", "false");
+    const copyBtn = $("map-tap-debug-copy");
+    const clearBtn = $("map-tap-debug-clear");
+    const closeBtn = $("map-tap-debug-close");
+    const textarea = $("map-tap-debug-log");
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async () => {
+        const text = textarea ? textarea.value : "";
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            throw new Error("clipboard API unavailable");
+          }
+          copyBtn.textContent = "コピーしました";
+        } catch (e) {
+          if (textarea) {
+            textarea.focus();
+            textarea.select();
+            document.execCommand("copy");
+          }
+          copyBtn.textContent = "コピーしました";
+        }
+        setTimeout(() => { copyBtn.textContent = "コピー"; }, 1500);
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        tapDebugLog = [];
+        renderTapDebugPanel();
+      });
+    }
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        panel.classList.add("hidden");
+        panel.setAttribute("aria-hidden", "true");
+      });
+    }
+  }
   // タップとドラッグ/ピンチ操作を区別するため、pointerdownの位置を記録しておく。
   // 2本目の指が触れたら(ピンチ操作)、その後のclickはタップ選択の対象外にする
   let tapPointerDownPos = null;
@@ -1144,6 +1351,20 @@ const MapModule = (() => {
     if (evt.isPrimary) {
       tapPointerDownPos = { x: evt.clientX, y: evt.clientY };
       tapMultiPointerActive = false;
+      // タップ診断モード: pointerdownはあったがclick(=handleMapTap)が一度も
+      // 発生しない「指離しのタイミングで選択が起きなかった」ケースを検出する。
+      // 新しいpointerdownが来た時点で前回分の判定は意味を失うため、同じ
+      // オブジェクト参照を使い捨てタイマーの有効性チェックに利用する
+      if (tapDebugEnabled) {
+        const downInfo = { x: evt.clientX, y: evt.clientY };
+        tapDebugPendingDown = downInfo;
+        setTimeout(() => {
+          if (tapDebugPendingDown === downInfo) {
+            logTapDebug({ kind: "pointerdown-no-click", x: downInfo.x, y: downInfo.y });
+            tapDebugPendingDown = null;
+          }
+        }, TAP_DEBUG_PENDING_TIMEOUT_MS);
+      }
     } else {
       tapMultiPointerActive = true;
       tapPointerDownPos = null;
@@ -1157,15 +1378,25 @@ const MapModule = (() => {
   // 影響を受けない
   function handleMapTap(evt) {
     if (!globeInstance || !countryById) return;
+    tapDebugPendingDown = null; // clickが発生した(=pointerdown-no-clickの対象外)
     const downPos = tapPointerDownPos;
     const wasMultiPointer = tapMultiPointerActive;
     tapPointerDownPos = null;
     tapMultiPointerActive = false;
-    if (wasMultiPointer) return; // ピンチ操作の名残のclickは無視する
+    const camPos = tapDebugEnabled ? globeInstance.camera().position : null;
+    const pov = tapDebugEnabled ? globeInstance.pointOfView() : null;
+    if (wasMultiPointer) {
+      logTapDebug({ kind: "ignored-multi-pointer", px: evt.clientX, py: evt.clientY, pov, camPos });
+      return; // ピンチ操作の名残のclickは無視する
+    }
     if (downPos) {
       const dx = evt.clientX - downPos.x;
       const dy = evt.clientY - downPos.y;
-      if (Math.sqrt(dx * dx + dy * dy) > TAP_MAX_MOVE_PX) return; // 回転・ドラッグ操作とみなす
+      const moveDist = Math.sqrt(dx * dx + dy * dy);
+      if (moveDist > TAP_MAX_MOVE_PX) {
+        logTapDebug({ kind: "ignored-drag", px: evt.clientX, py: evt.clientY, moveDist, pov, camPos });
+        return; // 回転・ドラッグ操作とみなす
+      }
     }
 
     const container = $("map-globe-container");
@@ -1173,7 +1404,10 @@ const MapModule = (() => {
     const px = evt.clientX - rect.left;
     const py = evt.clientY - rect.top;
     const geo = screenToLatLng(px, py);
-    if (!geo) return; // 地球の外(背景)をタップした
+    if (!geo) {
+      logTapDebug({ kind: "no-geo", px, py, pov, camPos });
+      return; // 地球の外(背景)をタップした
+    }
 
     const directHit = findDirectPolygonHit(geo.lat, geo.lng);
     const assist = findNearestTapAssistCandidate(px, py);
@@ -1202,16 +1436,37 @@ const MapModule = (() => {
     //     タップしたのでない限り、直接タップした国(中国・イタリア)が
     //     そのまま選ばれる
     let target = directHit;
+    let bboxContainsTap, isNearPinShapeResult;
     if (assist && (!directHit || assist.country.id !== directHit.id)) {
       const info = assist.info;
-      const bboxContainsTap =
+      bboxContainsTap =
         info && geo.lat >= info.minLat && geo.lat <= info.maxLat &&
         geo.lng >= info.minLng && geo.lng <= info.maxLng;
-      if (!directHit || bboxContainsTap || isNearPinShape(px, py, assist.country.id, info)) {
+      isNearPinShapeResult = !directHit ? undefined : isNearPinShape(px, py, assist.country.id, info);
+      if (!directHit || bboxContainsTap || isNearPinShapeResult) {
         target = assist.country;
       }
     }
     if (target) selectCountry(target, { moveCamera: false });
+
+    if (tapDebugEnabled) {
+      let noSelectionReason;
+      if (!target) {
+        if (!assist) noSelectionReason = "直接ヒットも補助候補も無し";
+        else noSelectionReason = "補助候補はあったが不採用、かつ直接ヒットも無し";
+      }
+      logTapDebug({
+        kind: "tap", px, py, pov, camPos, geo,
+        directHitName: directHit ? directHit.name : null,
+        candidates: collectTapAssistCandidatesForDebug(px, py, 5),
+        assistName: assist ? assist.country.name : null,
+        assistDist: assist ? assist.dist : null,
+        bboxContainsTap,
+        isNearPinShapeResult,
+        target: target ? target.name : null,
+        noSelectionReason,
+      });
+    }
   }
 
   function buildGlobe() {
@@ -1553,6 +1808,10 @@ const MapModule = (() => {
 
   // ---------- 画面の開閉(タブを行き来してもデータは再取得しない) ----------
   function open() {
+    if (!tapDebugEnabled && isTapDebugRequested()) {
+      tapDebugEnabled = true;
+      setupTapDebugUI();
+    }
     ensureReady()
       .then(() => {
         if (globeInstance) {
