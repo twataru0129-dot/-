@@ -101,6 +101,14 @@ const MapModule = (() => {
   // 確保しつつ、近接する小国同士(グレナダ/セントビンセント、香港/マカオ等)で
   // 誤判定が起きないよう、実測を踏まえて小さめに抑えている
   const TAP_ASSIST_RADIUS_PX = 20;
+  // タップ補助の候補と実ポリゴンへの直接ヒットが別の国・地域を指している場合に、
+  // 補助側を優先してよいと判断する距離(px)のしきい値。📍本体(頭・針)は
+  // 実際のアンカーより上にずれて見える(実測: 📍の頭の中心はアンカーから
+  // 画面上で約11〜16px)ため、この距離以内なら「ピン自体を狙ってタップした」
+  // とみなせる。TAP_ASSIST_RADIUS_PX(20px、補助の対象となる範囲そのもの)
+  // より少し狭くすることで、近接する別の小国を偶然かすめただけの場合との
+  // 区別を保っている
+  const TAP_ASSIST_CONFIDENT_PX = 17;
   // タップ(クリック)とドラッグ/ピンチ操作を区別するための移動量のしきい値。
   // pointerdown〜click(≒pointerup)の間にこれを超えて指/マウスが動いていたら、
   // 回転・ズーム操作とみなしてタップ選択は行わない
@@ -721,22 +729,30 @@ const MapModule = (() => {
   }
 
   // ---------- タップ補助対象の判定(タップのたびに現在のズームで判定) ----------
-  // globe.glの透視投影を簡易近似した式(fov≈50°相当で較正)で、実ポリゴンの
-  // おおよその画面上サイズ(px)を見積もる。以前は世界地図モードを開いた直後の
-  // 基準ズームで一度だけ判定し、以降は固定していたが、タップ補助を全ての
-  // 国・地域を対象にした仕組みへ一般化するにあたり、タップのたびに「今の
-  // ズームでその国・地域が実際にどれくらい小さく見えているか」を計算し直す
-  // ようにした。これにより、ズームインすれば自然に補助対象から外れて直接
-  // タップだけで選択できるようになり(「拡大・縮小しても判定が不自然に広がらない」)、
-  // 固定リストを持たないため将来国・地域が追加されても自動的に対応する。
-  function estimateApparentPx(angularSizeDeg, altitude) {
-    const CALIBRATION_K = 15.6;
-    return (CALIBRATION_K * angularSizeDeg) / (1 + altitude);
-  }
-  function currentViewAltitude() {
-    if (!globeInstance) return INITIAL_VIEW_ALTITUDE;
-    const pov = globeInstance.pointOfView();
-    return pov && Number.isFinite(pov.altitude) ? pov.altitude : INITIAL_VIEW_ALTITUDE;
+  // 国・地域の現在の画面上サイズ(px)を、実際のカメラ位置・視野角・その地点
+  // までの3D距離から直接計算する。以前は「角度サイズとaltitudeだけを使う
+  // 簡易近似式(fov≈50°相当で較正した定数Kを(1+altitude)で割る形)」を
+  // 使っていたが、実際の見かけの大きさはおおよそ1/altitudeで大きくなるのに
+  // 対し、この式は1/(1+altitude)という頭打ちになる形をしており、altitudeが
+  // 1前後の通常ズームでは近い値になるものの、altitudeが0に近い(地表すれすれの)
+  // 最大ズーム付近では実際の見かけサイズを大きく過小評価してしまうことが実測で
+  // 判明した(グレナダで検証したところ、altitude=0.0667での真の見かけサイズは
+  // 約76pxだったのに対し、旧式の推定値は約3.5pxしかなかった)。そのため、
+  // 📍のスクリーンスケール計算(applyPinScreenScale)と同じ「カメラから対象
+  // 地点までの実際の3D距離」に基づく透視投影の式に置き換えた。これにより、
+  // 新しい最大ズーム(約3倍)でも、画面上十分に大きく見える国・地域が
+  // 誤ってタップ補助の対象のままになる(＝直接タップより補助が優先され続ける)
+  // ことがなくなる
+  function estimateApparentPx(info, camera, viewH) {
+    if (!globeInstance || !camera || !viewH) return Infinity; // 計算できない場合は安全側(十分大きい扱い=補助を発火させない)に倒す
+    const p = globeInstance.getCoords(info.lat, info.lng, 0.02);
+    const cp = camera.position;
+    const dist = Math.sqrt((cp.x - p.x) ** 2 + (cp.y - p.y) ** 2 + (cp.z - p.z) ** 2);
+    if (!Number.isFinite(dist) || dist <= 0) return Infinity;
+    const fovRad = ((camera.fov || 50) * Math.PI) / 180;
+    const pxPerUnit = viewH / (2 * dist * Math.tan(fovRad / 2));
+    const worldUnitsPerDeg = (GLOBE_RADIUS * Math.PI) / 180; // 球面上、緯度経度1度あたりのワールド単位(円周/360)
+    return pxPerUnit * info.sizeDeg * worldUnitsPerDeg;
   }
 
   // ---------- 選択中の国名ラベル(ピンの代わりに表示する) ----------
@@ -958,12 +974,15 @@ const MapModule = (() => {
   // 自動的に対応する。複数の候補が範囲内にある場合は最も近いものを優先し、
   // 地球の裏側にある国はprojectLatLngToScreenが自動的にnullを返すため対象外になる
   function findNearestTapAssistCandidate(px, py) {
-    if (!countryGeoById.size) return null;
-    const altitude = currentViewAltitude();
+    if (!countryGeoById.size || !globeInstance) return null;
+    const camera = globeInstance.camera();
+    const container = $("map-globe-container");
+    const viewH = container ? container.clientHeight : 0;
     let best = null;
+    let bestInfo = null;
     let bestDist = Infinity;
     countryGeoById.forEach((info, id) => {
-      if (estimateApparentPx(info.sizeDeg, altitude) >= TAP_ASSIST_ELIGIBLE_PX) return;
+      if (estimateApparentPx(info, camera, viewH) >= TAP_ASSIST_ELIGIBLE_PX) return;
       if (currentRegionFilter !== "all") {
         const c = countryById.get(id);
         if (!c || c.region !== currentRegionFilter) return; // 非表示の地域は補助対象外
@@ -976,9 +995,10 @@ const MapModule = (() => {
       if (dist <= TAP_ASSIST_RADIUS_PX && dist < bestDist) {
         bestDist = dist;
         best = countryById.get(id);
+        bestInfo = info;
       }
     });
-    return best;
+    return best ? { country: best, info: bestInfo, dist: bestDist } : null;
   }
   // タップとドラッグ/ピンチ操作を区別するため、pointerdownの位置を記録しておく。
   // 2本目の指が触れたら(ピンチ操作)、その後のclickはタップ選択の対象外にする
@@ -993,12 +1013,12 @@ const MapModule = (() => {
       tapPointerDownPos = null;
     }
   }
-  // タップ操作1回につき1度だけ、同期的に国・地域を決定する。タップ補助
-  // (画面上小さく見える国・地域だけを対象にした、精密なアンカー座標からの
-  // 画面ピクセル距離判定)が候補を見つけた場合はそちらを優先し、見つからな
-  // かった場合は実ポリゴンへの直接ヒットを使う。大きな国の通常のタップ操作は、
-  // そもそもタップ補助が発火しない(画面上十分に大きく見えるため)ので、
-  // 常に直接ヒットどおりに選択され、この優先順位による影響を受けない
+  // タップ操作1回につき1度だけ、同期的に国・地域を決定する。実際にタップした
+  // 地形(実ポリゴンへの直接ヒット)を基本的に尊重しつつ、小国のピン・補助範囲を
+  // タップした場合は正しくその小国を選べるよう優先順位を調整する(詳細は下記)。
+  // 大きな国の通常のタップ操作は、そもそもタップ補助が発火しない(画面上十分に
+  // 大きく見えるため)ので、常に直接ヒットどおりに選択され、この優先順位の
+  // 影響を受けない
   function handleMapTap(evt) {
     if (!globeInstance || !countryById) return;
     const downPos = tapPointerDownPos;
@@ -1021,18 +1041,37 @@ const MapModule = (() => {
 
     const directHit = findDirectPolygonHit(geo.lat, geo.lng);
     const assist = findNearestTapAssistCandidate(px, py);
-    // 補助候補が見つかった場合は、原則としてそちらを優先する。補助は「画面上
-    // 小さく見える国・地域の、精密なアンカー座標から画面ピクセルで20px以内」
-    // という厳しい条件で絞り込んだ候補であり、直接ヒットと食い違うのは主に
-    // (a) バチカン/サンマリノのようにイタリアの中に完全に囲まれる極小の飛び地で、
-    //     タップ地点の緯度経度への変換(画面→球面交点)にわずかな誤差があるだけで
-    //     極小ポリゴンの境界からはみ出し、代わりに周囲の大きな国に直接ヒットして
-    //     しまう場合、(b) 📍の頭(アンカーよりやや上に表示される)をタップした
-    //     場合、のいずれかであり、どちらも補助側の判定のほうがユーザーの意図に
-    //     近い。直接ヒットと補助が同じ国を指している場合はそのまま一致するだけ
-    // なので、常に補助を優先しても大きな国の通常のタップ操作には影響しない
-    // (補助自体が「画面上小さく見える」国・地域にしか発火しないため)
-    const target = assist || directHit;
+
+    // 実際にタップした地形(directHit)を基本的に尊重しつつ、小国のピン・
+    // 補助範囲をタップした場合は正しくその小国を選べるようにする。
+    //   - 補助候補が無ければ、直接ヒットをそのまま使う
+    //   - 補助候補があり、直接ヒットが無い、または直接ヒットと同じ国なら、
+    //     そのまま補助候補(=直接ヒットと一致)を使う
+    //   - 補助候補と直接ヒットが「別の国」を指している場合だけ、以下のどちら
+    //     かに該当するときだけ補助候補を優先する。それ以外は直接ヒット
+    //     (実際にタップした地形)を優先し、近くの小国に誤って奪われないようにする
+    //       (a) タップ地点の緯度経度が、補助候補の実ポリゴンの外側バウンディング
+    //           ボックスには入っている場合。これはバチカン/サンマリノのように
+    //           イタリアの中に完全に囲まれる極小の飛び地で、画面→球面交点への
+    //           変換のわずかな誤差により厳密な点内外判定だけがはみ出してしまう
+    //           典型パターンで、補助側の判定のほうが正しい
+    //       (b) 補助候補への画面ピクセル距離がTAP_ASSIST_CONFIDENT_PX以内の
+    //           場合。📍の頭(アンカーよりやや上に表示される)をタップしたときに
+    //           相当し、ユーザーが明らかにその📍自体を狙ったとみなせる近さ
+    //     これにより、例えば香港・マカオのすぐ近くの中国本土を直接タップした
+    //     場合や、バチカンの近くのイタリア市街を直接タップした場合は、たまたま
+    //     画面上20px以内に小国の📍があっても、その小国に奪われず直接タップした
+    //     国(中国・イタリア)がそのまま選ばれる
+    let target = directHit;
+    if (assist && (!directHit || assist.country.id !== directHit.id)) {
+      const info = assist.info;
+      const bboxContainsTap =
+        info && geo.lat >= info.minLat && geo.lat <= info.maxLat &&
+        geo.lng >= info.minLng && geo.lng <= info.maxLng;
+      if (!directHit || bboxContainsTap || assist.dist <= TAP_ASSIST_CONFIDENT_PX) {
+        target = assist.country;
+      }
+    }
     if (target) selectCountry(target, { moveCamera: false });
   }
 
