@@ -101,14 +101,13 @@ const MapModule = (() => {
   // 確保しつつ、近接する小国同士(グレナダ/セントビンセント、香港/マカオ等)で
   // 誤判定が起きないよう、実測を踏まえて小さめに抑えている
   const TAP_ASSIST_RADIUS_PX = 20;
-  // タップ補助の候補と実ポリゴンへの直接ヒットが別の国・地域を指している場合に、
-  // 補助側を優先してよいと判断する距離(px)のしきい値。📍本体(頭・針)は
-  // 実際のアンカーより上にずれて見える(実測: 📍の頭の中心はアンカーから
-  // 画面上で約11〜16px)ため、この距離以内なら「ピン自体を狙ってタップした」
-  // とみなせる。TAP_ASSIST_RADIUS_PX(20px、補助の対象となる範囲そのもの)
-  // より少し狭くすることで、近接する別の小国を偶然かすめただけの場合との
-  // 区別を保っている
-  const TAP_ASSIST_CONFIDENT_PX = 17;
+  // (旧)タップ補助の候補と実ポリゴンへの直接ヒットが別の国・地域を指している
+  // 場合に補助側を優先してよいと判断していた距離(px)のしきい値は廃止した。
+  // アンカーからの単純な円形の距離だけでは、📍の絵が実際には描かれていない
+  // 方向(例えば真横や真下)へのタップまで「ピン自体を狙った」と誤判定して
+  // しまう(例: 中国本土を正しくタップしても、香港のアンカーから17px以内なら
+  // 香港が選ばれてしまう)。代わりに、下記isNearPinShape()で📍の実際の
+  // 見た目の形状(頭の円+針の先細りする円錐)に対してタップ地点を判定する
   // タップ(クリック)とドラッグ/ピンチ操作を区別するための移動量のしきい値。
   // pointerdown〜click(≒pointerup)の間にこれを超えて指/マウスが動いていたら、
   // 回転・ズーム操作とみなしてタップ選択は行わない
@@ -130,6 +129,33 @@ const MapModule = (() => {
   // (CSSピクセル基準なので、iPhone・iPad・PCで見た目の大きさがほぼ揃う)。
   // スケールの基準点はGroup原点(=針の先端)なので、拡大縮小しても先端の位置は動かない
   const PIN_SCREEN_HEIGHT_PX = 18;
+  // 📍本体(球形の頭+円錐の針)の形状パラメータ。buildPinObject()と、下記の
+  // 「タップ地点が📍の実際の見た目の形の上にあるか」の判定(isNearPinShape)の
+  // 両方で共有する(数値の二重管理を避けるため、ここで一度だけ定義する)
+  const PIN_SHAPE = (() => {
+    const headR = 0.3, needleH = 0.48, needleBaseR = 0.085;
+    const headCenterY = needleH + headR * 0.75; // 頭と針の付け根を少し重ねる
+    const totalH = headCenterY + headR; // =1.005 → 1に正規化
+    return { headR, needleH, needleBaseR, headCenterY, totalH, k: 1 / totalH };
+  })();
+  // PIN_SHAPEの形状を、実際の画面上の高さ(PIN_SCREEN_HEIGHT_PX)まで拡大した
+  // ときの、各部位の画面ピクセル単位での寸法。ズーム倍率に関わらず常に一定
+  // (group.scaleが常にPIN_SCREEN_HEIGHT_PX相当になるよう毎フレーム調整される
+  // ため)なので、一度だけ計算しておける
+  const PIN_SCREEN_SHAPE = (() => {
+    const { headR, needleH, needleBaseR, headCenterY, k } = PIN_SHAPE;
+    return {
+      headRadiusPx: headR * k * PIN_SCREEN_HEIGHT_PX,
+      headOffsetPx: headCenterY * k * PIN_SCREEN_HEIGHT_PX,
+      needleLenPx: needleH * k * PIN_SCREEN_HEIGHT_PX,
+      needleBaseRadiusPx: needleBaseR * k * PIN_SCREEN_HEIGHT_PX,
+    };
+  })();
+  // 📍の実際のグラフィック(頭の半径・針の太さは数pxしかない)に対し、指で
+  // 押しやすいようふくらませる許容量(px)。この値を大きくしすぎると、
+  // 近くの別の国の地形を直接タップした場合でも📍に奪われやすくなるため、
+  // 「指1本で狙える程度」の範囲にとどめている
+  const TAP_PIN_SHAPE_TOLERANCE_PX = 8;
 
   function $(id) { return document.getElementById(id); }
 
@@ -603,10 +629,7 @@ const MapModule = (() => {
   function buildPinObject(d) {
     const C = pinClasses;
     const group = new C.Group();
-    const headR = 0.3, needleH = 0.48, needleBaseR = 0.085;
-    const headCenterY = needleH + headR * 0.75; // 頭と針の付け根を少し重ねる
-    const totalH = headCenterY + headR; // =1.005 → 下で1に正規化
-    const k = 1 / totalH;
+    const { headR, needleH, needleBaseR, headCenterY, k } = PIN_SHAPE;
     const needleGeom = new C.CylinderGeometry(needleBaseR * k, 0, needleH * k, 10);
     const needleMat = new C.MeshLambertMaterial({ color: PIN_NEEDLE_COLOR });
     if (needleMat.emissive) needleMat.emissive.setHex(0x5a0d0d);
@@ -1000,6 +1023,75 @@ const MapModule = (() => {
     });
     return best ? { country: best, info: bestInfo, dist: bestDist } : null;
   }
+  // 指定した国・地域の📍が、現在実際に画面上に描かれているかを判定する。
+  // refreshPinLayer()が📍を表示する条件(選択中は常に表示/それ以外はpinsVisible
+  // かつ地域フィルターに合致)と同じ基準で判定する。PIN_TARGET_IDS対象外の国
+  // (タップ補助自体は全国・地域が対象だが、📍の3Dオブジェクトが無い)や、
+  // ピンOFF中・地域フィルターで隠れている📍については、そもそも「ピン自体を
+  // 狙ってタップした」という判定の根拠になる見た目が存在しないため、常にfalseになる
+  function isPinActuallyVisible(id) {
+    if (!PIN_TARGET_IDS.has(id)) return false;
+    if (id === selectedCountryId) return true;
+    if (!pinsVisible) return false;
+    if (currentRegionFilter !== "all") {
+      const c = countryById.get(id);
+      if (!c || c.region !== currentRegionFilter) return false;
+    }
+    return true;
+  }
+  // タップ地点(画面px)が、補助候補(id/info)の実際に表示されている📍の見た目の
+  // 形状(球形の頭+円錐の針、buildPinObject参照)の上にあるかを判定する。
+  // 「アンカーから単純な円形の距離がX px以内」という判定だと、📍の絵が実際には
+  // 描かれていない方向(真横・真下など)へのタップまで「ピン自体を狙った」と
+  // 誤判定してしまう(香港のアンカー脇の中国本土タップ等)。これを避けるため、
+  // 📍の実シルエットに対して判定する。
+  //   1. 📍のGroupのローカル+Y軸は設置点の球面の外向き法線(=画面上では
+  //      その地点の「真上」方向)に一致する(applyPinScreenScale/buildPinObject
+  //      参照)。アンカーと同じ緯度経度でaltitudeだけ少し高い点を別途投影すると、
+  //      画面上でのちょうどこの「上方向」が得られる
+  //   2. タップ地点のアンカーからのオフセットを、この(上方向, それに直交する
+  //      横方向)の2軸に分解する
+  //   3. PIN_SCREEN_SHAPE(ズーム倍率に関わらず画面px単位で一定)の頭の円・
+  //      針の円錐の断面と比較し、指のタップ分の許容(TAP_PIN_SHAPE_TOLERANCE_PX)
+  //      を加えて内側にあるか判定する
+  function isNearPinShape(px, py, id, info) {
+    if (!isPinActuallyVisible(id)) return false;
+    const anchorPos = projectLatLngToScreen(info.lat, info.lng, PIN_OBJECT_ALTITUDE);
+    if (!anchorPos) return false;
+    const upProbe = projectLatLngToScreen(info.lat, info.lng, PIN_OBJECT_ALTITUDE + 0.05);
+    let upX = 0, upY = -1; // 投影できない場合は画面の上方向を安全側のフォールバックにする
+    if (upProbe) {
+      const dx = upProbe.x - anchorPos.x;
+      const dy = upProbe.y - anchorPos.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      if (len > 0.001) { upX = dx / len; upY = dy / len; }
+    }
+    const acrossX = -upY, acrossY = upX; // 上方向に直交する単位ベクトル
+
+    const offX = px - anchorPos.x;
+    const offY = py - anchorPos.y;
+    const along = offX * upX + offY * upY;
+    const across = offX * acrossX + offY * acrossY;
+
+    const scale = id === selectedCountryId ? PIN_SELECTED_SCALE : 1;
+    const tol = TAP_PIN_SHAPE_TOLERANCE_PX;
+
+    // 頭(円): alongがheadOffsetPx付近、距離がheadRadiusPx+許容以内
+    const headOffset = PIN_SCREEN_SHAPE.headOffsetPx * scale;
+    const headR = PIN_SCREEN_SHAPE.headRadiusPx * scale + tol;
+    const headDist = Math.sqrt((along - headOffset) ** 2 + across * across);
+    if (headDist <= headR) return true;
+
+    // 針: アンカー(along=0、半径0)から先細りに太くなり、along=needleLenPxで
+    // 半径needleBaseRadiusPxになる円錐。along方向にも許容分だけ範囲を広げる
+    const needleLen = PIN_SCREEN_SHAPE.needleLenPx * scale;
+    const needleBaseR = PIN_SCREEN_SHAPE.needleBaseRadiusPx * scale;
+    if (along >= -tol && along <= needleLen + tol) {
+      const t = needleLen > 0 ? Math.max(0, Math.min(1, along / needleLen)) : 0;
+      if (Math.abs(across) <= needleBaseR * t + tol) return true;
+    }
+    return false;
+  }
   // タップとドラッグ/ピンチ操作を区別するため、pointerdownの位置を記録しておく。
   // 2本目の指が触れたら(ピンチ操作)、その後のclickはタップ選択の対象外にする
   let tapPointerDownPos = null;
@@ -1055,20 +1147,23 @@ const MapModule = (() => {
     //           イタリアの中に完全に囲まれる極小の飛び地で、画面→球面交点への
     //           変換のわずかな誤差により厳密な点内外判定だけがはみ出してしまう
     //           典型パターンで、補助側の判定のほうが正しい
-    //       (b) 補助候補への画面ピクセル距離がTAP_ASSIST_CONFIDENT_PX以内の
-    //           場合。📍の頭(アンカーよりやや上に表示される)をタップしたときに
-    //           相当し、ユーザーが明らかにその📍自体を狙ったとみなせる近さ
+    //       (b) タップ地点が、補助候補の📍の実際に表示されている見た目の形状
+    //           (頭の円・針の円錐)の上にある場合(isNearPinShape)。単純な
+    //           「アンカーから一定距離以内」という円形の判定ではなく、📍の
+    //           実シルエットに対して判定することで、ユーザーが明らかにその
+    //           📍自体を狙ってタップしたとみなせる場合だけに限定している
     //     これにより、例えば香港・マカオのすぐ近くの中国本土を直接タップした
     //     場合や、バチカンの近くのイタリア市街を直接タップした場合は、たまたま
-    //     画面上20px以内に小国の📍があっても、その小国に奪われず直接タップした
-    //     国(中国・イタリア)がそのまま選ばれる
+    //     画面上で小国の📍アンカーに近くても、その小国の📍自体の絵の上を
+    //     タップしたのでない限り、直接タップした国(中国・イタリア)が
+    //     そのまま選ばれる
     let target = directHit;
     if (assist && (!directHit || assist.country.id !== directHit.id)) {
       const info = assist.info;
       const bboxContainsTap =
         info && geo.lat >= info.minLat && geo.lat <= info.maxLat &&
         geo.lng >= info.minLng && geo.lng <= info.maxLng;
-      if (!directHit || bboxContainsTap || assist.dist <= TAP_ASSIST_CONFIDENT_PX) {
+      if (!directHit || bboxContainsTap || isNearPinShape(px, py, assist.country.id, info)) {
         target = assist.country;
       }
     }
