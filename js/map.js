@@ -619,8 +619,13 @@ const MapModule = (() => {
   // 📍本体(球形の頭+円錐の針)を構築する。Group原点(=objectLat/Lng/Altitudeで
   // 指定した地点)がちょうど針の先端に来るよう、各メッシュをy方向にオフセットする。
   // globe.glはこのGroupを位置合わせ用の外側Groupで包み、原点を指定地点に置く。
-  // 実測では、ローカルの+Y軸は地表に沿った(接線方向の)向きになっており
-  // (外向き法線との内積≒0)、そのため真上から見ても📍が横向きの形で見える。
+  // (旧メモ: 内側Group単体のローカル+Y軸だけを見ると、球面の外向き法線とは
+  // 一致しない=地表に沿った向きに見えることがある。ただし、実際に描画された
+  // 頭・針メッシュのワールド座標を実測すると、外側Groupによる変換を経た最終的な
+  // 画面上の向きは、カメラ位置・ズーム・地球儀の回転に関わらずcamera.upベクトルを
+  // アンカー付近に適用して投影した方向とほぼ一致する=常にカメラに対して正立する
+  // ビルボード的な見た目になっている。タップ判定(下記isNearPinShape)の
+  // 「上方向」はこの実測結果に基づき、camera.upベースで計算している)
   // どの向きでも針の先端=原点が指定した緯度経度・高度の1点に固定される
   // 形状は「全高=1(ワールド単位)」に正規化して作り、実際の大きさは
   // updatePinScreenScales()が描画直前にgroup.scaleで決める。
@@ -827,6 +832,27 @@ const MapModule = (() => {
     if (screen.x < -0.15 * w || screen.x > 1.15 * w || screen.y < -0.15 * h || screen.y > 1.15 * h) return null;
 
     return { x: screen.x, y: screen.y };
+  }
+  // ワールド座標(three.jsのXYZ)の1点を、現在のカメラでスクリーンのピクセル座標に
+  // 投影する。globeInstance.getScreenCoords()は緯度経度+高度しか受け付けないため、
+  // 緯度経度で表せない任意の点(isNearPinShape()でcamera.upベクトル方向にずらした
+  // 点など)を投影する場合はこちらを使う。camera.position自体がThree.jsの
+  // Vector3インスタンスであることを利用して、そのコンストラクタから同種の
+  // Vector3を作り、camera.project()と同じ正規化デバイス座標(NDC)変換を行う
+  function projectWorldPointToScreen(worldXYZ) {
+    if (!globeInstance) return null;
+    const camera = globeInstance.camera();
+    if (!camera || !camera.position || typeof camera.position.constructor !== "function") return null;
+    camera.updateMatrixWorld(true);
+    const Vec3 = camera.position.constructor;
+    const v = new Vec3(worldXYZ.x, worldXYZ.y, worldXYZ.z);
+    v.project(camera);
+    if (!Number.isFinite(v.x) || !Number.isFinite(v.y)) return null;
+    const container = $("map-globe-container");
+    if (!container) return null;
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    return { x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h };
   }
   // 通常ピンと同じ実ポリゴン上のアンカー座標(pinAnchorById)を使う。これにより、
   // 「通常ピン→選択して消える→選択用ピン+ラベルに切り替わる」際に、📍の
@@ -1045,10 +1071,18 @@ const MapModule = (() => {
   // 描かれていない方向(真横・真下など)へのタップまで「ピン自体を狙った」と
   // 誤判定してしまう(香港のアンカー脇の中国本土タップ等)。これを避けるため、
   // 📍の実シルエットに対して判定する。
-  //   1. 📍のGroupのローカル+Y軸は設置点の球面の外向き法線(=画面上では
-  //      その地点の「真上」方向)に一致する(applyPinScreenScale/buildPinObject
-  //      参照)。アンカーと同じ緯度経度でaltitudeだけ少し高い点を別途投影すると、
-  //      画面上でのちょうどこの「上方向」が得られる
+  //   1. 📍のGroup自体はbuildPinObject内のコメントの実測どおり、ローカル+Y軸が
+  //      設置点の球面の「外向き法線」に一致するとは限らない(地表に沿った
+  //      向きになることが実測で確認されている)。しかし描画結果(実際の頭・針の
+  //      画面上の向き)を実測すると、どのカメラ位置・ズーム・回転でも常に
+  //      「camera.upベクトルを世界座標でアンカー付近に適用して投影した方向」と
+  //      ほぼ一致する(= いわゆるビルボード的に、常にカメラのupを基準に画面上で
+  //      立って見えるよう描画されている)。そのため、アンカーの地点から
+  //      camera.up方向にわずかにずらした点を別途projectWorldPointToScreen()で
+  //      投影し、画面上でのその方向を「上方向」として使う(以前はaltitude方向に
+  //      ずらした点を投影していたが、カメラがちょうどその地点を向いている
+  //      ときに限り、ずらした点がほぼ同じ画面座標に投影されてしまい(視線方向と
+  //      ほぼ平行なため)、方向が不定・不正確になる問題があったため変更した)
   //   2. タップ地点のアンカーからのオフセットを、この(上方向, それに直交する
   //      横方向)の2軸に分解する
   //   3. PIN_SCREEN_SHAPE(ズーム倍率に関わらず画面px単位で一定)の頭の円・
@@ -1058,13 +1092,23 @@ const MapModule = (() => {
     if (!isPinActuallyVisible(id)) return false;
     const anchorPos = projectLatLngToScreen(info.lat, info.lng, PIN_OBJECT_ALTITUDE);
     if (!anchorPos) return false;
-    const upProbe = projectLatLngToScreen(info.lat, info.lng, PIN_OBJECT_ALTITUDE + 0.05);
     let upX = 0, upY = -1; // 投影できない場合は画面の上方向を安全側のフォールバックにする
-    if (upProbe) {
-      const dx = upProbe.x - anchorPos.x;
-      const dy = upProbe.y - anchorPos.y;
-      const len = Math.sqrt(dx * dx + dy * dy);
-      if (len > 0.001) { upX = dx / len; upY = dy / len; }
+    const camera = globeInstance.camera();
+    if (camera && camera.up) {
+      const anchorWorld = globeInstance.getCoords(info.lat, info.lng, PIN_OBJECT_ALTITUDE);
+      const upLen = Math.sqrt(camera.up.x ** 2 + camera.up.y ** 2 + camera.up.z ** 2) || 1;
+      const upWorld = {
+        x: anchorWorld.x + (camera.up.x / upLen) * 0.3,
+        y: anchorWorld.y + (camera.up.y / upLen) * 0.3,
+        z: anchorWorld.z + (camera.up.z / upLen) * 0.3,
+      };
+      const upProbe = projectWorldPointToScreen(upWorld);
+      if (upProbe) {
+        const dx = upProbe.x - anchorPos.x;
+        const dy = upProbe.y - anchorPos.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0.001) { upX = dx / len; upY = dy / len; }
+      }
     }
     const acrossX = -upY, acrossY = upX; // 上方向に直交する単位ベクトル
 
