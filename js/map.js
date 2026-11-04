@@ -21,6 +21,13 @@ const MapModule = (() => {
   let selectedShowsLabel = false; // 選択中の国が「ピン→ラベル切り替え」対象かどうか(選択した瞬間に固定する)
   let tempSearchMarkerId = null; // 検索・ランダム選択時、自動ズームしても極小のため一時的な目印(📍)を出す対象の国id(それ以外はnull)
   let initPromise = null;
+  // 世界地図画面が実際に表示されているかどうか。open()/close()でだけ
+  // 更新する。読み込み完了(ensureReady()のthen/onGlobeReady)が、ユーザーが
+  // 既にトップへ戻った後に遅れて発火した場合でも、この値をそのタイミングで
+  // 読むことで「今の画面状態」を正しく判定できる(呼び出し時点の値を
+  // 変数にコピーして使い回すと、古い状態のまま判定してしまうため避ける)
+  let isMapScreenActive = false;
+  let isRandomFlightInProgress = false; // ランダム移動のカメラアニメーション中だけtrue
   let hasInteracted = false;
   let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
   let countryGeoById = new Map(); // id -> {lat,lng,area,sizeDeg,minLat,maxLat,minLng,maxLng,polys}(GeoJSON読み込み時に一度だけ算出、下記computeCountryGeoInfo参照)
@@ -185,21 +192,33 @@ const MapModule = (() => {
     }
   }
 
-  // globe.glのスクリプトタグを一度だけ挿入する(複数回openしても再読み込みしない)
+  // globe.glのスクリプトタグを一度だけ挿入する(複数回openしても再読み込みしない)。
+  // 一度読み込みに失敗したタグは、二度とload/errorイベントが発火しないため、
+  // 残したままだと再試行時にPromiseが永遠に解決しなくなる。そのため、
+  // 前回失敗したタグだけは取り除いてから新しく作り直す(読み込み中のタグは
+  // そのまま再利用し、二重にリクエストしない)
+  let globeScriptEl = null;
   function loadScriptOnce(src) {
     return new Promise((resolve, reject) => {
       if (window.Globe) { resolve(); return; }
-      const existing = document.querySelector(`script[src="${src}"]`);
-      if (existing) {
-        existing.addEventListener("load", () => resolve());
-        existing.addEventListener("error", () => reject(new Error("globe.glの読み込みに失敗しました")));
+      if (globeScriptEl && globeScriptEl.dataset.loadFailed === "1") {
+        globeScriptEl.remove();
+        globeScriptEl = null;
+      }
+      if (globeScriptEl) {
+        globeScriptEl.addEventListener("load", () => resolve());
+        globeScriptEl.addEventListener("error", () => reject(new Error("globe.glの読み込みに失敗しました")));
         return;
       }
       const script = document.createElement("script");
       script.src = src;
       script.onload = () => resolve();
-      script.onerror = () => reject(new Error("globe.glの読み込みに失敗しました"));
+      script.onerror = () => {
+        script.dataset.loadFailed = "1";
+        reject(new Error("globe.glの読み込みに失敗しました"));
+      };
       document.body.appendChild(script);
+      globeScriptEl = script;
     });
   }
 
@@ -412,18 +431,31 @@ const MapModule = (() => {
     return info;
   }
 
-  function setStatus(text, isError) {
-    const el = $("map-status");
-    if (!text) {
-      el.classList.add("hidden");
-      return;
-    }
-    el.textContent = text;
-    el.classList.toggle("map-status-error", !!isError);
-    el.classList.remove("hidden");
+  function showMapLoading() {
+    $("map-status-text").textContent = "世界地図を読み込んでいます…";
+    $("map-status").classList.remove("map-status-error");
+    $("map-status-retry").classList.add("hidden");
+    $("map-status").classList.remove("hidden");
+  }
+  function clearMapStatus() {
+    $("map-status").classList.add("hidden");
+  }
+  function showMapError() {
+    $("map-status-text").textContent = "世界地図を読み込めませんでした。電波状況をご確認のうえ、もう一度お試しください。";
+    $("map-status").classList.add("map-status-error");
+    const retryBtn = $("map-status-retry");
+    retryBtn.classList.remove("hidden");
+    retryBtn.disabled = false; // 前回の再試行中のまま無効化が残らないようにする
+    $("map-status").classList.remove("hidden");
   }
 
-  // スクリプト・地図データの読み込みと地球儀の初期構築(初回のみ実行される)
+  // スクリプト・地図データの読み込みと地球儀の初期構築。
+  // 成功した場合のみinitPromiseを保持し続け、2回目以降のopen()では
+  // 再取得せずそのまま使い回す。失敗した場合はinitPromiseをnullに戻し、
+  // 次にensureReady()が呼ばれたとき(=再試行ボタン押下時)に最初から
+  // やり直せるようにする(通信エラーからの復旧)。
+  // WebGL非対応は端末自体の制約で再試行しても変わらないため、この分岐だけは
+  // 失敗したPromiseをそのままキャッシュし続け、再試行ボタンも出さない
   function ensureReady() {
     if (initPromise) return initPromise;
 
@@ -433,7 +465,7 @@ const MapModule = (() => {
       return initPromise;
     }
 
-    setStatus("世界地図を読み込んでいます…", false);
+    showMapLoading();
     initPromise = Promise.all([
       loadScriptOnce(GLOBE_LIB_URL),
       fetch(GEOJSON_URL).then((res) => {
@@ -446,6 +478,10 @@ const MapModule = (() => {
         // 描画時にエラーになるため、念のためここでも取り除いておく
         geoFeatures = geo.features.filter((f) => f && f.geometry);
         buildCountryIndex();
+        // allMapCountriesがここで初めて埋まるため、initEvents()時点では
+        // 「データ0件」で無効と判定されていた「ランダムな国へ」ボタンの状態を
+        // ここで正しい状態に更新し直す
+        updateRandomButtonState();
         // 全ての国・地域について、実ポリゴンに基づくアンカー・サイズ・形状を
         // 一度だけ算出する(タップ判定・📍の表示位置の両方で使う)
         countryGeoById = computeCountryGeoInfo();
@@ -456,14 +492,39 @@ const MapModule = (() => {
           if (info) pinAnchorById.set(id, { lat: info.lat, lng: info.lng });
         });
         buildGlobe();
-        setStatus(null);
+        clearMapStatus();
       })
       .catch((e) => {
         console.error("世界地図の読み込みに失敗しました", e);
-        setStatus("世界地図データを読み込めませんでした。もう一度お試しください。", true);
+        // 失敗したPromiseを保持したままだと次回のensureReady()が同じ失敗を
+        // 返すだけで再試行にならないため、ここでリセットする
+        initPromise = null;
+        showMapError();
         throw e;
       });
     return initPromise;
+  }
+
+  // 読み込み完了(初回成功・再試行成功のどちらでも)の後に呼ぶ共通処理。
+  // 読み込み中にユーザーが既にトップへ戻っていた場合は、ここで初めて
+  // 「今現在、世界地図画面が表示されているか」を確認するため、
+  // 古い非同期処理が今の画面状態を勝手に上書きすることはない
+  function resumeMapIfScreenActive() {
+    if (!isMapScreenActive || !globeInstance) return;
+    globeInstance.resumeAnimation();
+    resizeGlobe();
+    refreshPinLayer();
+  }
+
+  function retryMapLoad() {
+    const btn = $("map-status-retry");
+    if (btn.disabled) return;
+    btn.disabled = true; // 再試行中の連打による二重初期化を防ぐ
+    ensureReady()
+      .then(resumeMapIfScreenActive)
+      .catch(() => {
+        // エラー表示はensureReady側(showMapError)で再度出している
+      });
   }
 
   // ---------- 国のハイライト表示 ----------
@@ -1561,6 +1622,13 @@ const MapModule = (() => {
     });
 
     window.addEventListener("resize", resizeGlobe);
+
+    // globe.glはインスタンス生成と同時に描画ループを開始する。読み込みが
+    // 完了した時点で、ユーザーが既にトップへ戻っていた場合は、ここで即座に
+    // 止めておく(その後onGlobeReady()が遅れて発火しても、pauseAnimation()で
+    // 止まった描画ループ自体は再開しないため、カメラ位置などの一回限りの
+    // 初期化処理は従来どおり実行させてよい)
+    if (!isMapScreenActive) globeInstance.pauseAnimation();
   }
 
   function resizeGlobe() {
@@ -1914,6 +1982,9 @@ const MapModule = (() => {
     updateRegionListHighlight();
     refreshPolygonStyles();
     refreshPinLayer();
+    // 南極のように「ランダムな国へ」の候補が1件もない地域に切り替えた場合は
+    // ボタンを無効化し、他の地域(候補が戻る)に切り替えたら自動的に有効へ戻す
+    updateRandomButtonState();
     if (moveCamera && globeInstance && region !== "all") {
       const center = regionCenters && regionCenters[region];
       if (center) {
@@ -1932,6 +2003,27 @@ const MapModule = (() => {
     // 南極大陸のように国ではない項目(randomEligible: false)は
     // 「ランダムな国へ」の候補から除外する
     return pool.filter((c) => c.randomEligible !== false);
+  }
+  // ボタンの無効状態には2つの独立した理由がある:
+  //   1. isRandomFlightInProgress: カメラ移動アニメーション中の一時的な無効化
+  //   2. 現在の地域フィルターに候補が1件も無い(南極など)ことによる無効化
+  // この2つはORで合成するだけで競合しない。「1.」はsetTimeoutで解除される
+  // 際にこの関数を呼び直すだけにし、直接disabled=falseを代入しない。これにより、
+  // アニメーション終了時点でまだ候補0件の地域のままなら無効状態が正しく保たれる。
+  // 南極を個別にif判定するのではなく候補数で判定するため、今後ほかの地域の
+  // データがrandomEligible:falseだけになった場合も自動的に対応できる
+  function updateRandomButtonState() {
+    const btn = $("map-random-btn");
+    const poolEmpty = getRegionPool(currentRegionFilter).length === 0;
+    btn.disabled = isRandomFlightInProgress || poolEmpty;
+    if (poolEmpty) {
+      const label = (REGION_LABELS[currentRegionFilter] || "この地域").replace(/^\S+\s*/, "");
+      btn.textContent = `🎲 ${label}には国がありません`;
+      btn.title = `${label}にはランダム選択できる国がありません`;
+    } else {
+      btn.textContent = "🎲 ランダムな国へ";
+      btn.title = "";
+    }
   }
   function pickRandomCountry() {
     const pool = getRegionPool(currentRegionFilter);
@@ -1953,9 +2045,15 @@ const MapModule = (() => {
     closeSearchSuggestions();
     // ボタン連打で複数のカメラアニメーションが競合しないよう、
     // 移動アニメーション中はボタンを一時的に無効化する
-    btn.disabled = true;
+    isRandomFlightInProgress = true;
+    updateRandomButtonState();
     clearTimeout(randomFlightTimer);
-    randomFlightTimer = setTimeout(() => { btn.disabled = false; }, 1300);
+    randomFlightTimer = setTimeout(() => {
+      isRandomFlightInProgress = false;
+      // タイマー終了時点で地域フィルターが変わっていても(例: アニメーション中に
+      // 南極へ切り替えた場合)、候補数に応じた正しい状態に戻す
+      updateRandomButtonState();
+    }, 1300);
     // 検索選択と全く同じ経路(moveCamera:true)で選択するため、到着後の状態
     // (選択表示・ピン非表示・ラベル・情報カード)は検索と完全に同一になる
     selectCountry(country, { moveCamera: true });
@@ -1963,19 +2061,13 @@ const MapModule = (() => {
 
   // ---------- 画面の開閉(タブを行き来してもデータは再取得しない) ----------
   function open() {
+    isMapScreenActive = true;
     if (!tapDebugEnabled && isTapDebugRequested()) {
       tapDebugEnabled = true;
       setupTapDebugUI();
     }
     ensureReady()
-      .then(() => {
-        if (globeInstance) {
-          globeInstance.resumeAnimation();
-          resizeGlobe();
-          // close()で止めたラベル位置追従・📍レイヤーを再開/再構築する
-          refreshPinLayer();
-        }
-      })
+      .then(resumeMapIfScreenActive)
       .catch(() => {
         // エラー・非対応時のメッセージはensureReady内で表示済み。
         // 世界地図画面には留まれるので、他モードへの影響はない。
@@ -1984,8 +2076,12 @@ const MapModule = (() => {
 
   // 画面を離れるときはレンダリングを止めてバッテリー消費を抑える。
   // ピン・ラベルの位置更新はonAfterRender()(実際の描画に同期したフック)が
-  // 行うため、pauseAnimation()で描画自体が止まれば自動的に更新も止まる
+  // 行うため、pauseAnimation()で描画自体が止まれば自動的に更新も止まる。
+  // isMapScreenActiveをfalseにしておくことで、読み込みがこの後に完了
+  // しても(ensureReady()のthenやonGlobeReady()が遅れて発火しても)、
+  // 描画が勝手に再開しないようにする
   function close() {
+    isMapScreenActive = false;
     if (globeInstance) globeInstance.pauseAnimation();
     stopLabelTracking();
     closeSearchSuggestions();
@@ -1998,6 +2094,7 @@ const MapModule = (() => {
       showScreen("screen-top");
     });
     $("map-unsupported-back").addEventListener("click", () => showScreen("screen-top"));
+    $("map-status-retry").addEventListener("click", retryMapLoad);
     $("map-card-close").addEventListener("click", closeInfoCard);
     $("map-search-input").addEventListener("input", (e) => {
       renderSearchResults(e.target.value.trim());
@@ -2006,6 +2103,7 @@ const MapModule = (() => {
     buildRegionList();
     $("map-region-btn").addEventListener("click", toggleRegionList);
     $("map-random-btn").addEventListener("click", handleRandomClick);
+    updateRandomButtonState();
     updatePinsToggleButton();
     $("map-pins-toggle-btn").addEventListener("click", togglePinsVisible);
   }

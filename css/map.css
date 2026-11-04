@@ -273,16 +273,40 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  max-width: min(86vw, 360px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
   background: rgba(255, 255, 255, 0.95);
-  padding: 14px 22px;
+  padding: 16px 22px;
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
+  z-index: 3;
+}
+.map-status-text {
+  margin: 0;
   font-weight: 700;
   color: var(--color-text-sub);
   text-align: center;
-  z-index: 3;
 }
-.map-status-error { color: var(--color-wrong); }
+.map-status-error .map-status-text { color: var(--color-wrong); }
+.map-status-retry {
+  border: none;
+  border-radius: 999px;
+  padding: 9px 20px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--color-primary);
+  cursor: pointer;
+}
+.map-status-retry:active { transform: scale(0.97); }
+.map-status-retry:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+}
 
 .map-unsupported {
   position: absolute;
