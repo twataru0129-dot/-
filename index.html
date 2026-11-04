@@ -81,7 +81,11 @@
 
     <div class="flag-stage">
       <img id="quiz-flag-img" class="flag-image" src="" alt="国旗">
-      <div id="flag-error" class="flag-error hidden">国旗画像を読み込めませんでした</div>
+      <p id="flag-loading" class="flag-loading hidden">画像を読み込み中…</p>
+      <div id="flag-error" class="flag-error hidden">
+        <p>国旗画像を読み込めませんでした</p>
+        <button id="flag-error-retry" type="button" class="btn btn-plain flag-error-retry">再読み込み</button>
+      </div>
     </div>
 
     <!-- 首都クイズでは国旗の下に国名を表示する(国旗クイズでは非表示) -->

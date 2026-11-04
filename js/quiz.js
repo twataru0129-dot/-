@@ -193,37 +193,70 @@ class QuestionTimer {
     this.callbacks = callbacks;
     this.rafId = null;
     this.startTime = null;
-    this.stopped = false;
+    this.stopped = true;
+    this.paused = false;
+    this.pausedAt = null;
+    this.loop = this.loop.bind(this);
   }
 
   start() {
     this.stopped = false;
+    this.paused = false;
+    this.pausedAt = null;
     this.startTime = performance.now();
-    const loop = (now) => {
-      if (this.stopped) return;
-      const elapsed = (now - this.startTime) / 1000;
-      const remaining = QuizEngine.TOTAL_SECONDS - elapsed;
+    this.rafId = requestAnimationFrame(this.loop);
+  }
 
-      if (remaining <= 0) {
-        this.stop();
-        this.callbacks.onTimeout();
-        return;
-      }
+  loop(now) {
+    if (this.stopped || this.paused) return;
+    const elapsed = (now - this.startTime) / 1000;
+    const remaining = QuizEngine.TOTAL_SECONDS - elapsed;
 
-      if (elapsed < QuizEngine.THINK_SECONDS) {
-        this.callbacks.onTick("thinking", null);
-      } else {
-        const secondsLeft = Math.ceil(remaining);
-        this.callbacks.onTick("countdown", secondsLeft);
-      }
-      this.rafId = requestAnimationFrame(loop);
-    };
-    this.rafId = requestAnimationFrame(loop);
+    if (remaining <= 0) {
+      this.stop();
+      this.callbacks.onTimeout();
+      return;
+    }
+
+    if (elapsed < QuizEngine.THINK_SECONDS) {
+      this.callbacks.onTick("thinking", null);
+    } else {
+      const secondsLeft = Math.ceil(remaining);
+      this.callbacks.onTick("countdown", secondsLeft);
+    }
+    this.rafId = requestAnimationFrame(this.loop);
+  }
+
+  // 終了確認モーダルなど、ユーザー操作を待つ間だけ時間の経過を止める。
+  // stop()と違い、resume()で続きから再開できる。経過時間はperformance.now()
+  // 基準のstartTimeからの差分で計算しているため、一時停止していた分だけ
+  // startTimeを後ろにずらすことで、一時停止中の時間を経過時間に含めない
+  // ようにする(rAFを止めるだけでは、resume後の1フレーム目でその間の
+  // 時間が丸ごと経過時間に加算されてしまうため)
+  pause() {
+    if (this.stopped || this.paused) return; // 既に停止・一時停止中なら何もしない(連打対策)
+    this.paused = true;
+    this.pausedAt = performance.now();
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+  }
+
+  resume() {
+    if (this.stopped || !this.paused) return; // 一時停止中でなければ何もしない(連打対策)
+    const pausedDuration = performance.now() - this.pausedAt;
+    this.startTime += pausedDuration;
+    this.paused = false;
+    this.pausedAt = null;
+    this.rafId = requestAnimationFrame(this.loop);
   }
 
   // 必ず問題切り替え・回答・時間切れの際に呼び出しタイマーを解除する
   stop() {
     this.stopped = true;
+    this.paused = false;
+    this.pausedAt = null;
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;

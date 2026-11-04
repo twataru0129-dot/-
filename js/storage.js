@@ -123,9 +123,17 @@ const Storage = {
     return existing;
   },
 
-  // ---- データリセット(国旗・首都両方のデータと効果音設定をまとめて消す) ----
+  // ---- データリセット(国旗・首都両方の称号・記録だけを消す) ----
+  // 効果音設定(StorageKeys.SOUND)は確認画面の文言(「称号・記録をリセット」)
+  // に合わせて対象外にする。以前はStorageKeysの全キー(SOUNDを含む)を
+  // 削除していたため、記録をリセットすると効果音設定まで初期化されてしまう
+  // 不一致があった
   resetAll() {
-    [...Object.values(StorageKeys), ...Object.values(CapitalStorageKeys)].forEach((k) => {
+    const keysToRemove = [
+      StorageKeys.TITLES, StorageKeys.ATTEMPTS, StorageKeys.BEST_RATE, StorageKeys.BEST_RECORDS,
+      ...Object.values(CapitalStorageKeys),
+    ];
+    keysToRemove.forEach((k) => {
       try { localStorage.removeItem(k); } catch (e) { /* noop */ }
     });
   },
