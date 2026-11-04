@@ -896,15 +896,27 @@ const MapModule = (() => {
   }
   // 通常ピンと同じ実ポリゴン上のアンカー座標(pinAnchorById)を使う。これにより、
   // 「通常ピン→選択して消える→選択用ピン+ラベルに切り替わる」際に、📍の
-  // 先端位置が全く動かない(通常ピン対象=PIN_TARGET_IDSのときだけ呼ばれるため、
-  // 基本的にアンカーは必ず存在するが、念のためcountry.lat/lngにフォールバックする)
+  // 先端位置が全く動かない(通常ピン対象=PIN_TARGET_IDSのときはpinAnchorByIdに
+  // 必ず存在する)。PIN_TARGET_IDSに無い国・地域(検索時の自動ズームでtempSearchMarkerId
+  // が一時的に対象になる場合)は、refreshPinLayer()が📍自体の位置に使っているのと
+  // 同じanchorForCountry()(実ポリゴンの代表点、無ければcountry.lat/lng)にフォールバック
+  // する。以前はここだけcountry.lat/lngに直接フォールバックしていたため、📍の実際の
+  // 位置(実ポリゴン基準)と国名ラベルの位置(データ上の代表座標基準)がずれる
+  // 国・地域があった(例: キリバスは最大の島の代表地点が西経約157度なのに対し、
+  // データ上の代表座標は東経173度で、約30度も離れていた)
   function pinAnchorFor(country) {
-    return pinAnchorById.get(country.id) || { lat: country.lat, lng: country.lng };
+    return pinAnchorById.get(country.id) || anchorForCountry(country);
   }
   function updateLabelPosition(country) {
     const labelEl = $("map-country-label");
     const anchor = pinAnchorFor(country);
-    const pos = projectLatLngToScreen(anchor.lat, anchor.lng, 0.02);
+    // 📍の実際の高さ(PIN_OBJECT_ALTITUDE)と同じ高度で投影する。以前は0.02という
+    // 別の値を使っており、通常のズームでは誤差が目立たなかったが、検索時の
+    // 自動ズーム(一時的な目印)で最大ズーム付近・かつ情報カードを避けるために
+    // 注視点をずらした状態(cardAvoidanceTarget)になると、カメラが地点の真上から
+    // 見ていないため、この高度差がそのまま📍とラベルの画面上のズレとして
+    // 大きく現れることが分かった
+    const pos = projectLatLngToScreen(anchor.lat, anchor.lng, PIN_OBJECT_ALTITUDE);
     if (!pos) {
       labelEl.classList.add("hidden");
       return;
