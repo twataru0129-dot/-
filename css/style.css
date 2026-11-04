@@ -312,7 +312,11 @@ img { max-width: 100%; }
   margin-bottom: 10px;
 }
 #btn-quiz-exit {
-  position: static;
+  /* 正誤判定・補足説明の全画面オーバーレイ(.result-overlay、z-index:50)より
+     上に表示し、その表示中でも終了ボタンを押せるようにする。position:staticの
+     ままだとz-indexが効かず、オーバーレイの下に埋もれて操作できなくなる */
+  position: relative;
+  z-index: 60;
   width: 40px;
   height: 40px;
   padding: 0;
