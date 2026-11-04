@@ -357,16 +357,30 @@
 .map-card-name {
   font-size: 1.25rem;
   font-weight: 800;
-  margin: 0 0 2px;
+  margin: 0 0 4px;
+  overflow-wrap: break-word;
 }
-.map-card-region {
-  font-size: 0.85rem;
-  color: var(--color-text-sub);
-  margin: 0;
-}
-.map-card-capital-label {
+/* 国名のすぐ下に表示する「首都：〇〇」の行。国名と首都をセットで
+   覚えられるよう、見出しの一部として扱う(地域名は見出しから省略) */
+.map-card-capital-line {
+  font-size: 0.95rem;
   font-weight: 700;
-  margin: 0 0 8px;
+  color: var(--color-primary, #2f6fed);
+  margin: 0;
+  overflow-wrap: break-word;
+}
+/* 複数の首都機能を持つ国(南アフリカの立法・司法、ボリビアの政府所在地など)の
+   補足情報。通常の国・地図専用地域ではリストが空のまま非表示になる */
+.map-card-supplement {
+  list-style: none;
+  margin: 6px 0 10px;
+  padding: 0;
+  font-size: 0.82rem;
+  color: var(--color-text-sub);
+  line-height: 1.6;
+}
+.map-card-supplement li {
+  overflow-wrap: break-word;
 }
 .map-card-desc {
   color: var(--color-text-sub);

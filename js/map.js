@@ -1749,21 +1749,37 @@ const MapModule = (() => {
     // 誤解を招くため「国旗」とは呼ばない(実際に表示しているのは中立的なアイコン)
     flagImg.alt = country.isFlagImage === false ? `${country.name}のアイコン` : `${country.name}の国旗`;
     $("map-card-name").textContent = country.name;
-    $("map-card-region").textContent = country.regionJa;
+
+    // capitals配列(複数の首都機能を持つ国)がある場合、国旗・首都クイズの
+    // 正解(country.capital)と一致する項目を見出しの主表示に使い、残りは
+    // 補足情報として表示する。地域名(regionJa)は地域フィルター・検索専用の
+    // データとして残しつつ、見出しからは省略する
+    const capitals = country.capitals || [];
+    const primaryEntry = capitals.find((c) => c.name === country.capital) || null;
+    const supplementEntries = primaryEntry ? capitals.filter((c) => c !== primaryEntry) : [];
 
     // 通常の国は「首都：〇〇」、香港・マカオは「区分：中国の特別行政区」、
-    // グリーンランド・フェロー諸島は「中心都市：〇〇」のように、
-    // 国・地域ごとに見出しと値を切り替えられるようにする
-    $("map-card-capital-label-text").textContent = country.infoLabel || "首都";
-    let valueText;
-    if (country.infoValue) {
-      valueText = country.infoValue;
-    } else if (country.capitals && country.capitals.length) {
-      valueText = country.capitals.map((c) => `${c.name}(${c.type})`).join(" / ");
+    // グリーンランド・フェロー諸島は「中心都市：〇〇」、南アフリカ・スイス・
+    // ナウルなど特殊な首都事情を持つ国は「行政首都：〇〇」のように、
+    // 国・地域ごとに見出しの表示ラベルと値を切り替えられるようにする
+    const label = country.capitalInfoLabel || (primaryEntry ? primaryEntry.type : null) || country.infoLabel || "首都";
+    const value = country.infoValue || country.capital || "";
+    $("map-card-capital-label-text").textContent = label;
+    $("map-card-capital").textContent = value;
+
+    const supplementEl = $("map-card-supplement");
+    supplementEl.innerHTML = "";
+    if (supplementEntries.length) {
+      supplementEntries.forEach((entry) => {
+        const li = document.createElement("li");
+        li.textContent = `${entry.type}：${entry.name}`;
+        supplementEl.appendChild(li);
+      });
+      supplementEl.classList.remove("hidden");
     } else {
-      valueText = country.capital;
+      supplementEl.classList.add("hidden");
     }
-    $("map-card-capital").textContent = valueText;
+
     $("map-card-desc").textContent = country.description;
 
     $("map-info-card").classList.remove("hidden");
