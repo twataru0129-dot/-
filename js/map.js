@@ -19,6 +19,7 @@ const MapModule = (() => {
   let countryById = null;
   let selectedCountryId = null;
   let selectedShowsLabel = false; // 選択中の国が「ピン→ラベル切り替え」対象かどうか(選択した瞬間に固定する)
+  let tempSearchMarkerId = null; // 検索・ランダム選択時、自動ズームしても極小のため一時的な目印(📍)を出す対象の国id(それ以外はnull)
   let initPromise = null;
   let hasInteracted = false;
   let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
@@ -728,6 +729,18 @@ const MapModule = (() => {
       }
       data.push({ id, lat: anchor.lat, lng: anchor.lng, selected: isSelectedPin });
     });
+    // 検索・ランダム選択時、自動ズームしても極小のため一時的な目印が必要と
+    // 判定された国・地域(tempSearchMarkerId)を追加する。PIN_TARGET_IDSは
+    // 一切変更せず、別の仕組み(selectCountry内のcomputeAutoZoom)で判定した
+    // 一時的な対象だけをここに足す。選択解除・別の国の選択でnullに戻るため、
+    // 古い目印がこの配列に残ることはない
+    if (tempSearchMarkerId) {
+      const info = countryGeoById.get(tempSearchMarkerId);
+      const c = countryById.get(tempSearchMarkerId);
+      if (info && c && !data.some((d) => d.id === tempSearchMarkerId)) {
+        data.push({ id: tempSearchMarkerId, lat: info.lat, lng: info.lng, selected: true });
+      }
+    }
     currentPinData = data;
     globeInstance
       .objectsData(data)
@@ -883,15 +896,27 @@ const MapModule = (() => {
   }
   // 通常ピンと同じ実ポリゴン上のアンカー座標(pinAnchorById)を使う。これにより、
   // 「通常ピン→選択して消える→選択用ピン+ラベルに切り替わる」際に、📍の
-  // 先端位置が全く動かない(通常ピン対象=PIN_TARGET_IDSのときだけ呼ばれるため、
-  // 基本的にアンカーは必ず存在するが、念のためcountry.lat/lngにフォールバックする)
+  // 先端位置が全く動かない(通常ピン対象=PIN_TARGET_IDSのときはpinAnchorByIdに
+  // 必ず存在する)。PIN_TARGET_IDSに無い国・地域(検索時の自動ズームでtempSearchMarkerId
+  // が一時的に対象になる場合)は、refreshPinLayer()が📍自体の位置に使っているのと
+  // 同じanchorForCountry()(実ポリゴンの代表点、無ければcountry.lat/lng)にフォールバック
+  // する。以前はここだけcountry.lat/lngに直接フォールバックしていたため、📍の実際の
+  // 位置(実ポリゴン基準)と国名ラベルの位置(データ上の代表座標基準)がずれる
+  // 国・地域があった(例: キリバスは最大の島の代表地点が西経約157度なのに対し、
+  // データ上の代表座標は東経173度で、約30度も離れていた)
   function pinAnchorFor(country) {
-    return pinAnchorById.get(country.id) || { lat: country.lat, lng: country.lng };
+    return pinAnchorById.get(country.id) || anchorForCountry(country);
   }
   function updateLabelPosition(country) {
     const labelEl = $("map-country-label");
     const anchor = pinAnchorFor(country);
-    const pos = projectLatLngToScreen(anchor.lat, anchor.lng, 0.02);
+    // 📍の実際の高さ(PIN_OBJECT_ALTITUDE)と同じ高度で投影する。以前は0.02という
+    // 別の値を使っており、通常のズームでは誤差が目立たなかったが、検索時の
+    // 自動ズーム(一時的な目印)で最大ズーム付近・かつ情報カードを避けるために
+    // 注視点をずらした状態(cardAvoidanceTarget)になると、カメラが地点の真上から
+    // 見ていないため、この高度差がそのまま📍とラベルの画面上のズレとして
+    // 大きく現れることが分かった
+    const pos = projectLatLngToScreen(anchor.lat, anchor.lng, PIN_OBJECT_ALTITUDE);
     if (!pos) {
       labelEl.classList.add("hidden");
       return;
@@ -1575,13 +1600,122 @@ const MapModule = (() => {
     return PIN_TARGET_IDS.has(id);
   }
 
+  // ---------- 検索・ランダム選択時の自動ズーム(国・地域の実際の大きさに応じて調整) ----------
+  // 以前はmoveCamera時のaltitudeが南極大陸を除き常に1.5固定だったため、
+  // バチカンのような極小国では位置が、ロシアのような巨大国では逆に
+  // 寄りすぎて全体像が、それぞれ分かりづらかった。PIN_TARGET_IDSのような
+  // 固定の国名リストは使わず、computeCountryGeoInfo()が全216件について
+  // 既に計算済みのsizeDeg(離島を含む全体のバウンディングボックスではなく、
+  // 最大の島・主な地形=代表サブポリゴンだけのバウンディングボックス角度。
+  // 離島が散らばる国で「全体」を基準にすると過度に引いてしまうのを避けるため)
+  // から、対象の最大の地形がだいたい画面の高さのAUTO_ZOOM_TARGET_FRACTION
+  // 程度を占めるような距離を逆算する。
+  const AUTO_ZOOM_TARGET_FRACTION = 0.42;
+  const AUTO_ZOOM_FALLBACK_SIZE_DEG = 8; // ポリゴン情報が無い場合のみ使う、中規模国相当のデフォルト
+  function computeAutoZoom(country) {
+    if (country.id === "antarctica") {
+      // 南極大陸は極付近を囲む特殊な形状で、sizeDeg(緯度経度の単純な角度幅)が
+      // 実際の見かけの大きさを表さないため、従来どおり専用の広域表示を維持する
+      return { altitude: 2.0, needsMarker: false };
+    }
+    const camera = globeInstance && globeInstance.camera();
+    const fovRad = ((camera && camera.fov) || 50) * (Math.PI / 180);
+    const worldUnitsPerDeg = (GLOBE_RADIUS * Math.PI) / 180;
+    const info = countryGeoById.get(country.id);
+    const sizeDeg = info && info.sizeDeg > 0 ? info.sizeDeg : AUTO_ZOOM_FALLBACK_SIZE_DEG;
+    const objectWorldSize = sizeDeg * worldUnitsPerDeg;
+    // altitudeは「地表からの距離 ÷ GLOBE_RADIUS」(pointOfViewの定義、
+    // controls.minDistance/maxDistanceが表す「球の中心からの距離」とは異なる)。
+    // 見かけの大きさは地表からの距離(GLOBE_RADIUS*altitude)で決まるため、
+    // ここで求めるのもその「地表からの理想距離」であることに注意
+    const idealAltitude =
+      objectWorldSize / (2 * AUTO_ZOOM_TARGET_FRACTION * Math.tan(fovRad / 2)) / GLOBE_RADIUS;
+    const controls = globeInstance && globeInstance.controls();
+    // 既存の最大ズーム制限(controls.minDistance、球の中心からの距離)をaltitudeに
+    // 換算したものより内側には絶対に入らない。広げすぎないよう、
+    // INITIAL_VIEW_ALTITUDE(地図を開いた時の初期値)を上限にする
+    const minAltitude = controls && controls.minDistance ? controls.minDistance / GLOBE_RADIUS - 1 : 0.0667;
+    const maxAltitude = INITIAL_VIEW_ALTITUDE;
+    const altitude = Math.max(minAltitude, Math.min(maxAltitude, idealAltitude));
+    return {
+      altitude,
+      // 理想のaltitude(idealAltitude)が既存の最大ズーム制限(minAltitude)より
+      // 小さい(＝もっと寄りたい)場合、これ以上大きく見せられない「極小」の対象とみなす
+      needsMarker: idealAltitude < minAltitude - 0.001,
+    };
+  }
+  // 実ポリゴンの代表点(より正確)を優先し、無ければ従来どおりデータ上の
+  // 緯度経度にフォールバックする。香港のように、データ上の代表座標が
+  // 実際のポリゴンよりわずかに外側になっているケースでも、検索時はこちらを
+  // 使うことでカメラがより正確に対象の実際の地形へ向く
+  function anchorForCountry(country) {
+    const info = countryGeoById.get(country.id);
+    return info ? { lat: info.lat, lng: info.lng } : { lat: country.lat, lng: country.lng };
+  }
+  function prefersReducedMotion() {
+    try {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch (e) {
+      return false;
+    }
+  }
+  // ---------- 情報カードに隠れないよう、検索・ランダム選択時の注視点をずらす ----------
+  // pointOfView()は指定した緯度経度を必ず画面中央に置くため、画面下(スマホ、
+  // 下からのシート)・右側(PC/タブレット、固定パネル)を覆う情報カードが開くと、
+  // 対象がその真裏に隠れてしまう。カメラの向きではなく、情報カードで隠れない
+  // 側にわずかにずらした地点を「注視点」にすることで、実際の対象(ハイライト・
+  // 目印)は画面上、カードに隠れない位置に表示される(対象そのものの位置は
+  // 一切動かさない。あくまでカメラが見る中心をずらすだけ)
+  function cardAvoidanceTarget(lat, lng, altitude) {
+    if (!globeInstance) return { lat, lng };
+    const camera = globeInstance.camera();
+    const container = $("map-globe-container");
+    if (!camera || !container) return { lat, lng };
+    const fovRad = ((camera.fov || 50) * Math.PI) / 180;
+    // 見かけの大きさ・視野の広さは「地表からの距離」(GLOBE_RADIUS*altitude)で
+    // 決まる(球の中心からの距離 GLOBE_RADIUS*(1+altitude) ではない。
+    // computeAutoZoomと同じ注意点)
+    const dist = GLOBE_RADIUS * altitude;
+    const worldUnitsPerDeg = (GLOBE_RADIUS * Math.PI) / 180;
+    const halfViewWorldY = dist * Math.tan(fovRad / 2); // 画面中央〜上端のワールド単位
+    let isDesktopLayout = false;
+    try {
+      isDesktopLayout = window.matchMedia("(min-width: 700px)").matches;
+    } catch (e) {
+      // matchMediaが使えない環境ではモバイル(下シート)扱いのままにする
+    }
+    if (!isDesktopLayout) {
+      // スマホ: 画面下からのシート(最大46vh)に隠れないよう、対象が画面
+      // 中央よりやや上に見えるよう注視点を少し南(緯度を下げる)にずらす
+      const shiftWorld = halfViewWorldY * 0.22;
+      const deltaLat = shiftWorld / worldUnitsPerDeg;
+      return { lat: Math.max(-85, Math.min(85, lat - deltaLat)), lng };
+    }
+    // PC/タブレット: 右側の固定パネル(320px)に隠れないよう、対象が画面
+    // 左寄りに見えるよう注視点を少し東(経度を上げる)にずらす
+    const aspect = camera.aspect || container.clientWidth / container.clientHeight || 1;
+    const halfViewWorldX = halfViewWorldY * aspect;
+    const shiftWorldX = halfViewWorldX * 0.16;
+    const cosLat = Math.cos((lat * Math.PI) / 180) || 0.0001;
+    const deltaLng = shiftWorldX / (worldUnitsPerDeg * cosLat);
+    return { lat, lng: lng + deltaLng };
+  }
+
   function selectCountry(country, options) {
     const moveCamera = !options || options.moveCamera !== false;
     hasInteracted = true;
     selectedCountryId = country.id;
+
+    // 自動ズーム・一時的な目印の要否は、カメラを動かす(検索・ランダム)場合
+    // だけ計算する。地図への直接タップ(moveCamera:false)の既存動作は変えない
+    const zoom = moveCamera ? computeAutoZoom(country) : null;
+    const needsSearchMarker = !!(zoom && zoom.needsMarker && !isPinEligible(country.id));
+    tempSearchMarkerId = needsSearchMarker ? country.id : null;
     // 選択した瞬間のピン対象状態を固定する。選択中にズームが変わっても
-    // ラベル表示・非表示が途中で切り替わってちらつかないようにするため
-    selectedShowsLabel = isPinEligible(country.id);
+    // ラベル表示・非表示が途中で切り替わってちらつかないようにするため。
+    // 既存の固定リスト(PIN_TARGET_IDS)に加え、今回の自動ズームで「最大ズーム
+    // でも十分な大きさにできない」と判定された国・地域も対象にする
+    selectedShowsLabel = isPinEligible(country.id) || needsSearchMarker;
 
     if (globeInstance) {
       globeInstance.controls().autoRotate = false;
@@ -1594,10 +1728,13 @@ const MapModule = (() => {
       }
       if (moveCamera) {
         // 現在の視点を大きく失わない程度に、対象の国へゆっくり移動する。
-        // 南極大陸は他の国よりはるかに広いため、通常の1.5では画面に収まりきらない。
-        // 大陸全体が見える高めのズームにする
-        const altitude = country.id === "antarctica" ? 2.0 : 1.5;
-        globeInstance.pointOfView({ lat: country.lat, lng: country.lng, altitude }, 1200);
+        // 実ポリゴンに基づく代表点(anchorForCountry)へ、国・地域の実際の
+        // 大きさに応じたズーム(computeAutoZoom)で移動し、情報カードに隠れない
+        // 側へ注視点を少しずらす(cardAvoidanceTarget、対象自体の位置は動かさない)
+        const anchor = anchorForCountry(country);
+        const target = cardAvoidanceTarget(anchor.lat, anchor.lng, zoom.altitude);
+        const duration = prefersReducedMotion() ? 0 : 1200;
+        globeInstance.pointOfView({ lat: target.lat, lng: target.lng, altitude: zoom.altitude }, duration);
       }
     }
     renderInfoCard(country);
@@ -1639,6 +1776,7 @@ const MapModule = (() => {
     $("map-info-card").classList.remove("open");
     selectedCountryId = null;
     selectedShowsLabel = false;
+    tempSearchMarkerId = null; // 一時的な目印も選択解除と同時に消す(古い目印を残さない)
     stopLabelTracking();
     refreshPolygonStyles();
     refreshPinLayer();
