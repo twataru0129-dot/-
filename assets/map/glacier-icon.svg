@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="氷河・山岳地帯を示す中立的なアイコン(国旗ではありません)">
+  <rect width="640" height="480" fill="#5f88a8"/>
+  <!-- 氷河・山岳地帯を表す、雪をかぶった山並み -->
+  <path d="M40 380 L190 170 L250 250 L330 120 L470 330 L410 330 L360 260 L320 320 L250 220 L150 380 Z" fill="#e8f1f8"/>
+  <path d="M190 170 L215 210 L165 210 Z" fill="#ffffff"/>
+  <path d="M330 120 L358 168 L302 168 Z" fill="#ffffff"/>
+  <rect x="0" y="380" width="640" height="100" fill="#dceaf4"/>
+</svg>
