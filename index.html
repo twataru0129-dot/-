@@ -189,7 +189,10 @@
     <button id="map-pins-toggle-btn" class="map-pins-toggle-btn" aria-pressed="false">📍 ピン OFF</button>
     <div id="map-country-label" class="map-country-label hidden"></div>
 
-    <p id="map-status" class="map-status hidden">世界地図を読み込んでいます…</p>
+    <div id="map-status" class="map-status hidden">
+      <p id="map-status-text" class="map-status-text">世界地図を読み込んでいます…</p>
+      <button id="map-status-retry" class="map-status-retry hidden" type="button">もう一度読み込む</button>
+    </div>
 
     <div id="map-unsupported" class="map-unsupported hidden">
       <p>この端末またはブラウザでは<br>3D地球儀を表示できません。</p>
