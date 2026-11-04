@@ -39,7 +39,9 @@ const state = {
   nextQuestionTimeoutId: null, // 正誤判定後、次の問題に進むまでの1.5秒待ち(setTimeout)
   nextQuestionRemainingMs: null, // 終了確認モーダルを開いている間、上記待ちを一時停止するための残り時間
   nextQuestionScheduledAt: null, // 上記待ちを開始/再開したperformance.now()
-  questionGeneration: 0, // 問題ごとに増やす世代番号。古い問題の画像読み込みイベントが新しい問題のタイマーに影響しないようにする
+  questionGeneration: 0, // 問題ごと・終了ごとに増やす世代番号。古い問題(または終了後)の画像読み込みイベントが現在のタイマーに影響しないようにする
+  imageLoaded: false, // 現在の問題の画像読み込みが完了したか(onload/completeの二重発火を1回にまとめる・回答ボタン制御に使う)
+  timerStarted: false, // 現在の問題でQuestionTimer.start()を既に呼んだか(二重開始防止)
   lastCountdownSecond: null, // カウントダウン効果音を秒が変わった瞬間だけ鳴らすための記録用
   lastResult: null, // { correct, total, rate, titleObj, isNewTitle, mode }
   memorialType: "medal",
@@ -198,6 +200,25 @@ function clearPendingNextQuestion() {
   state.nextQuestionRemainingMs = null;
 }
 
+// 回答ボタンの有効/無効をまとめて切り替える。画像が読み込み終わる前は
+// 操作できないようにし(読み込み完了後に有効化)、正誤判定後はhandleAnswer側で
+// 個別に無効化する(そちらは変更しない)
+function setChoicesEnabled(enabled) {
+  document.querySelectorAll("#choices-grid .choice-btn").forEach((b) => {
+    b.disabled = !enabled;
+  });
+}
+
+// 画像読み込み完了後のタイマー開始を1本化する。state.timerStartedで
+// 同一問題につき1回だけに制限し(onload/completeの二重発火、
+// 終了確認「続ける」からの呼び出しの両方から安全に呼べる)
+function beginCountdownNow() {
+  if (state.timerStarted) return;
+  state.timerStarted = true;
+  $("thinking-message").classList.remove("hidden"); // 「よく見て考えよう！」をここで表示する
+  state.timer.start();
+}
+
 function renderQuestion() {
   state.answered = false;
   clearPendingNextQuestion(); // 前の問題の「次へ」待ちが万一残っていても確実に解除する
@@ -210,6 +231,8 @@ function renderQuestion() {
   // 「現在の問題」のタイマーを誤って開始させないようにするためのガード
   state.questionGeneration += 1;
   const generation = state.questionGeneration;
+  state.imageLoaded = false;
+  state.timerStarted = false;
 
   $("quiz-progress-text").textContent = `${modeEmoji(state.mode)} 問題 ${idx + 1} / ${total}`;
   $("quiz-score-text").textContent = `正解 ${state.score}`;
@@ -244,7 +267,7 @@ function renderQuestion() {
   const question = isCapitalMode
     ? QuizEngine.buildCapitalQuestion(country)
     : QuizEngine.buildQuestion(country);
-  renderChoices(question.choices, country);
+  renderChoices(question.choices, country); // ボタンは読み込み中は無効(renderChoices内でdisabled=true)
 
   if (state.timer) state.timer.stop();
   state.timer = new QuestionTimer({
@@ -272,10 +295,13 @@ function renderQuestion() {
   img.alt = isCapitalMode ? `${country.name}の国旗` : "国旗クイズ(国名は選択肢から選んでください)";
 
   function startTimerIfCurrent() {
-    if (generation !== state.questionGeneration) return; // 古い問題の読み込み完了は無視
+    if (generation !== state.questionGeneration) return; // 古い問題(または終了後)の読み込み完了は無視
+    if (state.imageLoaded) return; // img.onloadとimg.completeの両方から呼ばれても1回だけ処理する
+    state.imageLoaded = true;
     loadingEl.classList.add("hidden");
-    $("thinking-message").classList.remove("hidden"); // 「よく見て考えよう！」をここで表示する
-    state.timer.start();
+    setChoicesEnabled(true); // 画像が見える状態になってから回答できるようにする
+    if (quizExitConfirmOpen) return; // 終了確認中はタイマーを開始しない。「続ける」を選んだ時にinitQuizExit側で開始する
+    beginCountdownNow();
   }
 
   img.onload = startTimerIfCurrent;
@@ -335,6 +361,7 @@ function renderChoices(choices, correctCountry) {
     btn.className = "choice-btn";
     btn.textContent = isCapitalMode ? c.capital : c.name;
     btn.dataset.id = c.id;
+    btn.disabled = true; // 画像の読み込みが終わるまでは回答できない(startTimerIfCurrentで有効化)
     btn.addEventListener("click", () => handleAnswer(c.id));
     grid.appendChild(btn);
   });
@@ -441,9 +468,22 @@ function initQuizExit() {
     if (ok) {
       if (state.timer) state.timer.stop();
       clearPendingNextQuestion();
+      // 世代番号を進めて、保留中(終了確認中に届いた/これから届く)の
+      // img.onload・onerrorを「古い問題」として無効化する。これにより
+      // 終了後に画像読み込みが完了してもタイマーが開始されない
+      state.questionGeneration += 1;
       showScreen("screen-top");
+    } else if (state.timer && state.timer.paused) {
+      // タイマーが既に開始済み(=読み込み完了後に開いた)だった場合は、
+      // 一時停止していた残り時間から再開する
+      state.timer.resume();
+      resumePendingNextQuestion();
     } else {
-      if (state.timer) state.timer.resume();
+      // タイマー未開始のまま終了確認を開いていた場合。画像読み込みが
+      // 確認中に完了していれば今ここで開始し(要件: 8秒から開始)、
+      // まだ読み込み中なら何もせず、読み込み完了時のstartTimerIfCurrentが
+      // (quizExitConfirmOpenが既にfalseなので)開始する
+      if (state.imageLoaded) beginCountdownNow();
       resumePendingNextQuestion();
     }
   });
