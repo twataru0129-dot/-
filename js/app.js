@@ -156,10 +156,13 @@ function startQuiz(count) {
   renderQuestion();
 }
 
-// 首都クイズの問題文を作る。南アフリカだけは複数の首都機能があるため
-// 「行政首都は？」という専用の問題文にして、正解をプレトリア1つに限定する
+// 首都クイズの問題文を作る。南アフリカ・ボリビア・ナウルのように、単純な
+// 「○○の首都は？」では不正確・分かりにくくなる国は、countries.js側に
+// capitalQuestionText(任意プロパティ)を設定しておけばそれを使う。
+// 特定の国だけをidで判定する分岐を増やさずに済むため、今後同様の国が
+// 増えてもここのコードを変更せずデータ追加だけで対応できる
 function getCapitalQuestionText(country) {
-  if (country.id === "za") return "南アフリカの行政首都は？";
+  if (country.capitalQuestionText) return country.capitalQuestionText;
   return `${country.name}の首都は？`;
 }
 
@@ -415,7 +418,8 @@ function handleAnswer(selectedId) {
   // 首都に特殊事情がある国は、正解・不正解に関わらず小さく補足を表示する
   // (例: 南アフリカは首都機能が複数都市に分かれている)
   const noteEl = $("result-note");
-  if (isCapitalMode && correctCountry.capitalNote) {
+  const hasNote = isCapitalMode && !!correctCountry.capitalNote;
+  if (hasNote) {
     noteEl.textContent = correctCountry.capitalNote;
     noteEl.classList.remove("hidden");
   } else {
@@ -424,7 +428,20 @@ function handleAnswer(selectedId) {
 
   $("quiz-score-text").textContent = `正解 ${state.score}`;
 
-  scheduleNextQuestion(1500);
+  // 補足説明(capitalNote)が無い通常の問題は従来どおり1.5秒。補足説明がある
+  // 問題は読む時間を確保するため約4秒(長い説明は最大5秒まで)に延長する
+  scheduleNextQuestion(hasNote ? computeNoteDisplayMs(correctCountry.capitalNote) : 1500);
+}
+
+// 補足説明(capitalNote)を読み終えるのに必要なおおよその時間を見積もる。
+// 短い説明は一律4秒、長い説明(40文字超)はその分だけ延長し、5秒を上限にする
+function computeNoteDisplayMs(note) {
+  const BASE_MS = 4000;
+  const MAX_MS = 5000;
+  const READABLE_LENGTH = 40; // この文字数までは基準の4秒で読み切れると想定
+  const MS_PER_EXTRA_CHAR = 15;
+  const extra = Math.max(0, note.length - READABLE_LENGTH) * MS_PER_EXTRA_CHAR;
+  return Math.min(MAX_MS, BASE_MS + extra);
 }
 
 function goToNextQuestion() {
