@@ -377,10 +377,18 @@ img { max-width: 100%; }
   box-shadow: var(--shadow-card);
   padding: 10px;
 }
+.flag-loading {
+  color: var(--color-text-sub);
+  font-weight: 600;
+  text-align: center;
+}
 .flag-error {
   color: var(--color-wrong);
   font-weight: 700;
   text-align: center;
+}
+.flag-error-retry {
+  margin-top: 6px;
 }
 
 /* タイマー表示エリア: 「よく見て考えよう！」とカウントダウンを

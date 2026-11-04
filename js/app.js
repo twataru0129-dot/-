@@ -36,6 +36,10 @@ const state = {
   score: 0,
   answered: false,
   timer: null,
+  nextQuestionTimeoutId: null, // 正誤判定後、次の問題に進むまでの1.5秒待ち(setTimeout)
+  nextQuestionRemainingMs: null, // 終了確認モーダルを開いている間、上記待ちを一時停止するための残り時間
+  nextQuestionScheduledAt: null, // 上記待ちを開始/再開したperformance.now()
+  questionGeneration: 0, // 問題ごとに増やす世代番号。古い問題の画像読み込みイベントが新しい問題のタイマーに影響しないようにする
   lastCountdownSecond: null, // カウントダウン効果音を秒が変わった瞬間だけ鳴らすための記録用
   lastResult: null, // { correct, total, rate, titleObj, isNewTitle, mode }
   memorialType: "medal",
@@ -157,22 +161,59 @@ function getCapitalQuestionText(country) {
   return `${country.name}の首都は？`;
 }
 
+// 正誤判定後、次の問題に進むまでの1.5秒待ちを管理する。終了確認モーダルを
+// 開いている間はこの待ちも一時停止し、「続ける」で残り時間から再開する
+// (QuestionTimer.pause()/resume()と同じ考え方)
+function scheduleNextQuestion(delayMs) {
+  state.nextQuestionRemainingMs = delayMs;
+  state.nextQuestionScheduledAt = performance.now();
+  state.nextQuestionTimeoutId = setTimeout(() => {
+    state.nextQuestionTimeoutId = null;
+    state.nextQuestionRemainingMs = null;
+    goToNextQuestion();
+  }, delayMs);
+}
+function pausePendingNextQuestion() {
+  if (state.nextQuestionTimeoutId === null) return;
+  clearTimeout(state.nextQuestionTimeoutId);
+  state.nextQuestionTimeoutId = null;
+  const elapsed = performance.now() - state.nextQuestionScheduledAt;
+  state.nextQuestionRemainingMs = Math.max(0, state.nextQuestionRemainingMs - elapsed);
+}
+function resumePendingNextQuestion() {
+  if (state.nextQuestionRemainingMs === null || state.nextQuestionTimeoutId !== null) return;
+  state.nextQuestionScheduledAt = performance.now();
+  state.nextQuestionTimeoutId = setTimeout(() => {
+    state.nextQuestionTimeoutId = null;
+    state.nextQuestionRemainingMs = null;
+    goToNextQuestion();
+  }, state.nextQuestionRemainingMs);
+}
+// 問題切り替え・途中終了などで、次の問題への遷移が残らないようにする
+function clearPendingNextQuestion() {
+  if (state.nextQuestionTimeoutId !== null) {
+    clearTimeout(state.nextQuestionTimeoutId);
+    state.nextQuestionTimeoutId = null;
+  }
+  state.nextQuestionRemainingMs = null;
+}
+
 function renderQuestion() {
   state.answered = false;
+  clearPendingNextQuestion(); // 前の問題の「次へ」待ちが万一残っていても確実に解除する
   const idx = state.currentQuestionIndex;
   const total = state.questions.length;
   const country = state.questions[idx];
   const isCapitalMode = state.mode === "capital";
+  // この問題専用の世代番号。画像の読み込みが遅れている間に(戻る/進む等で)
+  // 別の問題に切り替わった場合、古い問題のonload/onerrorがその時点の
+  // 「現在の問題」のタイマーを誤って開始させないようにするためのガード
+  state.questionGeneration += 1;
+  const generation = state.questionGeneration;
 
   $("quiz-progress-text").textContent = `${modeEmoji(state.mode)} 問題 ${idx + 1} / ${total}`;
   $("quiz-score-text").textContent = `正解 ${state.score}`;
   $("progress-bar-inner").style.width = `${Math.round((idx / total) * 100)}%`;
-
-  $("flag-error").classList.add("hidden");
-  const img = $("quiz-flag-img");
-  img.src = country.flag;
-  img.alt = isCapitalMode ? `${country.name}の国旗` : "国旗クイズ(国名は選択肢から選んでください)";
-  img.onerror = () => { $("flag-error").classList.remove("hidden"); };
 
   const countryNameEl = $("quiz-country-name");
   if (isCapitalMode) {
@@ -184,9 +225,11 @@ function renderQuestion() {
     $("quiz-instruction").textContent = "この国旗はどこの国？";
   }
 
-  // 「よく見て考えよう！」とカウントダウンは同じ表示エリアを共有するため
-  // 常にthinking側を表示・countdown側を非表示にリセットしてから開始する
-  $("thinking-message").classList.remove("hidden");
+  // 「よく見て考えよう！」とカウントダウンは同じ表示エリアを共有する。
+  // どちらも画像の読み込み完了(=タイマー開始)まではいったん非表示にし、
+  // 「考える時間」のつもりで表示されたまま画像がまだ見えていない、という
+  // 状態を避ける(タイマー開始時にstartTimerIfCurrent()内で表示する)
+  $("thinking-message").classList.add("hidden");
   const countdownDisplay = $("countdown-display");
   countdownDisplay.classList.add("hidden");
   countdownDisplay.classList.remove("warn-3", "warn-2", "warn-1");
@@ -212,7 +255,47 @@ function renderQuestion() {
       handleAnswer(null);
     },
   });
-  state.timer.start();
+
+  // 国旗画像の読み込みが完了するまで「考える3秒+カウントダウン5秒」を
+  // 開始しない(通信が遅い環境で、画像が表示される前に時間が減っていくのを
+  // 防ぐため)。すでにキャッシュされている画像はimg.completeが直後にtrueに
+  // なるので待たせない。generationが変わっていたら(=既に別の問題に進んでいる)
+  // この問題のタイマーを開始しない
+  const img = $("quiz-flag-img");
+  const loadingEl = $("flag-loading");
+  const errorEl = $("flag-error");
+  img.classList.remove("hidden");
+  loadingEl.classList.add("hidden");
+  errorEl.classList.add("hidden");
+  img.onload = null;
+  img.onerror = null;
+  img.alt = isCapitalMode ? `${country.name}の国旗` : "国旗クイズ(国名は選択肢から選んでください)";
+
+  function startTimerIfCurrent() {
+    if (generation !== state.questionGeneration) return; // 古い問題の読み込み完了は無視
+    loadingEl.classList.add("hidden");
+    $("thinking-message").classList.remove("hidden"); // 「よく見て考えよう！」をここで表示する
+    state.timer.start();
+  }
+
+  img.onload = startTimerIfCurrent;
+  img.onerror = () => {
+    if (generation !== state.questionGeneration) return;
+    loadingEl.classList.add("hidden");
+    img.classList.add("hidden");
+    errorEl.classList.remove("hidden");
+    // 読み込みに失敗した場合はタイマーを開始しない(時間切れにしない)。
+    // 「再読み込み」ボタン(initFlagRetry参照)で同じ問題のまま再試行できる
+  };
+  img.src = country.flag;
+
+  if (img.complete && img.naturalWidth > 0) {
+    // 既にブラウザキャッシュにある場合はonloadが発火しないことがあるため、
+    // 直後に同期的にcompleteをチェックして即座に開始する
+    startTimerIfCurrent();
+  } else {
+    loadingEl.classList.remove("hidden");
+  }
 }
 
 function handleTimerTick(phase, secondsLeft) {
@@ -314,9 +397,7 @@ function handleAnswer(selectedId) {
 
   $("quiz-score-text").textContent = `正解 ${state.score}`;
 
-  setTimeout(() => {
-    goToNextQuestion();
-  }, 1500);
+  scheduleNextQuestion(1500);
 }
 
 function goToNextQuestion() {
@@ -328,12 +409,42 @@ function goToNextQuestion() {
   }
 }
 
+let quizExitConfirmOpen = false; // 確認モーダルが開いている間、連打で二重に開かないようにする
+// 国旗画像の読み込みに失敗したとき、同じ問題のまま再試行する。
+// キャッシュに失敗状態が残っている場合に備え、クエリ文字列を付けて
+// 強制的に再リクエストする(同一オリジンのローカル画像のみなのでCORSの問題はない)
+function initFlagRetry() {
+  $("flag-error-retry").addEventListener("click", () => {
+    const country = state.questions[state.currentQuestionIndex];
+    if (!country) return;
+    const img = $("quiz-flag-img");
+    const loadingEl = $("flag-loading");
+    const errorEl = $("flag-error");
+    errorEl.classList.add("hidden");
+    img.classList.remove("hidden");
+    loadingEl.classList.remove("hidden");
+    img.src = `${country.flag}${country.flag.includes("?") ? "&" : "?"}retry=${Date.now()}`;
+  });
+}
+
 function initQuizExit() {
   $("btn-quiz-exit").addEventListener("click", async () => {
+    if (quizExitConfirmOpen) return;
+    quizExitConfirmOpen = true;
+    // 終了するか考えている間は、問題の進行(タイマー・正誤判定後の次問題への
+    // 遷移)を一時停止する。state.timerが無い(=既にタイマーが無い)場合や、
+    // 既にstop()済みの場合はpause()が何もしない安全な実装になっている
+    if (state.timer) state.timer.pause();
+    pausePendingNextQuestion();
     const ok = await showConfirm("クイズを終了しますか？");
+    quizExitConfirmOpen = false;
     if (ok) {
       if (state.timer) state.timer.stop();
+      clearPendingNextQuestion();
       showScreen("screen-top");
+    } else {
+      if (state.timer) state.timer.resume();
+      resumePendingNextQuestion();
     }
   });
 }
@@ -704,6 +815,7 @@ function showConfirm(text) {
 function initApp() {
   initTopScreen();
   renderSelectScreen();
+  initFlagRetry();
   initQuizExit();
   initResultScreen();
   initTitleAwardScreen();
