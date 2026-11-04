@@ -1607,9 +1607,10 @@ const MapModule = (() => {
   function renderInfoCard(country) {
     const flagImg = $("map-card-flag");
     flagImg.src = country.flag;
-    // 南極大陸は国家ではなく、公式な国旗が存在しないため「国旗」とは呼ばない
-    // (実際に表示しているのは中立的なアイコンで、国旗の代わりではない)
-    flagImg.alt = country.id === "antarctica" ? `${country.name}のアイコン` : `${country.name}の国旗`;
+    // isFlagImage:falseの国・地域(南極大陸、北キプロス、ソマリランド、
+    // シアチェン氷河など)は、公式な国旗が存在しない、または国旗と呼ぶと
+    // 誤解を招くため「国旗」とは呼ばない(実際に表示しているのは中立的なアイコン)
+    flagImg.alt = country.isFlagImage === false ? `${country.name}のアイコン` : `${country.name}の国旗`;
     $("map-card-name").textContent = country.name;
     $("map-card-region").textContent = country.regionJa;
 

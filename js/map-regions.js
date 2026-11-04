@@ -272,6 +272,11 @@ const MAP_ONLY_REGIONS = [
     // renderSearchResultsは既存のまま(<img src>を流用)で済むように、
     // 通常の国旗と同じ4:3のSVGとして用意してある
     flag: "./assets/map/antarctica-icon.svg",
+    // trueの場合、画像は実際の国旗ではなく中立的なアイコンであることを示す。
+    // renderInfoCard/renderSearchResultsのalt文言(「〇〇の国旗」と言わない)の
+    // 切り替えに使う。どの国・地域でも同じ仕組みで判定できるようにするため、
+    // id直接指定ではなくこのフラグで統一する
+    isFlagImage: false,
     aliases: ["南極", "南極大陸", "Antarctica"],
     mapCode: "ATA",
     lat: -82,
@@ -279,6 +284,73 @@ const MAP_ONLY_REGIONS = [
     infoLabel: "区分",
     infoValue: "大陸",
     description: "南極大陸は地球の最南端に位置する大陸です。大部分が厚い氷に覆われ、各国の観測基地で科学研究が行われています。複数の国が領有権を主張していますが、南極条約では既存の主張を承認・否認せず、新たな主張や既存主張の拡大を認めない枠組みになっており、平和的利用と科学的調査が重視されています。",
+    mapOnly: true,
+    quizEligible: false,
+    // 国ではないため「ランダムな国へ」の候補から除外する
+    randomEligible: false,
+  },
+  {
+    id: "cyn",
+    name: "北キプロス",
+    englishName: "Northern Cyprus",
+    region: "europe", // 既存のキプロス(countries.js「cy」)と同じヨーロッパ分類に合わせる
+    regionJa: "ヨーロッパ",
+    // 国旗と誤認されないよう、国家の国旗ではなく中立的な地域アイコンを使う
+    flag: "./assets/map/unrecognized-region-icon.svg",
+    isFlagImage: false,
+    aliases: ["北キプロス", "Northern Cyprus", "北部キプロス", "トルコ系キプロス"],
+    mapCode: "CYN",
+    lat: 35.1968,
+    lng: 33.5211,
+    infoLabel: "区分",
+    infoValue: "独立を宣言した地域",
+    // 国連安保理決議541(1983)・550(1984)の内容を確認した上での記述。
+    // 2026-11-04時点でトルコ以外に国家承認している国はない
+    description: "北キプロスは、地中海のキプロス島北部にある地域です。1983年に独立を宣言しましたが、国連安全保障理事会は決議541(1983年)でこの独立宣言を法的に無効とし、キプロス共和国以外のキプロス国家を承認しないよう各国に求めました。1984年の決議550でも同じ立場が確認されています。現在、国家として承認しているのはトルコのみです。",
+    mapOnly: true,
+    quizEligible: false,
+    // 国家としての国際的な地位が定まっていないため「ランダムな国へ」の候補から除外する
+    randomEligible: false,
+  },
+  {
+    id: "sol",
+    name: "ソマリランド",
+    englishName: "Somaliland",
+    region: "africa",
+    regionJa: "アフリカ",
+    // 国旗と誤認されないよう、国家の国旗ではなく中立的な地域アイコンを使う
+    flag: "./assets/map/unrecognized-region-icon.svg",
+    isFlagImage: false,
+    aliases: ["ソマリランド", "Somaliland"],
+    mapCode: "SOL",
+    lat: 10.3071,
+    lng: 45.3888,
+    infoLabel: "区分",
+    infoValue: "独立を宣言した地域",
+    // 2025年12月26日のイスラエルによる承認(ネタニヤフ首相・サアル外相が宣言に署名)を
+    // 2026-11-04時点の報道で確認。ソマリア政府は強く反発し国連安保理も緊急会合を
+    // 開いており、国際的に広く認められた状態ではないことも併記する
+    description: "ソマリランドは、アフリカ東部のソマリア北西部に位置する地域です。1991年に独立を宣言し、独自の政府や議会を運営しています。2025年12月26日にイスラエルが独立国家として正式承認しましたが、ソマリア政府は独立を認めておらず、国際的な地位をめぐって立場が分かれています。",
+    mapOnly: true,
+    quizEligible: false,
+    randomEligible: false,
+  },
+  {
+    id: "kas",
+    name: "シアチェン氷河",
+    englishName: "Siachen Glacier",
+    region: "asia", // 既存のインド・パキスタン(countries.js)と同じアジア分類に合わせる
+    regionJa: "アジア",
+    // 国でも国旗を持つ地域でもないため、氷河・山岳を表す中立的なアイコンを使う
+    flag: "./assets/map/glacier-icon.svg",
+    isFlagImage: false,
+    aliases: ["シアチェン氷河", "シアチェン", "Siachen Glacier", "Siachen"],
+    mapCode: "KAS",
+    lat: 35.481,
+    lng: 77.1657,
+    infoLabel: "区分",
+    infoValue: "領有権をめぐる係争地",
+    description: "シアチェン氷河は、アジアのカラコルム山脈にある大きな氷河です。標高の高い厳しい自然環境にあり、インドとパキスタンの間で領有権が争われています。現在はインド側が氷河本体とサルトロ山脈の主要な峰を、パキスタン側がその西側の谷・斜面を実効支配しています。独立した国ではありません。",
     mapOnly: true,
     quizEligible: false,
     // 国ではないため「ランダムな国へ」の候補から除外する

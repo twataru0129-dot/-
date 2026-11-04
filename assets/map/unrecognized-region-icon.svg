@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-label="独立を宣言した地域を示す地図アイコン(国旗ではありません)">
+  <rect width="640" height="480" fill="#8a94a6"/>
+  <!-- 地図上の「場所」を示すピン(国旗ではないことを明確にするため、旗の形は使わない) -->
+  <path d="M320 110c-52 0-94 42-94 94 0 70 94 166 94 166s94-96 94-166c0-52-42-94-94-94z"
+        fill="#ffffff"/>
+  <circle cx="320" cy="204" r="34" fill="#8a94a6"/>
+  <!-- 国際的な承認が定まっていないことを示す破線の輪(国境が確定していない、という意味合い) -->
+  <circle cx="320" cy="300" r="118" fill="none" stroke="#ffffff" stroke-width="10" stroke-dasharray="18 16" opacity="0.55"/>
+</svg>
