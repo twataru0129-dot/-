@@ -875,33 +875,89 @@ function showConfirm(text) {
 // 世界図鑑 ⇔ 世界地図 連携(第2段階)
 // 両モジュールは互いの内部状態を直接書き換えず、カスタムイベントと
 // それぞれの公開API(MapModule.open()/EncyclopediaModule.openDetailById())
-// だけを介してやり取りする。この関数だけがその橋渡しを行う
-// ==========================================================
+// だけを介してやり取りする。この関数だけがその橋渡しを行う。
+//
+// 画面遷移の管理(PR #39レビュー対応): 🌍/📖ボタンで地図⇔図鑑詳細を
+// 行き来するたびに、現在表示している画面を「次に戻ってきたら再表示する
+// もの」として1件だけpushし、戻るボタンが押されるたびに1件popして
+// 再表示する小さなスタック(mapEncyclopediaNavStack)で管理する。
+// 以前は「戻り先」を単一の変数(backLabel/onBack)に無条件上書きしていたため、
+// 地図→図鑑→地図→図鑑…と行き来するうちに、2つの画面同士が互いを
+// 指し合ったまま、それより前にいた画面(トップや元の詳細画面)へ
+// 戻る手段を失うことがあった。スタック化することで、戻るボタンを
+// 押した回数だけ、実際に辿ってきた経路を逆順に戻れるようになり、
+// 必ずどこかでスタックが空になってトップ(または図鑑一覧)へ natural に
+// 戻り着く。往復(push→pop)のたびに正味の増減は無いため、同じ操作を
+// 何度繰り返しても履歴が際限なく増え続けることはない。万一を考慮し、
+// 想定を超えて深くなった場合のためだけに上限も設けておく
+let mapEncyclopediaNavStack = [];
+const MAP_ENCYCLOPEDIA_NAV_MAX_DEPTH = 8;
+
+function pushMapEncyclopediaNav(entry) {
+  mapEncyclopediaNavStack.push(entry);
+  // 通常の利用では到達しない安全策(極端に深くpushし続けた場合のみ、
+  // 一番古いものから捨てて際限のない増加を防ぐ)
+  if (mapEncyclopediaNavStack.length > MAP_ENCYCLOPEDIA_NAV_MAX_DEPTH) {
+    mapEncyclopediaNavStack.shift();
+  }
+}
+
+// 今まさに表示しようとしている地図画面の戻るボタンの表記・動作を、
+// スタックの最上位(=この後ろにある画面)に応じて決める
+function mapOpenOptionsFromStack(selectId) {
+  const top = mapEncyclopediaNavStack[mapEncyclopediaNavStack.length - 1];
+  if (top && top.screen === "encyclopedia-detail") {
+    return {
+      selectId,
+      backLabel: "← 図鑑に戻る",
+      onBack: () => {
+        mapEncyclopediaNavStack.pop();
+        EncyclopediaModule.openDetailById(top.id, encyclopediaBackOptionsFromStack());
+      },
+    };
+  }
+  return { selectId, backLabel: "← トップへ戻る", onBack: () => showScreen("screen-top") };
+}
+
+// 今まさに表示しようとしている図鑑詳細画面の戻るボタンの表記・動作を、
+// スタックの最上位(=この後ろにある画面)に応じて決める
+function encyclopediaBackOptionsFromStack() {
+  const top = mapEncyclopediaNavStack[mapEncyclopediaNavStack.length - 1];
+  if (top && top.screen === "map") {
+    return {
+      backLabel: "← 地図に戻る",
+      onBack: () => {
+        mapEncyclopediaNavStack.pop();
+        showScreen("screen-map");
+        MapModule.open(mapOpenOptionsFromStack());
+      },
+    };
+  }
+  return { backLabel: "← 図鑑一覧に戻る", onBack: null };
+}
+
 function initMapEncyclopediaLink() {
   // 図鑑の詳細画面「🌍 地図で場所を見る」→ 地図でその国・地域を選択表示する
   document.addEventListener("encyclopediamodule:view-on-map", (e) => {
     const id = e.detail && e.detail.id;
     if (!id) return;
+    // 今表示している図鑑詳細画面(id)を、地図から戻ってきたときの
+    // 再表示対象としてスタックに積む
+    pushMapEncyclopediaNav({ screen: "encyclopedia-detail", id });
     showScreen("screen-map");
-    MapModule.open({
-      selectId: id,
-      backLabel: "← 図鑑に戻る",
-      onBack: () => showScreen("screen-encyclopedia-detail"),
-    });
+    MapModule.open(mapOpenOptionsFromStack(id));
   });
 
   // 地図の情報カード「📖 世界図鑑で見る」→ 図鑑の詳細画面をそのidで開く
   document.addEventListener("mapmodule:view-in-encyclopedia", (e) => {
     const id = e.detail && e.detail.id;
     if (!id) return;
+    // 今表示している地図画面を、図鑑から戻ってきたときの再表示対象として
+    // スタックに積む(地図自体は選択中の国・視点を保持したまま表示する
+    // だけなので、idは不要)
+    pushMapEncyclopediaNav({ screen: "map" });
     MapModule.close();
-    EncyclopediaModule.openDetailById(id, {
-      backLabel: "← 地図に戻る",
-      onBack: () => {
-        showScreen("screen-map");
-        MapModule.open();
-      },
-    });
+    EncyclopediaModule.openDetailById(id, encyclopediaBackOptionsFromStack());
   });
 }
 
