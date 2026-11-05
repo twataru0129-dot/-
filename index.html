@@ -9,6 +9,7 @@
   <link rel="apple-touch-icon" href="./apple-touch-icon.png.PNG">
 <link rel="stylesheet" href="./css/style.css">
 <link rel="stylesheet" href="./css/map.css">
+<link rel="stylesheet" href="./css/encyclopedia.css">
 </head>
 <body>
 
@@ -41,6 +42,11 @@
         <span class="mode-card-icon">🌐</span>
         <span class="mode-card-title">世界地図</span>
         <span class="mode-card-desc">地球を自由に探索しよう！</span>
+      </button>
+      <button id="btn-mode-encyclopedia" class="mode-card mode-card-encyclopedia" data-mode="encyclopedia">
+        <span class="mode-card-icon">📖</span>
+        <span class="mode-card-title">世界図鑑</span>
+        <span class="mode-card-desc">世界の国・地域を調べよう！</span>
       </button>
     </div>
     <button id="btn-collection" class="btn btn-secondary">🏅 称号コレクション</button>
@@ -228,6 +234,64 @@
   </div>
 </section>
 
+<!-- ============ 世界図鑑: 一覧画面 ============ -->
+<section id="screen-encyclopedia-list" class="screen">
+  <div class="ency-wrap">
+    <div class="ency-topbar">
+      <button id="btn-ency-back" class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
+      <h2 class="ency-title">世界図鑑</h2>
+    </div>
+
+    <div class="ency-search-wrap">
+      <input id="ency-search-input" class="ency-search-input" type="text" placeholder="🔍 国名・読み・英語名・首都名で検索" autocomplete="off">
+      <button id="ency-search-clear" class="ency-search-clear hidden" aria-label="検索をクリア" type="button">×</button>
+    </div>
+
+    <div class="ency-tabs" role="tablist">
+      <button id="ency-tab-country" class="ency-tab" data-category="country" role="tab" aria-selected="false" type="button">国・地域<span class="ency-tab-count">198</span></button>
+      <button id="ency-tab-region" class="ency-tab" data-category="region" role="tab" aria-selected="false" type="button">その他の地域<span class="ency-tab-count">18</span></button>
+    </div>
+
+    <div class="ency-region-wrap">
+      <button id="ency-region-btn" class="ency-region-btn" aria-haspopup="listbox" aria-expanded="false" type="button">
+        <span id="ency-region-btn-label">🌍 すべての地域</span> <span class="ency-region-caret">▼</span>
+      </button>
+      <ul id="ency-region-list" class="ency-region-list hidden" role="listbox"></ul>
+    </div>
+
+    <p id="ency-result-count" class="ency-result-count"></p>
+
+    <div id="ency-grid" class="ency-grid"></div>
+    <p id="ency-empty" class="ency-empty hidden">見つかりませんでした</p>
+  </div>
+</section>
+
+<!-- ============ 世界図鑑: 詳細画面 ============ -->
+<section id="screen-encyclopedia-detail" class="screen">
+  <div class="ency-detail-wrap">
+    <button id="btn-ency-detail-back" class="btn-back ency-detail-back" type="button">← 図鑑一覧に戻る</button>
+
+    <div class="ency-detail-flag-wrap">
+      <img id="ency-detail-flag" class="ency-detail-flag" src="" alt="">
+    </div>
+    <h2 id="ency-detail-name" class="ency-detail-name"></h2>
+    <p id="ency-detail-english" class="ency-detail-english"></p>
+
+    <div class="ency-detail-info-card">
+      <p class="ency-detail-capital-line"><span id="ency-detail-capital-label">首都</span>：<span id="ency-detail-capital-value"></span></p>
+      <ul id="ency-detail-supplement" class="ency-detail-supplement hidden"></ul>
+      <p class="ency-detail-region-line">地域：<span id="ency-detail-region"></span></p>
+    </div>
+
+    <p id="ency-detail-desc" class="ency-detail-desc"></p>
+
+    <div class="ency-detail-nav">
+      <button id="ency-detail-prev" class="ency-detail-nav-btn" type="button">← 前の国</button>
+      <button id="ency-detail-next" class="ency-detail-nav-btn" type="button">次の国 →</button>
+    </div>
+  </div>
+</section>
+
 <!-- ============ メダル・賞状作成画面 ============ -->
 <section id="screen-memorial" class="screen">
   <div class="panel">
@@ -301,11 +365,14 @@
 <script src="./js/countries.js"></script>
 <script src="./js/map-regions.js"></script>
 <script src="./js/map-colors.js"></script>
+<script src="./js/capital-display.js"></script>
+<script src="./js/encyclopedia-data.js"></script>
 <script src="./js/storage.js"></script>
 <script src="./js/sound.js"></script>
 <script src="./js/quiz.js"></script>
 <script src="./js/certificate.js"></script>
 <script src="./js/map.js"></script>
+<script src="./js/encyclopedia.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>

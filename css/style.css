@@ -198,13 +198,14 @@ img { max-width: 100%; }
 
 #btn-collection { margin-bottom: auto; }
 
-/* トップ画面のゲームモード選択カード(国旗クイズ/首都クイズ) */
+/* トップ画面のモード選択カード(国旗クイズ/首都クイズ/世界地図/世界図鑑)。
+   4枚になってもスマホで窮屈にならないよう、1列ではなく2列×2行を基本にする */
 .mode-select-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
   width: 100%;
-  max-width: 360px;
+  max-width: 420px;
   margin-bottom: 20px;
 }
 .mode-card {
@@ -215,21 +216,21 @@ img { max-width: 100%; }
   background: var(--color-bg-card);
   border: 2px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: 20px 16px;
+  padding: 18px 10px;
   cursor: pointer;
   box-shadow: var(--shadow-card);
   transition: border-color .15s ease, transform .1s ease;
 }
 .mode-card:active { transform: scale(0.97); }
 .mode-card:hover { border-color: var(--color-primary); }
-.mode-card-icon { font-size: 2rem; }
+.mode-card-icon { font-size: 1.8rem; }
 .mode-card-title {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 800;
   color: var(--color-primary-dark);
 }
 .mode-card-desc {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: var(--color-text-sub);
 }
 

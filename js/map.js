@@ -1818,20 +1818,10 @@ const MapModule = (() => {
     flagImg.alt = country.isFlagImage === false ? `${country.name}のアイコン` : `${country.name}の国旗`;
     $("map-card-name").textContent = country.name;
 
-    // capitals配列(複数の首都機能を持つ国)がある場合、国旗・首都クイズの
-    // 正解(country.capital)と一致する項目を見出しの主表示に使い、残りは
-    // 補足情報として表示する。地域名(regionJa)は地域フィルター・検索専用の
-    // データとして残しつつ、見出しからは省略する
-    const capitals = country.capitals || [];
-    const primaryEntry = capitals.find((c) => c.name === country.capital) || null;
-    const supplementEntries = primaryEntry ? capitals.filter((c) => c !== primaryEntry) : [];
-
-    // 通常の国は「首都：〇〇」、香港・マカオは「区分：中国の特別行政区」、
-    // グリーンランド・フェロー諸島は「中心都市：〇〇」、南アフリカ・スイス・
-    // ナウルなど特殊な首都事情を持つ国は「行政首都：〇〇」のように、
-    // 国・地域ごとに見出しの表示ラベルと値を切り替えられるようにする
-    const label = country.capitalInfoLabel || (primaryEntry ? primaryEntry.type : null) || country.infoLabel || "首都";
-    const value = country.infoValue || country.capital || "";
+    // 地域名(regionJa)は地域フィルター・検索専用のデータとして残しつつ、
+    // 見出しからは省略する。首都の見出しラベル・値・補足情報の算出は
+    // 世界図鑑モードとも共通のロジック(js/capital-display.js)を使う
+    const { label, value, supplementEntries } = resolveCapitalDisplay(country);
     $("map-card-capital-label-text").textContent = label;
     $("map-card-capital").textContent = value;
 
@@ -2108,7 +2098,10 @@ const MapModule = (() => {
     $("map-pins-toggle-btn").addEventListener("click", togglePinsVisible);
   }
 
-  return { open, close, initEvents };
+  // REGION_ORDER/REGION_LABELSは世界図鑑モード(js/encyclopedia.js)の地域
+  // フィルターでも再利用する。country.regionの値そのもの(分類)は変えず、
+  // 表示用のラベル一覧だけを公開する
+  return { open, close, initEvents, REGION_ORDER, REGION_LABELS };
 })();
 
 document.addEventListener("DOMContentLoaded", () => MapModule.initEvents());
