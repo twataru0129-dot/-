@@ -257,8 +257,17 @@
 }
 
 /* ---------- 詳細画面 ---------- */
-.ency-detail-back {
+/* 一覧画面の.ency-topbarと同様、.btn-back(style.css)のposition:absoluteを
+   独立したヘッダー領域内でstaticに戻し、戻るボタンの分だけ国旗が
+   自然に下へ押し下げられるようにする(戻るボタンが国旗の左上に重なる
+   問題の修正) */
+.ency-detail-topbar {
+  display: flex;
   margin-bottom: 18px;
+}
+.ency-detail-topbar .btn-back {
+  position: static;
+  flex-shrink: 0;
 }
 .ency-detail-flag-wrap {
   display: flex;
