@@ -1629,8 +1629,21 @@ const MapModule = (() => {
       .polygonsTransitionDuration(200)
       .onGlobeReady(() => {
         resizeGlobe();
-        globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
+        // 世界図鑑からの直接選択(MapModule.open({selectId})、初回の読み込み中に
+        // 発火する)は、globe.gl自体の初期化(このonGlobeReady)が完了するより
+        // 先にselectCountry()のpointOfView()アニメーションを開始していることが
+        // ある。その場合にここで無条件に既定の初期視点へジャンプすると、
+        // 進行中のアニメーションを上書きして選択した国が見えなくなってしまう。
+        // そのため、既に国・地域が選択済みであれば既定視点へは戻さず、
+        // その国・地域へ改めて正しく向き直す
+        const alreadySelected = selectedCountryId && countryById && countryById.get(selectedCountryId);
+        if (!alreadySelected) {
+          globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
+        }
         startAutoRotate();
+        if (alreadySelected) {
+          selectCountry(alreadySelected, { moveCamera: true });
+        }
         hookRendererForLabelSync();
         // 📍の3Dオブジェクト化に使うThree.jsクラスをここで一度だけ取得してから、
         // 実際のピンレイヤーを構築する(取得完了まで📍は一時的に表示されない)
