@@ -155,28 +155,36 @@
 }
 
 /* ---------- 一覧カード ---------- */
+/* minmax(0, 1fr)を使わないと、折り返せない長い文字列がトラック自体を
+   押し広げてしまい(CSS Gridの「ブローアウト」)、列幅がそろわず隣の
+   カードまで文字がはみ出す原因になる。0を最小値にすることで、
+   トラック幅は常にグリッドの実幅に収まる */
 .ency-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 @media (min-width: 700px) {
-  .ency-grid { grid-template-columns: repeat(3, 1fr); }
+  .ency-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (min-width: 1000px) {
-  .ency-grid { grid-template-columns: repeat(4, 1fr); }
+  .ency-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (min-width: 1300px) {
-  .ency-grid { grid-template-columns: repeat(5, 1fr); }
+  .ency-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
 @media (min-width: 1600px) {
-  .ency-grid { grid-template-columns: repeat(6, 1fr); }
+  .ency-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
 
 .ency-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* 中央寄せの見た目は子要素側のtext-alignで維持しつつ、
+     align-items: stretchで子要素の幅をカード幅に固定する。
+     centerのままだと子要素に明確な幅の制約が無くなり、
+     折り返し計算が不安定になって文字がはみ出すことがある */
+  align-items: stretch;
   gap: 8px;
   padding: 14px 10px 16px;
   background: #fff;
@@ -191,25 +199,40 @@
 .ency-card:active { transform: scale(0.97); }
 .ency-card:hover { border-color: var(--color-primary); }
 .ency-card-flag {
+  display: block;
   width: 100%;
   max-width: 120px;
+  margin: 0 auto;
   aspect-ratio: 4 / 3;
   object-fit: contain;
-  border-radius: 6px;
+  /* 白地が多い国旗(日本・韓国・カナダ・キプロス・バチカン等)が
+     カードの白背景に溶け込まないよう、淡い背景色・薄いボーダー・
+     控えめな影を付けて輪郭を判別できるようにする。国旗SVG自体は
+     変更せず、object-fit:containで縦横比・透明余白もそのまま維持する */
   background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 4px rgba(20, 30, 50, 0.08);
+  border-radius: 6px;
 }
 .ency-card-name {
+  width: 100%;
+  min-width: 0;
   font-size: 0.92rem;
   font-weight: 800;
   color: var(--color-text);
-  overflow-wrap: break-word;
-  word-break: keep-all;
+  /* 日本語の長い名称(特に区切りの無いカタカナの連続)には改行できる
+     箇所が無いことがあるため、anywhereで強制的に折り返す。
+     break-wordはグリッドの最小コンテンツ幅の計算に反映されず
+     ブローアウトの原因になるため使わない */
+  overflow-wrap: anywhere;
   line-height: 1.3;
 }
 .ency-card-capital {
+  width: 100%;
+  min-width: 0;
   font-size: 0.76rem;
   color: var(--color-text-sub);
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   line-height: 1.3;
 }
 
@@ -226,8 +249,9 @@
   width: min(100%, 320px);
   aspect-ratio: 4 / 3;
   object-fit: contain;
-  border-radius: var(--radius-md);
   background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
 }
 .ency-detail-name {
@@ -236,14 +260,14 @@
   font-weight: 800;
   color: var(--color-text);
   margin: 0 0 2px;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 .ency-detail-english {
   text-align: center;
   color: var(--color-text-sub);
   font-size: 0.95rem;
   margin: 0 0 18px;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .ency-detail-info-card {
@@ -260,7 +284,7 @@
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--color-primary-dark);
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 .ency-detail-supplement {
   list-style: none;
@@ -270,7 +294,7 @@
   color: var(--color-text-sub);
   line-height: 1.6;
 }
-.ency-detail-supplement li { overflow-wrap: break-word; }
+.ency-detail-supplement li { overflow-wrap: anywhere; }
 .ency-detail-region-line {
   margin: 0;
   padding-top: 8px;
