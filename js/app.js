@@ -73,11 +73,16 @@ function initTopScreen() {
       const mode = card.dataset.mode;
       state.mode = mode;
 
-      // 世界地図はクイズではないので、問題数選択を経由せず直接開く。
+      // 世界地図・世界図鑑はクイズではないので、問題数選択を経由せず直接開く。
       // 得点・タイマーを使わないため効果音の有効化も行わない。
       if (mode === "map") {
         showScreen("screen-map");
         MapModule.open();
+        return;
+      }
+      if (mode === "encyclopedia") {
+        showScreen("screen-encyclopedia-list");
+        EncyclopediaModule.open();
         return;
       }
 

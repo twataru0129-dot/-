@@ -1,0 +1,328 @@
+/* ==========================================================
+   世界図鑑モード(第1段階): 一覧・検索・地域フィルター・詳細画面
+   既存アプリと統一感のある配色(白・淡いグレー/グリーン・青の
+   アクセント)を使いつつ、図鑑らしい落ち着いた雰囲気にする
+   ========================================================== */
+
+.ency-wrap,
+.ency-detail-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 18px 20px calc(40px + env(safe-area-inset-bottom));
+}
+
+/* ---------- 一覧画面: 上部 ---------- */
+.ency-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ency-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 0;
+}
+
+.ency-search-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+.ency-search-input {
+  width: 100%;
+  padding: 11px 40px 11px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+.ency-search-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+.ency-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: var(--color-bg);
+  color: var(--color-text-sub);
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.ency-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ency-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text-sub);
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ency-tab.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+.ency-tab-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.85;
+}
+
+.ency-region-wrap {
+  position: relative;
+  margin-bottom: 10px;
+}
+.ency-region-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.ency-region-caret { color: var(--color-text-sub); font-size: 0.7rem; }
+.ency-region-list {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+.ency-region-list.hidden { display: none; }
+.ency-region-item {
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.ency-region-item:active { background: var(--color-bg); }
+.ency-region-item.active {
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--color-primary-dark);
+  font-weight: 800;
+}
+.ency-region-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.ency-result-count {
+  margin: 0 2px 10px;
+  font-size: 0.82rem;
+  color: var(--color-text-sub);
+}
+
+.ency-empty {
+  text-align: center;
+  color: var(--color-text-sub);
+  font-weight: 700;
+  padding: 40px 0;
+}
+
+/* ---------- 一覧カード ---------- */
+.ency-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+@media (min-width: 700px) {
+  .ency-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 1000px) {
+  .ency-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (min-width: 1300px) {
+  .ency-grid { grid-template-columns: repeat(5, 1fr); }
+}
+@media (min-width: 1600px) {
+  .ency-grid { grid-template-columns: repeat(6, 1fr); }
+}
+
+.ency-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 16px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  text-align: center;
+  min-width: 0;
+  transition: border-color .15s ease, transform .1s ease;
+}
+.ency-card:active { transform: scale(0.97); }
+.ency-card:hover { border-color: var(--color-primary); }
+.ency-card-flag {
+  width: 100%;
+  max-width: 120px;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  border-radius: 6px;
+  background: var(--color-bg);
+}
+.ency-card-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--color-text);
+  overflow-wrap: break-word;
+  word-break: keep-all;
+  line-height: 1.3;
+}
+.ency-card-capital {
+  font-size: 0.76rem;
+  color: var(--color-text-sub);
+  overflow-wrap: break-word;
+  line-height: 1.3;
+}
+
+/* ---------- 詳細画面 ---------- */
+.ency-detail-back {
+  margin-bottom: 18px;
+}
+.ency-detail-flag-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.ency-detail-flag {
+  width: min(100%, 320px);
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-card);
+}
+.ency-detail-name {
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--color-text);
+  margin: 0 0 2px;
+  overflow-wrap: break-word;
+}
+.ency-detail-english {
+  text-align: center;
+  color: var(--color-text-sub);
+  font-size: 0.95rem;
+  margin: 0 0 18px;
+  overflow-wrap: break-word;
+}
+
+.ency-detail-info-card {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 16px 18px;
+  max-width: 480px;
+  margin: 0 auto 18px;
+}
+.ency-detail-capital-line {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  overflow-wrap: break-word;
+}
+.ency-detail-supplement {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--color-text-sub);
+  line-height: 1.6;
+}
+.ency-detail-supplement li { overflow-wrap: break-word; }
+.ency-detail-region-line {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px dashed var(--color-border);
+  font-size: 0.9rem;
+  color: var(--color-text-sub);
+}
+
+.ency-detail-desc {
+  max-width: 640px;
+  margin: 0 auto 28px;
+  line-height: 1.8;
+  color: var(--color-text);
+}
+
+/* 首都クイズと共通のcapitalNote(南アフリカ・ボリビア・ナウル等)。
+   解説文と区別しつつ目立ちすぎないよう、淡いグリーンの背景にする */
+.ency-detail-note {
+  max-width: 640px;
+  margin: -10px auto 28px;
+  padding: 12px 16px;
+  background: var(--color-correct-bg);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--color-text-sub);
+}
+
+.ency-detail-nav {
+  display: flex;
+  gap: 12px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.ency-detail-nav-btn {
+  flex: 1;
+  padding: 13px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary-dark);
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.ency-detail-nav-btn:active { transform: scale(0.97); }
+.ency-detail-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ency-card, .ency-detail-nav-btn { transition-duration: 0.001ms; }
+}
