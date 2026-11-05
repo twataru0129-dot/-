@@ -12,10 +12,21 @@ const EncyclopediaModule = (() => {
   let category = "country";
   let regionFilter = "all"; // 既存のcountry.region値をそのまま使う("all"は全地域)
   let searchQuery = "";
-  let currentListIds = []; // 現在の検索・フィルター結果(五十音順)。詳細画面の前後移動に使う
+  let currentListIds = []; // 現在の検索・フィルター結果(五十音順)。一覧画面の描画にのみ使う
+  // 現在開いている詳細画面の「前へ/次へ」に使うid列。一覧から開いた場合は
+  // currentListIdsと同じ内容になるが、地図から直接開いた場合(openDetailById)は
+  // 一覧側のcategory/searchQuery/regionFilterを一切変更せずに独立して計算した
+  // 列を入れる。一覧画面の状態(カテゴリー・検索語・地域フィルター・スクロール
+  // 位置)を、地図からの表示によって書き換えないようにするための分離
+  let detailListIds = [];
   let currentDetailId = null;
   let listScrollTop = 0; // 一覧へ戻った時にスクロール位置を復元するため
   let initialized = false;
+  // 世界地図モードとの双方向連携(第2段階)用。詳細画面を開くたびに
+  // 無条件で上書きする(前回の値と部分合成しない)ため、戻るボタンが
+  // 古い遷移元を指し続けることはない
+  let detailBackLabel = "← 図鑑一覧に戻る";
+  let detailOnBack = null; // nullなら既定(図鑑一覧)に戻る
 
   const collator = new Intl.Collator("ja");
 
@@ -57,18 +68,23 @@ const EncyclopediaModule = (() => {
     return haystack;
   }
 
-  function matchesRegion(entry) {
-    return regionFilter === "all" || entry.region === regionFilter;
-  }
   function matchesSearch(entry, normalizedQuery) {
     return !normalizedQuery || haystackFor(entry).includes(normalizedQuery);
   }
 
   // 現在のカテゴリー・地域フィルター・検索語に合致する一覧を、
-  // 読み仮名を基準にIntl.Collator("ja")で五十音順に並べて返す
-  function computeList() {
-    const normalizedQuery = searchQuery ? normalizeForSearch(searchQuery) : "";
-    const pool = entriesFor(category).filter((e) => matchesRegion(e) && matchesSearch(e, normalizedQuery));
+  // 読み仮名を基準にIntl.Collator("ja")で五十音順に並べて返す。
+  // overridesを渡すと、一覧側のcategory/regionFilter/searchQuery(モジュール
+  // 変数)を一切変更せずに、別条件での一覧を計算できる(地図から直接開いた
+  // 詳細画面の「前へ/次へ」用の一覧を、一覧画面の状態を書き換えずに求めるため)
+  function computeList(overrides) {
+    const cat = (overrides && overrides.category) || category;
+    const filter = overrides && "regionFilter" in overrides ? overrides.regionFilter : regionFilter;
+    const query = overrides && "searchQuery" in overrides ? overrides.searchQuery : searchQuery;
+    const normalizedQuery = query ? normalizeForSearch(query) : "";
+    const pool = entriesFor(cat).filter(
+      (e) => (filter === "all" || e.region === filter) && matchesSearch(e, normalizedQuery)
+    );
     return pool.slice().sort((a, b) => collator.compare(getYomigana(a.id), getYomigana(b.id)));
   }
 
@@ -239,22 +255,42 @@ const EncyclopediaModule = (() => {
       noteEl.classList.add("hidden");
     }
 
-    const idx = currentListIds.indexOf(id);
+    // 前へ/次への有効・無効は、一覧画面自体の状態(currentListIds)ではなく、
+    // 今開いている詳細画面専用のdetailListIdsで判定する。地図から開いた
+    // 詳細画面は、一覧側のcategory/searchQuery/regionFilterを変更しないため、
+    // currentListIdsを参照すると一覧側の条件に対象が無く不整合が起きうる
+    const idx = detailListIds.indexOf(id);
     $("ency-detail-prev").disabled = idx <= 0;
-    $("ency-detail-next").disabled = idx < 0 || idx >= currentListIds.length - 1;
+    $("ency-detail-next").disabled = idx < 0 || idx >= detailListIds.length - 1;
 
     // 一覧から開いた場合だけでなく、「前へ/次へ」で画面を切り替えない場合も
     // 必ず先頭までスクロールを戻す
     window.scrollTo(0, 0);
   }
 
-  function openDetail(id) {
-    listScrollTop = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
+  // 詳細画面を表示する低レベル処理(戻り先・前後移動用リストの設定はしない。
+  // 一覧側のスクロール位置(listScrollTop)も更新しない)。一覧からの通常の
+  // 遷移(openDetail)・地図からの直接表示(openDetailById)のいずれからも使う
+  function showDetailScreen(id) {
     renderDetail(id);
     showScreen("screen-encyclopedia-detail");
   }
 
-  function closeDetail() {
+  // 一覧のカードクリックなど、通常の経路で開く場合は常に既定の戻り先
+  // (図鑑一覧)にリセットする。地図から開かれた詳細画面が「前へ/次へ」で
+  // 移動してもこの既定には戻らないよう、goAdjacent()はここを経由しない。
+  // 一覧から実際に離れるのはこの経路だけなので、スクロール位置の保存と
+  // 前後移動用リスト(detailListIds = 一覧と同じ内容)の設定もここで行う
+  function openDetail(id) {
+    listScrollTop = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
+    detailListIds = currentListIds;
+    detailBackLabel = "← 図鑑一覧に戻る";
+    detailOnBack = null;
+    $("btn-ency-detail-back").textContent = detailBackLabel;
+    showDetailScreen(id);
+  }
+
+  function defaultDetailOnBack() {
     showScreen("screen-encyclopedia-list");
     // 一覧側の検索文字・カテゴリー・地域フィルターはモジュール内の変数の
     // ままなので再描画は不要。スクロール位置だけ復元する
@@ -263,18 +299,59 @@ const EncyclopediaModule = (() => {
     });
   }
 
+  function closeDetail() {
+    (detailOnBack || defaultDetailOnBack)();
+  }
+
+  // id(198件のCOUNTRIES、または18件のMAP_ONLY_REGIONS)がどちらの
+  // カテゴリーに属するかを判定する。世界地図モードからの直接表示
+  // (openDetailById)で、正しいタブ・データセットを選ぶために使う
+  function categoryForId(id) {
+    if (COUNTRIES.some((e) => e.id === id)) return "country";
+    if (typeof MAP_ONLY_REGIONS !== "undefined" && MAP_ONLY_REGIONS.some((e) => e.id === id)) return "region";
+    return null;
+  }
+
+  // 世界地図モードから、あいまい検索ではなく正確なidを指定して詳細画面を
+  // 直接開く。元の図鑑一覧の状態(カテゴリー・検索語・地域フィルター・
+  // スクロール位置・一覧の描画内容)は一切変更しない。前へ/次へ用の一覧
+  // (detailListIds)だけは、現在の一覧条件に対象が含まれていればそれを
+  // そのまま使い、含まれていなければ一覧側の状態には触れずに対象の
+  // カテゴリー全体(フィルター無し)を独立して計算する
+  function openDetailById(id, options) {
+    ensureInitialized();
+    const cat = categoryForId(id);
+    if (!cat) {
+      console.warn(`世界図鑑に存在しないID「${id}」が指定されました`);
+      return;
+    }
+
+    let list = computeList();
+    if (!list.some((e) => e.id === id)) {
+      list = computeList({ category: cat, regionFilter: "all", searchQuery: "" });
+    }
+    detailListIds = list.map((e) => e.id);
+
+    const opts = options || {};
+    detailBackLabel = opts.backLabel || "← 図鑑一覧に戻る";
+    detailOnBack = opts.onBack || null;
+    $("btn-ency-detail-back").textContent = detailBackLabel;
+
+    showDetailScreen(id);
+  }
+
   function goAdjacent(delta) {
-    const idx = currentListIds.indexOf(currentDetailId);
+    const idx = detailListIds.indexOf(currentDetailId);
     const nextIdx = idx + delta;
-    if (nextIdx < 0 || nextIdx >= currentListIds.length) return;
-    renderDetail(currentListIds[nextIdx]);
+    if (nextIdx < 0 || nextIdx >= detailListIds.length) return;
+    renderDetail(detailListIds[nextIdx]);
   }
 
   // ---------- 初期化 ----------
   // 216件分のカードDOM構築は負荷が小さくないため、国旗クイズ等で遊ぶだけの
   // 利用者には一切コストをかけないよう、実際に図鑑を開いたタイミングで
   // 初めて構築する(世界地図モードのensureReady()と同じ遅延初期化の考え方)
-  function open() {
+  function ensureInitialized() {
     if (!initialized) {
       initialized = true;
       buildRegionList();
@@ -282,9 +359,20 @@ const EncyclopediaModule = (() => {
     }
   }
 
+  function open() {
+    ensureInitialized();
+  }
+
   function initEvents() {
     $("ency-tab-country").addEventListener("click", () => setCategory("country"));
     $("ency-tab-region").addEventListener("click", () => setCategory("region"));
+
+    $("ency-detail-map-btn").addEventListener("click", () => {
+      if (!currentDetailId) return;
+      document.dispatchEvent(
+        new CustomEvent("encyclopediamodule:view-on-map", { detail: { id: currentDetailId } })
+      );
+    });
 
     $("ency-search-input").addEventListener("input", (e) => {
       searchQuery = e.target.value;
@@ -306,7 +394,7 @@ const EncyclopediaModule = (() => {
     $("ency-detail-next").addEventListener("click", () => goAdjacent(1));
   }
 
-  return { open, initEvents };
+  return { open, initEvents, openDetailById };
 })();
 
 document.addEventListener("DOMContentLoaded", () => EncyclopediaModule.initEvents());

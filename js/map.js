@@ -27,6 +27,15 @@ const MapModule = (() => {
   // 読むことで「今の画面状態」を正しく判定できる(呼び出し時点の値を
   // 変数にコピーして使い回すと、古い状態のまま判定してしまうため避ける)
   let isMapScreenActive = false;
+  // 世界図鑑モードとの双方向連携(第2段階)用。open()の呼び出しごとに、
+  // そのとき渡されたoptionsだけで無条件に上書きする(前回の値と部分的に
+  // 合成しない)ことで、戻り先ボタンが古い遷移元を指し続ける事態を防ぐ。
+  // ナビゲーション履歴を配列で持たず「直近のopen()呼び出しが常に勝つ」
+  // 単純な1スロット設計にしている
+  let mapBackLabel = "← トップへ戻る";
+  let mapOnBack = null; // nullなら既定(トップ画面)に戻る
+  let selectRequestSeq = 0; // open()/retryMapLoad()呼び出しごとに増やし、古い非同期の選択リクエストが後から発火しても無視できるようにする
+  let pendingSelectId = null; // 今回のopen()呼び出しで選択すべき国・地域のid(無ければnull)
   let isRandomFlightInProgress = false; // ランダム移動のカメラアニメーション中だけtrue
   let hasInteracted = false;
   let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
@@ -520,11 +529,65 @@ const MapModule = (() => {
     const btn = $("map-status-retry");
     if (btn.disabled) return;
     btn.disabled = true; // 再試行中の連打による二重初期化を防ぐ
+    const seq = selectRequestSeq;
     ensureReady()
-      .then(resumeMapIfScreenActive)
+      .then(() => {
+        resumeMapIfScreenActive();
+        applyPendingSelectionIfCurrent(seq);
+      })
       .catch(() => {
         // エラー表示はensureReady側(showMapError)で再度出している
       });
+  }
+
+  // 世界図鑑から指定された国・地域idを、この呼び出し(seq)がまだ最新の
+  // open()/retryMapLoad()呼び出しである場合だけ選択する。画面を離れた後や、
+  // さらに新しい遷移要求が来た後に古い非同期処理が発火しても、無視される
+  function applyPendingSelectionIfCurrent(seq) {
+    if (pendingSelectId && seq === selectRequestSeq && isMapScreenActive) {
+      selectCountryByIdInternal(pendingSelectId);
+    }
+  }
+
+  // 世界図鑑の詳細画面など、外部から渡された正確なid(あいまい検索ではない)で
+  // 国・地域を選択する。countryByIdは198件(COUNTRIES)+18件(MAP_ONLY_REGIONS)の
+  // 全216件をカバーするため、どちらのデータセットのidでも正しく解決できる
+  function selectCountryByIdInternal(id) {
+    if (!countryById) return;
+    const country = countryById.get(id);
+    if (!country) {
+      console.warn(`世界図鑑から指定されたID「${id}」が見つかりません`);
+      return;
+    }
+    closeSearchSuggestions();
+    closeRegionList();
+    // 検索からの選択(renderSearchResults内)と同じく、地域フィルターが
+    // 有効なまま図鑑から別地域の国・地域を選ぶと、ツールバーの地域名表示と
+    // 実際に選択・表示される対象が食い違って見える(例: 「アジア」表示の
+    // まま南アメリカの国が選択される)。この矛盾を避けるため、検索時と
+    // 同じ既定動作として地域フィルターを全世界に戻してから選択する
+    if (currentRegionFilter !== "all") applyRegionFilter("all", { moveCamera: false });
+    selectCountry(country, { moveCamera: true });
+  }
+
+  // 「← トップへ戻る」「← 図鑑に戻る」など、遷移元に応じた戻り先ラベルを
+  // 画面上のボタンに反映する
+  function updateMapBackButton() {
+    $("btn-map-back").textContent = mapBackLabel;
+    const plain = mapBackLabel.replace(/^←\s*/, "");
+    $("btn-map-back").setAttribute("aria-label", plain);
+    $("map-unsupported-back").textContent = plain;
+  }
+
+  // 通常の「← トップへ戻る」ボタンと、WebGL非対応時の戻るボタンの両方から
+  // 呼ばれる共通処理。close()で描画を止めた後、今回のopen()で設定された
+  // 戻り先(mapOnBack、無ければ既定でトップ画面)へ遷移する
+  function handleBackClick() {
+    close();
+    const cb = mapOnBack;
+    mapOnBack = null;
+    if (cb) cb();
+    else showScreen("screen-top");
   }
 
   // ---------- 国のハイライト表示 ----------
@@ -1572,8 +1635,21 @@ const MapModule = (() => {
       .polygonsTransitionDuration(200)
       .onGlobeReady(() => {
         resizeGlobe();
-        globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
+        // 世界図鑑からの直接選択(MapModule.open({selectId})、初回の読み込み中に
+        // 発火する)は、globe.gl自体の初期化(このonGlobeReady)が完了するより
+        // 先にselectCountry()のpointOfView()アニメーションを開始していることが
+        // ある。その場合にここで無条件に既定の初期視点へジャンプすると、
+        // 進行中のアニメーションを上書きして選択した国が見えなくなってしまう。
+        // そのため、既に国・地域が選択済みであれば既定視点へは戻さず、
+        // その国・地域へ改めて正しく向き直す
+        const alreadySelected = selectedCountryId && countryById && countryById.get(selectedCountryId);
+        if (!alreadySelected) {
+          globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
+        }
         startAutoRotate();
+        if (alreadySelected) {
+          selectCountry(alreadySelected, { moveCamera: true });
+        }
         hookRendererForLabelSync();
         // 📍の3Dオブジェクト化に使うThree.jsクラスをここで一度だけ取得してから、
         // 実際のピンレイヤーを構築する(取得完了まで📍は一時的に表示されない)
@@ -2050,14 +2126,28 @@ const MapModule = (() => {
   }
 
   // ---------- 画面の開閉(タブを行き来してもデータは再取得しない) ----------
-  function open() {
+  // options.selectId: 世界図鑑から指定された国・地域id(読み込み完了後に選択する)
+  // options.backLabel/options.onBack: 戻るボタンの表記・遷移先(未指定ならトップ画面に戻る既定動作)
+  // 呼び出しごとにbackLabel/onBack/selectIdを無条件に上書きするため、
+  // 戻るボタンが古い遷移元を指し続けることはない
+  function open(options) {
     isMapScreenActive = true;
+    const opts = options || {};
+    mapBackLabel = opts.backLabel || "← トップへ戻る";
+    mapOnBack = opts.onBack || null;
+    updateMapBackButton();
+    pendingSelectId = opts.selectId || null;
+    selectRequestSeq += 1;
+    const mySeq = selectRequestSeq;
     if (!tapDebugEnabled && isTapDebugRequested()) {
       tapDebugEnabled = true;
       setupTapDebugUI();
     }
     ensureReady()
-      .then(resumeMapIfScreenActive)
+      .then(() => {
+        resumeMapIfScreenActive();
+        applyPendingSelectionIfCurrent(mySeq);
+      })
       .catch(() => {
         // エラー・非対応時のメッセージはensureReady内で表示済み。
         // 世界地図画面には留まれるので、他モードへの影響はない。
@@ -2079,13 +2169,16 @@ const MapModule = (() => {
   }
 
   function initEvents() {
-    $("btn-map-back").addEventListener("click", () => {
-      close();
-      showScreen("screen-top");
-    });
-    $("map-unsupported-back").addEventListener("click", () => showScreen("screen-top"));
+    $("btn-map-back").addEventListener("click", handleBackClick);
+    $("map-unsupported-back").addEventListener("click", handleBackClick);
     $("map-status-retry").addEventListener("click", retryMapLoad);
     $("map-card-close").addEventListener("click", closeInfoCard);
+    $("map-card-encyclopedia-btn").addEventListener("click", () => {
+      if (!selectedCountryId) return;
+      document.dispatchEvent(
+        new CustomEvent("mapmodule:view-in-encyclopedia", { detail: { id: selectedCountryId } })
+      );
+    });
     $("map-search-input").addEventListener("input", (e) => {
       renderSearchResults(e.target.value.trim());
     });

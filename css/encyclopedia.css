@@ -303,6 +303,25 @@
   color: var(--color-text-sub);
 }
 
+/* 世界地図との連携(第2段階): 現在の国・地域を3D地球儀で見る */
+.ency-detail-map-btn {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto 20px;
+  padding: 13px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary-dark);
+  font-weight: 800;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.ency-detail-map-btn:active {
+  transform: scale(0.97);
+}
+
 .ency-detail-desc {
   max-width: 640px;
   margin: 0 auto 28px;
@@ -348,5 +367,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ency-card, .ency-detail-nav-btn { transition-duration: 0.001ms; }
+  .ency-card, .ency-detail-nav-btn, .ency-detail-map-btn { transition-duration: 0.001ms; }
 }
