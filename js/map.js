@@ -561,6 +561,12 @@ const MapModule = (() => {
     }
     closeSearchSuggestions();
     closeRegionList();
+    // 検索からの選択(renderSearchResults内)と同じく、地域フィルターが
+    // 有効なまま図鑑から別地域の国・地域を選ぶと、ツールバーの地域名表示と
+    // 実際に選択・表示される対象が食い違って見える(例: 「アジア」表示の
+    // まま南アメリカの国が選択される)。この矛盾を避けるため、検索時と
+    // 同じ既定動作として地域フィルターを全世界に戻してから選択する
+    if (currentRegionFilter !== "all") applyRegionFilter("all", { moveCamera: false });
     selectCountry(country, { moveCamera: true });
   }
 
