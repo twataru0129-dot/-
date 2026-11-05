@@ -119,32 +119,80 @@ const EncyclopediaModule = (() => {
   const REGION_ORDER = (typeof MapModule !== "undefined" && MapModule.REGION_ORDER) || ["all"];
   const REGION_LABELS = (typeof MapModule !== "undefined" && MapModule.REGION_LABELS) || { all: "🌍 すべての地域" };
 
+  // 選択肢はrole="option"を持つ<li>とし、キーボード操作はWAI-ARIAの
+  // listboxパターン(ロービングtabindex)に沿って実装する。スマホでは
+  // 従来どおりタップ(click)で選べる
+  function selectRegionOption(region, label) {
+    regionFilter = region;
+    updateRegionHighlight();
+    $("ency-region-btn-label").textContent = label;
+    closeRegionList();
+    renderList();
+  }
   function buildRegionList() {
     const list = $("ency-region-list");
     list.innerHTML = "";
     REGION_ORDER.forEach((region) => {
       const li = document.createElement("li");
       li.className = "ency-region-item";
-      li.textContent = region === "all" ? "🌍 すべての地域" : REGION_LABELS[region];
+      li.setAttribute("role", "option");
+      li.tabIndex = -1;
+      const label = region === "all" ? "🌍 すべての地域" : REGION_LABELS[region];
+      li.textContent = label;
       li.dataset.region = region;
-      li.addEventListener("click", () => {
-        regionFilter = region;
-        updateRegionHighlight();
-        $("ency-region-btn-label").textContent = li.textContent;
-        closeRegionList();
-        renderList();
-      });
+      li.addEventListener("click", () => selectRegionOption(region, label));
+      li.addEventListener("keydown", (e) => handleRegionItemKeydown(e, region, label));
       list.appendChild(li);
     });
     updateRegionHighlight();
   }
   function updateRegionHighlight() {
     Array.from($("ency-region-list").children).forEach((li) => {
-      li.classList.toggle("active", li.dataset.region === regionFilter);
+      const isActive = li.dataset.region === regionFilter;
+      li.classList.toggle("active", isActive);
+      li.setAttribute("aria-selected", String(isActive));
     });
   }
-  function openRegionList() { $("ency-region-list").classList.remove("hidden"); $("ency-region-btn").setAttribute("aria-expanded", "true"); }
-  function closeRegionList() { $("ency-region-list").classList.add("hidden"); $("ency-region-btn").setAttribute("aria-expanded", "false"); }
+  function regionItems() { return Array.from($("ency-region-list").children); }
+  function focusRegionItem(li) {
+    regionItems().forEach((item) => { item.tabIndex = item === li ? 0 : -1; });
+    li.focus();
+  }
+  function handleRegionItemKeydown(e, region, label) {
+    const items = regionItems();
+    const currentIdx = items.indexOf(e.currentTarget);
+    if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+      e.preventDefault();
+      selectRegionOption(region, label);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      focusRegionItem(items[Math.min(currentIdx + 1, items.length - 1)]);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      focusRegionItem(items[Math.max(currentIdx - 1, 0)]);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      focusRegionItem(items[0]);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      focusRegionItem(items[items.length - 1]);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeRegionList();
+      $("ency-region-btn").focus();
+    }
+  }
+  function openRegionList() {
+    $("ency-region-list").classList.remove("hidden");
+    $("ency-region-btn").setAttribute("aria-expanded", "true");
+    const items = regionItems();
+    const current = items.find((li) => li.dataset.region === regionFilter) || items[0];
+    if (current) focusRegionItem(current);
+  }
+  function closeRegionList() {
+    $("ency-region-list").classList.add("hidden");
+    $("ency-region-btn").setAttribute("aria-expanded", "false");
+  }
   function toggleRegionList() {
     if ($("ency-region-list").classList.contains("hidden")) openRegionList(); else closeRegionList();
   }
@@ -178,6 +226,18 @@ const EncyclopediaModule = (() => {
     }
     $("ency-detail-region").textContent = entry.regionJa || "";
     $("ency-detail-desc").textContent = entry.description || "";
+
+    // 首都クイズで使っている既存のcapitalNote(南アフリカ・ボリビア・
+    // ナウル等19件)をそのまま表示する。capitals配列による補足(上の
+    // ency-detail-supplement)とは別の情報のため、どちらも維持する
+    const noteEl = $("ency-detail-note");
+    if (entry.capitalNote) {
+      noteEl.textContent = entry.capitalNote;
+      noteEl.classList.remove("hidden");
+    } else {
+      noteEl.textContent = "";
+      noteEl.classList.add("hidden");
+    }
 
     const idx = currentListIds.indexOf(id);
     $("ency-detail-prev").disabled = idx <= 0;

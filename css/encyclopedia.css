@@ -136,6 +136,10 @@
   color: var(--color-primary-dark);
   font-weight: 800;
 }
+.ency-region-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
 
 .ency-result-count {
   margin: 0 2px 10px;
@@ -280,6 +284,19 @@
   margin: 0 auto 28px;
   line-height: 1.8;
   color: var(--color-text);
+}
+
+/* 首都クイズと共通のcapitalNote(南アフリカ・ボリビア・ナウル等)。
+   解説文と区別しつつ目立ちすぎないよう、淡いグリーンの背景にする */
+.ency-detail-note {
+  max-width: 640px;
+  margin: -10px auto 28px;
+  padding: 12px 16px;
+  background: var(--color-correct-bg);
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--color-text-sub);
 }
 
 .ency-detail-nav {
