@@ -412,6 +412,24 @@
   margin: 0;
 }
 
+/* 世界図鑑との連携(第2段階): 現在選択中の国・地域を図鑑の詳細画面で見る */
+.map-card-encyclopedia-btn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg);
+  color: var(--color-primary-dark);
+  font-weight: 800;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.map-card-encyclopedia-btn:active {
+  transform: scale(0.97);
+}
+
 /* ==========================================================
    PC・タブレット(幅700px以上): 国情報カードを右側パネルにする
    ========================================================== */

@@ -16,6 +16,11 @@ const EncyclopediaModule = (() => {
   let currentDetailId = null;
   let listScrollTop = 0; // 一覧へ戻った時にスクロール位置を復元するため
   let initialized = false;
+  // 世界地図モードとの双方向連携(第2段階)用。詳細画面を開くたびに
+  // 無条件で上書きする(前回の値と部分合成しない)ため、戻るボタンが
+  // 古い遷移元を指し続けることはない
+  let detailBackLabel = "← 図鑑一覧に戻る";
+  let detailOnBack = null; // nullなら既定(図鑑一覧)に戻る
 
   const collator = new Intl.Collator("ja");
 
@@ -248,19 +253,80 @@ const EncyclopediaModule = (() => {
     window.scrollTo(0, 0);
   }
 
-  function openDetail(id) {
+  // 詳細画面を表示する低レベル処理(戻り先の設定はしない)。一覧からの
+  // 通常の遷移(openDetail)・前へ/次へ(goAdjacent)・地図からの直接表示
+  // (openDetailById)のいずれからも使う
+  function showDetailScreen(id) {
     listScrollTop = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
     renderDetail(id);
     showScreen("screen-encyclopedia-detail");
   }
 
-  function closeDetail() {
+  // 一覧のカードクリックなど、通常の経路で開く場合は常に既定の戻り先
+  // (図鑑一覧)にリセットする。地図から開かれた詳細画面が「前へ/次へ」で
+  // 移動してもこの既定には戻らないよう、goAdjacent()はここを経由しない
+  function openDetail(id) {
+    detailBackLabel = "← 図鑑一覧に戻る";
+    detailOnBack = null;
+    $("btn-ency-detail-back").textContent = detailBackLabel;
+    showDetailScreen(id);
+  }
+
+  function defaultDetailOnBack() {
     showScreen("screen-encyclopedia-list");
     // 一覧側の検索文字・カテゴリー・地域フィルターはモジュール内の変数の
     // ままなので再描画は不要。スクロール位置だけ復元する
     requestAnimationFrame(() => {
       if (document.scrollingElement) document.scrollingElement.scrollTop = listScrollTop;
     });
+  }
+
+  function closeDetail() {
+    (detailOnBack || defaultDetailOnBack)();
+  }
+
+  // id(198件のCOUNTRIES、または18件のMAP_ONLY_REGIONS)がどちらの
+  // カテゴリーに属するかを判定する。世界地図モードからの直接表示
+  // (openDetailById)で、正しいタブ・データセットを選ぶために使う
+  function categoryForId(id) {
+    if (COUNTRIES.some((e) => e.id === id)) return "country";
+    if (typeof MAP_ONLY_REGIONS !== "undefined" && MAP_ONLY_REGIONS.some((e) => e.id === id)) return "region";
+    return null;
+  }
+
+  // 世界地図モードから、あいまい検索ではなく正確なidを指定して詳細画面を
+  // 直接開く。現在の検索語・地域フィルターのままだと対象が一覧から外れて
+  // しまう場合は、検索語・地域フィルターを初期状態に戻してから開く
+  // (詳細画面自体は検索結果に関わらず必ず表示される)
+  function openDetailById(id, options) {
+    ensureInitialized();
+    const cat = categoryForId(id);
+    if (!cat) {
+      console.warn(`世界図鑑に存在しないID「${id}」が指定されました`);
+      return;
+    }
+    category = cat;
+    $("ency-tab-country").classList.toggle("active", cat === "country");
+    $("ency-tab-country").setAttribute("aria-selected", String(cat === "country"));
+    $("ency-tab-region").classList.toggle("active", cat === "region");
+    $("ency-tab-region").setAttribute("aria-selected", String(cat === "region"));
+
+    if (!computeList().some((e) => e.id === id)) {
+      searchQuery = "";
+      $("ency-search-input").value = "";
+      $("ency-search-clear").classList.add("hidden");
+      regionFilter = "all";
+      $("ency-region-btn-label").textContent = "🌍 すべての地域";
+      updateRegionHighlight();
+    }
+    renderList();
+
+    const opts = options || {};
+    detailBackLabel = opts.backLabel || "← 図鑑一覧に戻る";
+    detailOnBack = opts.onBack || null;
+    $("btn-ency-detail-back").textContent = detailBackLabel;
+
+    showDetailScreen(id);
   }
 
   function goAdjacent(delta) {
@@ -274,7 +340,7 @@ const EncyclopediaModule = (() => {
   // 216件分のカードDOM構築は負荷が小さくないため、国旗クイズ等で遊ぶだけの
   // 利用者には一切コストをかけないよう、実際に図鑑を開いたタイミングで
   // 初めて構築する(世界地図モードのensureReady()と同じ遅延初期化の考え方)
-  function open() {
+  function ensureInitialized() {
     if (!initialized) {
       initialized = true;
       buildRegionList();
@@ -282,9 +348,20 @@ const EncyclopediaModule = (() => {
     }
   }
 
+  function open() {
+    ensureInitialized();
+  }
+
   function initEvents() {
     $("ency-tab-country").addEventListener("click", () => setCategory("country"));
     $("ency-tab-region").addEventListener("click", () => setCategory("region"));
+
+    $("ency-detail-map-btn").addEventListener("click", () => {
+      if (!currentDetailId) return;
+      document.dispatchEvent(
+        new CustomEvent("encyclopediamodule:view-on-map", { detail: { id: currentDetailId } })
+      );
+    });
 
     $("ency-search-input").addEventListener("input", (e) => {
       searchQuery = e.target.value;
@@ -306,7 +383,7 @@ const EncyclopediaModule = (() => {
     $("ency-detail-next").addEventListener("click", () => goAdjacent(1));
   }
 
-  return { open, initEvents };
+  return { open, initEvents, openDetailById };
 })();
 
 document.addEventListener("DOMContentLoaded", () => EncyclopediaModule.initEvents());

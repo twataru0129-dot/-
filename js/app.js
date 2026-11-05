@@ -872,6 +872,40 @@ function showConfirm(text) {
 }
 
 // ==========================================================
+// 世界図鑑 ⇔ 世界地図 連携(第2段階)
+// 両モジュールは互いの内部状態を直接書き換えず、カスタムイベントと
+// それぞれの公開API(MapModule.open()/EncyclopediaModule.openDetailById())
+// だけを介してやり取りする。この関数だけがその橋渡しを行う
+// ==========================================================
+function initMapEncyclopediaLink() {
+  // 図鑑の詳細画面「🌍 地図で場所を見る」→ 地図でその国・地域を選択表示する
+  document.addEventListener("encyclopediamodule:view-on-map", (e) => {
+    const id = e.detail && e.detail.id;
+    if (!id) return;
+    showScreen("screen-map");
+    MapModule.open({
+      selectId: id,
+      backLabel: "← 図鑑に戻る",
+      onBack: () => showScreen("screen-encyclopedia-detail"),
+    });
+  });
+
+  // 地図の情報カード「📖 世界図鑑で見る」→ 図鑑の詳細画面をそのidで開く
+  document.addEventListener("mapmodule:view-in-encyclopedia", (e) => {
+    const id = e.detail && e.detail.id;
+    if (!id) return;
+    MapModule.close();
+    EncyclopediaModule.openDetailById(id, {
+      backLabel: "← 地図に戻る",
+      onBack: () => {
+        showScreen("screen-map");
+        MapModule.open();
+      },
+    });
+  });
+}
+
+// ==========================================================
 // 初期化
 // ==========================================================
 function initApp() {
@@ -882,6 +916,7 @@ function initApp() {
   initResultScreen();
   initTitleAwardScreen();
   initMemorialScreen();
+  initMapEncyclopediaLink();
   showScreen("screen-top");
 }
 
