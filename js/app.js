@@ -43,7 +43,13 @@ const state = {
   imageLoaded: false, // 現在の問題の画像読み込みが完了したか(onload/completeの二重発火を1回にまとめる・回答ボタン制御に使う)
   timerStarted: false, // 現在の問題でQuestionTimer.start()を既に呼んだか(二重開始防止)
   lastCountdownSecond: null, // カウントダウン効果音を秒が変わった瞬間だけ鳴らすための記録用
-  lastResult: null, // { correct, total, rate, titleObj, isNewTitle, mode }
+  lastResult: null, // { correct, total, rate, titleObj, isNewTitle, mode, wrongIds }
+  // 間違えた問題の「正解だった国・地域」のidを記録する(第3段階A案:
+  // 世界図鑑での復習機能)。選んだ誤答の国ではなく、出題された問題自体の
+  // 正解国のidを入れる。Setにしているのは同一問題の二重記録を防ぐため
+  // (1回のクイズでは同じ国が2回出題されないため実際には起きないが、
+  // 念のための安全策)。永続保存はしない(ページ再読み込みで消える)
+  wrongIds: new Set(),
   memorialType: "medal",
   memorialName: "",
 };
@@ -157,6 +163,7 @@ function startQuiz(count) {
   state.questions = QuizEngine.buildQuestionSet(count);
   state.currentQuestionIndex = 0;
   state.score = 0;
+  state.wrongIds = new Set(); // 前回の復習対象をクリアする(第3段階A案)
   showScreen("screen-quiz");
   renderQuestion();
 }
@@ -413,6 +420,9 @@ function handleAnswer(selectedId) {
     $("result-answer").textContent = "";
     SoundManager.playCorrect();
   } else {
+    // 不正解・時間切れのどちらも復習対象にする。選んだ誤答の国ではなく、
+    // 問題として出題された正解国のidを記録する(第3段階A案)
+    state.wrongIds.add(correctCountry.id);
     overlay.classList.add("wrong");
     $("result-mark").textContent = "×";
     $("result-text").textContent = isTimeout ? "時間切れ！" : "不正解！";
@@ -533,13 +543,16 @@ function finishQuiz() {
     isNewTitle = Storage.awardTitleIfNew(titleObj.id, mode);
   }
 
-  state.lastResult = { correct, total, rate, titleObj, isNewTitle, best, mode };
+  // 完了したクイズの復習対象として、このクイズ中に記録した不正解idの
+  // スナップショットを持たせる(配列に変換。以後state.wrongIdsが新しい
+  // クイズでリセットされても、この結果画面用のコピーには影響しない)
+  state.lastResult = { correct, total, rate, titleObj, isNewTitle, best, mode, wrongIds: Array.from(state.wrongIds) };
   renderResultScreen();
   showScreen("screen-result");
 }
 
 function renderResultScreen() {
-  const { correct, total, rate, titleObj, best } = state.lastResult;
+  const { correct, total, rate, titleObj, best, wrongIds } = state.lastResult;
   $("result-score-fraction").textContent = `${total}問中${correct}問正解！`;
   $("result-score-rate").textContent = `正答率 ${rate}％`;
 
@@ -561,9 +574,23 @@ function renderResultScreen() {
     viewTitleBtn.classList.add("hidden");
     memorialBtn.classList.add("hidden");
   }
+
+  // 間違いが1問も無ければ(全問正解)復習ボタンは表示しない(第3段階A案)
+  const reviewBtn = $("btn-result-review");
+  const wrongCount = (wrongIds && wrongIds.length) || 0;
+  if (wrongCount > 0) {
+    reviewBtn.textContent = `📖 間違えた${wrongCount}問を復習`;
+    reviewBtn.classList.remove("hidden");
+  } else {
+    reviewBtn.classList.add("hidden");
+  }
 }
 
 function initResultScreen() {
+  $("btn-result-review").addEventListener("click", () => {
+    const { wrongIds, mode } = state.lastResult;
+    ReviewModule.open(wrongIds, mode);
+  });
   $("btn-result-retry").addEventListener("click", () => startQuiz(state.selectedCount));
   $("btn-result-change-count").addEventListener("click", () => {
     renderSelectScreen();
@@ -912,7 +939,18 @@ function mapOpenOptionsFromStack(selectId) {
       backLabel: "← 図鑑に戻る",
       onBack: () => {
         mapEncyclopediaNavStack.pop();
-        EncyclopediaModule.openDetailById(top.id, encyclopediaBackOptionsFromStack());
+        const opts = encyclopediaBackOptionsFromStack();
+        // listIds(詳細画面を開いた時点のdetailListIdsのスナップショット)が
+        // あれば、それをそのまま使って再表示する。復習リストから開いた
+        // 詳細画面は復習対象だけのlistIdsを持つため、通常の図鑑一覧の
+        // 範囲(openDetailByIdが内部で再計算する範囲)とは混ざらない。
+        // 通常の図鑑から開いた場合もlistIdsは常に渡るが、内容は
+        // openDetailByIdの再計算結果と同じになるため挙動は変わらない
+        if (top.listIds && top.listIds.length) {
+          EncyclopediaModule.openDetailWithList(top.id, top.listIds, opts);
+        } else {
+          EncyclopediaModule.openDetailById(top.id, opts);
+        }
       },
     };
   }
@@ -933,6 +971,17 @@ function encyclopediaBackOptionsFromStack() {
       },
     };
   }
+  // 第3段階A案: クイズ結果画面の復習リストから詳細画面を開いた場合、
+  // 地図を経由して戻ってきても復習リストへ正しく戻れるようにする
+  if (top && top.screen === "review-list") {
+    return {
+      backLabel: "← 復習リストに戻る",
+      onBack: () => {
+        mapEncyclopediaNavStack.pop();
+        ReviewModule.showList();
+      },
+    };
+  }
   return { backLabel: "← 図鑑一覧に戻る", onBack: null };
 }
 
@@ -941,9 +990,10 @@ function initMapEncyclopediaLink() {
   document.addEventListener("encyclopediamodule:view-on-map", (e) => {
     const id = e.detail && e.detail.id;
     if (!id) return;
-    // 今表示している図鑑詳細画面(id)を、地図から戻ってきたときの
-    // 再表示対象としてスタックに積む
-    pushMapEncyclopediaNav({ screen: "encyclopedia-detail", id });
+    // 今表示している図鑑詳細画面(id)と、その前へ/次へ移動範囲
+    // (listIds。通常の図鑑一覧の範囲、または復習リストの範囲)を、
+    // 地図から戻ってきたときの再表示対象としてスタックに積む
+    pushMapEncyclopediaNav({ screen: "encyclopedia-detail", id, listIds: (e.detail && e.detail.listIds) || null });
     showScreen("screen-map");
     MapModule.open(mapOpenOptionsFromStack(id));
   });
@@ -954,7 +1004,8 @@ function initMapEncyclopediaLink() {
     if (!id) return;
     // 今表示している地図画面を、図鑑から戻ってきたときの再表示対象として
     // スタックに積む(地図自体は選択中の国・視点を保持したまま表示する
-    // だけなので、idは不要)
+    // だけなので、idは不要)。地図上で直接選んだ国は復習対象かどうかに
+    // 関わらず常に通常の図鑑の範囲(openDetailById)で開く
     pushMapEncyclopediaNav({ screen: "map" });
     MapModule.close();
     EncyclopediaModule.openDetailById(id, encyclopediaBackOptionsFromStack());

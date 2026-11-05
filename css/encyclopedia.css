@@ -18,11 +18,31 @@
   gap: 12px;
   margin-bottom: 14px;
 }
+/* .btn-back(style.css)は本来position:absoluteでビューポート基準に
+   浮かせる前提だが、.ency-wrap(max-width:1100px)が画面幅いっぱいに
+   広がる狭い画面(おおよそ1140px未満、スマホ・タブレットを含む)では
+   左端の余白が無くなり、同じ左上に表示されるタイトルと重なってしまう
+   (第3段階A案の復習リスト画面を追加する際に判明。既存の図鑑一覧画面に
+   既にあった表示崩れで、復習リスト画面にも同じ構造を使ったことで同様に
+   発生した)。.ency-topbar内に限り通常のflex項目に戻すことで、幅に
+   関わらずタイトルの左に適切な間隔を保って並ぶようにする */
+.ency-topbar .btn-back {
+  position: static;
+  flex-shrink: 0;
+}
 .ency-title {
   font-size: 1.3rem;
   font-weight: 800;
   color: var(--color-primary-dark);
   margin: 0;
+}
+
+/* 第3段階A案: 復習リスト画面の補足(「国旗クイズ｜間違えた90件」等) */
+.review-subtitle {
+  margin: 0 2px 14px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text-sub);
 }
 
 .ency-search-wrap {

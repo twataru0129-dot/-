@@ -319,7 +319,6 @@ const EncyclopediaModule = (() => {
   // そのまま使い、含まれていなければ一覧側の状態には触れずに対象の
   // カテゴリー全体(フィルター無し)を独立して計算する
   function openDetailById(id, options) {
-    ensureInitialized();
     const cat = categoryForId(id);
     if (!cat) {
       console.warn(`世界図鑑に存在しないID「${id}」が指定されました`);
@@ -330,14 +329,39 @@ const EncyclopediaModule = (() => {
     if (!list.some((e) => e.id === id)) {
       list = computeList({ category: cat, regionFilter: "all", searchQuery: "" });
     }
-    detailListIds = list.map((e) => e.id);
+    openDetailWithList(id, list.map((e) => e.id), options);
+  }
 
+  // id(前へ/次への移動対象)の集まりを明示して詳細画面を開く低レベル処理。
+  // 一覧側の状態(category/searchQuery/regionFilter/currentListIds/
+  // listScrollTop)には一切触れない。世界地図からの再表示(detailListIdsの
+  // スナップショットをそのまま引き継ぐ場合、js/app.js参照)や、第3段階A案の
+  // 復習リスト(間違えた国・地域だけのid列)から詳細画面を開く場合に使う
+  function openDetailWithList(id, listIds, options) {
+    ensureInitialized();
+    detailListIds = listIds;
     const opts = options || {};
     detailBackLabel = opts.backLabel || "← 図鑑一覧に戻る";
     detailOnBack = opts.onBack || null;
     $("btn-ency-detail-back").textContent = detailBackLabel;
-
     showDetailScreen(id);
+  }
+
+  // idの集まり(例: 復習リストの対象)を、図鑑の一覧と同じ検索・地域
+  // フィルター・五十音順ロジックで絞り込んで返す。一覧側の状態
+  // (category/searchQuery/regionFilter)には一切触れない、副作用の無い
+  // 関数。第3段階A案の復習リスト画面から、既存の検索・並び替えロジックを
+  // 再利用するために公開する
+  function filterAndSortByIds(ids, options) {
+    const opts = options || {};
+    const query = opts.query || "";
+    const filter = opts.regionFilter || "all";
+    const normalizedQuery = query ? normalizeForSearch(query) : "";
+    const entryById = new Map(COUNTRIES.concat(typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : []).map((e) => [e.id, e]));
+    const pool = ids
+      .map((id) => entryById.get(id))
+      .filter((e) => e && (filter === "all" || e.region === filter) && matchesSearch(e, normalizedQuery));
+    return pool.slice().sort((a, b) => collator.compare(getYomigana(a.id), getYomigana(b.id)));
   }
 
   function goAdjacent(delta) {
@@ -369,8 +393,11 @@ const EncyclopediaModule = (() => {
 
     $("ency-detail-map-btn").addEventListener("click", () => {
       if (!currentDetailId) return;
+      // detailListIdsのスナップショットも一緒に渡す。地図から戻ってきた
+      // ときに、この詳細画面がどの範囲(通常の図鑑一覧、または復習リスト
+      // などの一部)で前へ/次へを行っていたかを正しく引き継ぐため
       document.dispatchEvent(
-        new CustomEvent("encyclopediamodule:view-on-map", { detail: { id: currentDetailId } })
+        new CustomEvent("encyclopediamodule:view-on-map", { detail: { id: currentDetailId, listIds: detailListIds.slice() } })
       );
     });
 
@@ -394,7 +421,7 @@ const EncyclopediaModule = (() => {
     $("ency-detail-next").addEventListener("click", () => goAdjacent(1));
   }
 
-  return { open, initEvents, openDetailById };
+  return { open, initEvents, openDetailById, openDetailWithList, filterAndSortByIds };
 })();
 
 document.addEventListener("DOMContentLoaded", () => EncyclopediaModule.initEvents());
