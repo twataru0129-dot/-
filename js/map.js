@@ -34,6 +34,14 @@ const MapModule = (() => {
   // 単純な1スロット設計にしている
   let mapBackLabel = "← トップへ戻る";
   let mapOnBack = null; // nullなら既定(トップ画面)に戻る
+  // 第4段階「世界の国どこかな？」向け(第1段階: 地図共通API拡張)。
+  // 登録されている間だけ、地図タップの結果(国・地域のid)をこのコールバックに
+  // 渡し、既存の「選択+情報カードを開く」という通常の地図探索モードの挙動を
+  // 行わない(下記handleMapTap参照)。登録が無い(null)の間は、これまでと
+  // 完全に同じ通常の地図探索モードの挙動のままになる。close()で必ずnullに
+  // 戻すため、呼び出し元が解除し忘れても次に世界地図を開いたときには
+  // 通常モードに戻る(既存の世界地図モードへの影響を防ぐ安全策)
+  let tapResultHandler = null;
   let selectRequestSeq = 0; // open()/retryMapLoad()呼び出しごとに増やし、古い非同期の選択リクエストが後から発火しても無視できるようにする
   let pendingSelectId = null; // 今回のopen()呼び出しで選択すべき国・地域のid(無ければnull)
   let isRandomFlightInProgress = false; // ランダム移動のカメラアニメーション中だけtrue
@@ -1596,7 +1604,16 @@ const MapModule = (() => {
         target = assist.country;
       }
     }
-    if (target) selectCountry(target, { moveCamera: false });
+    // tapResultHandlerが登録されている間(第4段階のクイズ用タップ判定取得API)は、
+    // 通常の選択+情報カード表示を行わず、判定結果のidだけをコールバックに渡す。
+    // 判定ロジック(directHit/assistの計算、上記)は完全に共通のまま分岐するため、
+    // タップ判定そのものを複製してはいない。ドラッグ・ピンチ・海上タップは
+    // この分岐より前で既にreturn済み(上記)のため、どちらのモードでも
+    // コールバックは「実際に何らかの国・地域をタップした」ときだけ呼ばれる
+    if (target) {
+      if (tapResultHandler) tapResultHandler(target.id);
+      else selectCountry(target, { moveCamera: false });
+    }
 
     if (tapDebugEnabled) {
       let noSelectionReason;
@@ -1845,8 +1862,16 @@ const MapModule = (() => {
     return { lat, lng: lng + deltaLng };
   }
 
+  // showInfoCard: 既定はtrue(既存の全呼び出し箇所はこのオプションを渡さない
+  // ため、従来どおり必ず情報カードが開く。既存の動作は一切変わらない)。
+  // 第4段階「世界の国どこかな？」向けのselectCountryForQuiz()だけがfalseを渡し、
+  // 国名・首都・解説が見える情報カードが問題中に開いてしまう(正解が見えてしまう)
+  // ことを避ける。選択のハイライト・📍・国名ラベルの表示自体は、実際に地図を
+  // タップしたときと同じ見た目になるようあえて変更しない(どちらも「選択した」
+  // という事実を示すだけで、情報カードほど具体的な答えの表示ではないため)
   function selectCountry(country, options) {
     const moveCamera = !options || options.moveCamera !== false;
+    const showInfoCard = !options || options.showInfoCard !== false;
     hasInteracted = true;
     selectedCountryId = country.id;
 
@@ -1881,7 +1906,7 @@ const MapModule = (() => {
         globeInstance.pointOfView({ lat: target.lat, lng: target.lng, altitude: zoom.altitude }, duration);
       }
     }
-    renderInfoCard(country);
+    if (showInfoCard) renderInfoCard(country);
     closeSearchSuggestions();
   }
 
@@ -2125,6 +2150,110 @@ const MapModule = (() => {
     selectCountry(country, { moveCamera: true });
   }
 
+  // ========================================================
+  // 第4段階「世界の国どこかな？」向け 地図共通API(第1段階)
+  // 新モードの画面・出題・得点・ランキング等はまだ一切実装しない。
+  // ここでは既存の地図エンジン(タップ判定・ズーム・代表点計算・選択状態)を
+  // 安全に外部から呼び出せるようにする、必要最小限の窓口だけを追加する。
+  // 既存の世界地図モード・世界図鑑連携の挙動・既存APIの名前/引数/戻り値は
+  // 一切変更しない(いずれも新しい名前のAPIとしてだけ追加する)。
+  // ========================================================
+
+  // ---- A. ズーム倍率を維持したカメラ移動 ----
+  // computeAutoZoom()は常に対象の実際の大きさからaltitudeを計算し直す設計
+  // (検索・ランダム選択用)のため、「出題のたびにズームが揺れ動かない」という
+  // 新モードの要件には使えない。そのため、現在のpointOfView().altitudeを
+  // そのまま維持する専用の関数をここに追加する。
+  // controls.minDistance/maxDistanceをaltitudeに換算する式自体はcomputeAutoZoom内の
+  // ローカル変数と同じ考え方だが、computeAutoZoom側は「自動ズームの見栄え」の
+  // ためにINITIAL_VIEW_ALTITUDEを上限にする独自の業務ルールを持っており、
+  // 既存の自動ズーム機能を壊さないためそちらには手を加えず、ここでは
+  // 「現在のカメラが物理的に取りうる範囲(controls自体の制限)」だけを
+  // 使う専用の小さなヘルパーとして独立させている
+  function clampAltitudeToZoomLimits(altitude) {
+    const controls = globeInstance && globeInstance.controls();
+    const minAltitude = controls && controls.minDistance ? controls.minDistance / GLOBE_RADIUS - 1 : 0.0667;
+    const maxAltitude = controls && controls.maxDistance ? controls.maxDistance / GLOBE_RADIUS - 1 : 4;
+    return Math.max(minAltitude, Math.min(maxAltitude, altitude));
+  }
+  // id: countries.js(198件)+map-regions.js(18件)=216件のどの既存idでも指定できる
+  // (countryByIdは両方を合算済み、既存のselectCountryByIdInternal等と同じ)。
+  // options.duration: アニメーション時間(ms)。省略時は既存のselectCountry()の
+  // 検索・ランダム選択時と同じ1200msにする。prefers-reduced-motion時は
+  // 既存と同じく0(アニメーションなし即時移動)にする。
+  // 戻り値: 呼び出しが実際に地図を動かせたか(未初期化・不正なidのときfalse)。
+  // 選択状態(selectedCountryId)やハイライト表示には一切触れない
+  // (その役割はB.のselectCountryForQuiz()が担う)ため、通常の地図探索
+  // モードの見た目・挙動には影響しない
+  function moveCameraToCountry(id, options) {
+    if (!globeInstance || !countryById) return false; // 未初期化状態でも安全に失敗する
+    const country = countryById.get(id);
+    if (!country) {
+      console.warn(`世界の国どこかな？: moveCameraToCountryに不正なID「${id}」が指定されました`);
+      return false;
+    }
+    const opts = options || {};
+    const pov = globeInstance.pointOfView();
+    const currentAltitude = pov && Number.isFinite(pov.altitude) ? pov.altitude : INITIAL_VIEW_ALTITUDE;
+    const altitude = clampAltitudeToZoomLimits(currentAltitude);
+    const anchor = anchorForCountry(country);
+    // 情報カードに隠れない側へ注視点をずらす処理(cardAvoidanceTarget)は
+    // 既存のselectCountry()の検索・ランダム選択時と同じ考え方で再利用する。
+    // 新モードの画面がまだ無いため、現時点では常にこの既定の回避を使う
+    const target = cardAvoidanceTarget(anchor.lat, anchor.lng, altitude);
+    const duration = prefersReducedMotion() ? 0 : (typeof opts.duration === "number" ? opts.duration : 1200);
+    globeInstance.pointOfView({ lat: target.lat, lng: target.lng, altitude }, duration);
+    return true;
+  }
+
+  // ---- B. 連続選択に対応するAPI ----
+  // 既存のselectCountry()をmoveCamera:false(地図タップと同じ経路)かつ
+  // showInfoCard:false(国名・首都・解説が見える情報カードを開かない)で
+  // 呼び出すだけの薄いラッパーにし、ハイライト・📍・一時目印の状態管理は
+  // 一切複製しない。選択のたびにselectedCountryId・tempSearchMarkerIdが
+  // 新しい対象の値に上書きされ、refreshPolygonStyles()/refreshPinLayer()が
+  // その時点の状態だけを見て描画し直すため、連続選択しても前回選んだ対象の
+  // ハイライトや一時目印が残ることはない(既存のselectCountry()が元々持つ性質)
+  function selectCountryForQuiz(id) {
+    if (!globeInstance || !countryById) return false;
+    const country = countryById.get(id);
+    if (!country) {
+      console.warn(`世界の国どこかな？: selectCountryForQuizに不正なID「${id}」が指定されました`);
+      return false;
+    }
+    selectCountry(country, { moveCamera: false, showInfoCard: false });
+    return true;
+  }
+  // 選択状態の解除。既存のcloseInfoCard()がそのまま使える(選択解除・
+  // ハイライト・📍・一時目印・国名ラベル追従の停止を全て行う既存処理)ため、
+  // 状態管理を複製せずそのまま呼ぶだけの名前だけのエイリアスにする
+  function clearQuizSelection() {
+    closeInfoCard();
+  }
+
+  // ---- C. 地図タップ結果の取得 ----
+  // tapResultHandlerの登録・解除。実際のタップ判定(ポリゴン直接ヒット+
+  // 小国向けタップ補助)はhandleMapTap内の既存ロジックを完全にそのまま使い、
+  // 判定結果(target)をこのコールバックに渡すかどうかだけをtapResultHandlerの
+  // 有無で分岐する(上記handleMapTap参照)。登録中は既存の「選択+情報カードを
+  // 開く」という通常動作を行わないため、通常の地図探索モードとクイズ用の
+  // 回答判定が混ざることはない。単一スロット(最新の登録だけが有効)にして
+  // いるのは、このファイル内の他の同種の仕組み(mapOnBack、pendingSelectId等)
+  // と同じ考え方で、「常に最後に登録したものが勝つ」単純な設計にするため
+  function setTapResultHandler(callback) {
+    if (typeof callback !== "function") {
+      console.warn("世界の国どこかな？: setTapResultHandlerには関数を渡してください");
+      return;
+    }
+    if (tapResultHandler) {
+      console.warn("世界の国どこかな？: 既存のタップ結果コールバックを上書きします(clearTapResultHandler()の呼び忘れの可能性があります)");
+    }
+    tapResultHandler = callback;
+  }
+  function clearTapResultHandler() {
+    tapResultHandler = null;
+  }
+
   // ---------- 画面の開閉(タブを行き来してもデータは再取得しない) ----------
   // options.selectId: 世界図鑑から指定された国・地域id(読み込み完了後に選択する)
   // options.backLabel/options.onBack: 戻るボタンの表記・遷移先(未指定ならトップ画面に戻る既定動作)
@@ -2166,6 +2295,10 @@ const MapModule = (() => {
     stopLabelTracking();
     closeSearchSuggestions();
     closeRegionList();
+    // 画面を離れるたびに必ず解除する。呼び出し元(第4段階のクイズ側)が
+    // 解除し忘れても、次に通常の世界地図モードを開いたときにタップが
+    // 誤ってクイズ側のコールバックに渡り続ける事故を防ぐ
+    tapResultHandler = null;
   }
 
   function initEvents() {
@@ -2193,8 +2326,16 @@ const MapModule = (() => {
 
   // REGION_ORDER/REGION_LABELSは世界図鑑モード(js/encyclopedia.js)の地域
   // フィルターでも再利用する。country.regionの値そのもの(分類)は変えず、
-  // 表示用のラベル一覧だけを公開する
-  return { open, close, initEvents, REGION_ORDER, REGION_LABELS };
+  // 表示用のラベル一覧だけを公開する。
+  // moveCameraToCountry/selectCountryForQuiz/clearQuizSelection/
+  // setTapResultHandler/clearTapResultHandlerは第4段階「世界の国どこかな？」
+  // 向けに追加した共通API(第1段階)。既存のopen/close/initEvents/
+  // REGION_ORDER/REGION_LABELSの名前・引数・戻り値は変更していない
+  return {
+    open, close, initEvents, REGION_ORDER, REGION_LABELS,
+    moveCameraToCountry, selectCountryForQuiz, clearQuizSelection,
+    setTapResultHandler, clearTapResultHandler,
+  };
 })();
 
 document.addEventListener("DOMContentLoaded", () => MapModule.initEvents());
