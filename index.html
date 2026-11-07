@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="./css/style.css">
 <link rel="stylesheet" href="./css/map.css">
 <link rel="stylesheet" href="./css/encyclopedia.css">
+<link rel="stylesheet" href="./css/findcountry.css">
 </head>
 <body>
 
@@ -50,6 +51,11 @@
         <span class="mode-card-title">世界図鑑</span>
         <span class="mode-card-desc">世界の国・地域を調べよう！</span>
       </button>
+      <button id="btn-mode-findcountry" class="mode-card mode-card-findcountry" data-mode="findcountry">
+        <span class="mode-card-icon">🧭</span>
+        <span class="mode-card-title">世界の国どこかな？</span>
+        <span class="mode-card-desc">国名を見て地球儀で探そう！</span>
+      </button>
     </div>
     <button id="btn-collection" class="btn btn-secondary">🏅 称号コレクション</button>
 
@@ -68,6 +74,46 @@
     <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
     <h2 class="screen-title">問題数をえらぼう</h2>
     <div id="count-options" class="count-grid"></div>
+  </div>
+</section>
+
+<!-- ============ 世界の国どこかな？: 難易度選択画面(第4段階第2段階) ============ -->
+<section id="screen-findcountry-difficulty" class="screen">
+  <div class="panel">
+    <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
+    <h2 class="screen-title">世界の国どこかな？</h2>
+    <p class="findcountry-select-lead">難易度をえらぼう</p>
+    <div id="findcountry-difficulty-options" class="count-grid"></div>
+  </div>
+</section>
+
+<!-- ============ 世界の国どこかな？: 問題数選択画面(第4段階第2段階) ============ -->
+<section id="screen-findcountry-count" class="screen">
+  <div class="panel">
+    <button id="btn-findcountry-count-back" class="btn-back" data-back="screen-findcountry-difficulty" aria-label="戻る">← 戻る</button>
+    <h2 class="screen-title">問題数をえらぼう</h2>
+    <p id="findcountry-count-lead" class="findcountry-select-lead"></p>
+    <div id="findcountry-count-options" class="count-grid"></div>
+  </div>
+</section>
+
+<!-- ============ 世界の国どこかな？: 結果画面(仮表示、第4段階第2段階) ============ -->
+<section id="screen-findcountry-result" class="screen">
+  <div class="panel">
+    <h2 class="screen-title">結果発表</h2>
+    <p class="findcountry-result-mock-note">※ 今回は画面確認用の仮データです</p>
+    <div class="result-score-box">
+      <p id="findcountry-result-course" class="findcountry-result-course"></p>
+      <p id="findcountry-result-score-fraction" class="result-score-fraction"></p>
+      <p id="findcountry-result-rate" class="result-score-rate"></p>
+      <p id="findcountry-result-streak" class="findcountry-result-streak"></p>
+      <p id="findcountry-result-points" class="findcountry-result-points"></p>
+    </div>
+    <div class="result-buttons">
+      <button id="btn-findcountry-result-retry" class="btn btn-primary">もう一度遊ぶ</button>
+      <button id="btn-findcountry-result-to-select" class="btn btn-secondary">コース選択へ戻る</button>
+      <button id="btn-findcountry-result-to-home" class="btn btn-plain">ホームへ戻る</button>
+    </div>
   </div>
 </section>
 
@@ -222,7 +268,36 @@
       <button id="map-random-btn" class="map-random-btn">🎲 ランダムな国へ</button>
     </div>
 
+    <!-- ============ 世界の国どこかな？: クイズ専用ヘッダー・出題文(第4段階第2段階)
+         通常は.hiddenで非表示。既存の.map-topbar/.map-toolbar-row2と同じ
+         flex子要素として地球儀の上に表示領域を確保し、地球儀本体
+         (#map-globe-container)は共有して複製しない ============ -->
+    <div id="findcountry-quiz-header" class="findcountry-quiz-header hidden">
+      <button id="findcountry-quiz-back" class="findcountry-quiz-back-btn" type="button" aria-label="「世界の国どこかな？」を終了">✕</button>
+      <div class="findcountry-quiz-info">
+        <span id="findcountry-quiz-difficulty" class="findcountry-quiz-difficulty"></span>
+        <span id="findcountry-quiz-progress" class="findcountry-quiz-progress"></span>
+      </div>
+      <div class="findcountry-quiz-status">
+        <span id="findcountry-quiz-lives" class="findcountry-quiz-lives" aria-label="残りライフ"></span>
+        <span id="findcountry-quiz-timer" class="findcountry-quiz-timer" aria-label="残り時間"></span>
+      </div>
+      <button id="findcountry-quiz-pause" class="findcountry-quiz-pause-btn" type="button" aria-label="一時停止">⏸</button>
+    </div>
+    <div id="findcountry-quiz-prompt" class="findcountry-quiz-prompt hidden">
+      <p class="findcountry-quiz-question-label">この国・地域はどこ？</p>
+      <p id="findcountry-quiz-country-name" class="findcountry-quiz-country-name"></p>
+    </div>
+
     <div id="map-globe-container" class="map-globe-container"></div>
+
+    <!-- ============ 世界の国どこかな？: クイズ専用フッター(第4段階第2段階) ============ -->
+    <div id="findcountry-quiz-footer" class="findcountry-quiz-footer hidden">
+      <p id="findcountry-quiz-dev-tap" class="findcountry-quiz-dev-tap hidden"></p>
+      <p class="findcountry-quiz-hint">地球儀をドラッグして回転、ピンチ(またはホイール)で拡大・縮小できます</p>
+      <button id="findcountry-quiz-pass" class="findcountry-quiz-pass-btn" type="button">⏭ パス</button>
+    </div>
+
     <button id="map-pins-toggle-btn" class="map-pins-toggle-btn" aria-pressed="false">📍 ピン OFF</button>
     <div id="map-country-label" class="map-country-label hidden"></div>
 
@@ -262,6 +337,18 @@
         </div>
       </div>
       <textarea id="map-tap-debug-log" class="map-tap-debug-log" readonly placeholder="地球儀をタップすると、ここに判定の内部状態が記録されます"></textarea>
+    </div>
+
+    <!-- ============ 世界の国どこかな？: 一時停止オーバーレイ(第4段階第2段階)
+         今回はタイマー停止処理を実装しないが、後から追加しやすいよう
+         地球儀への操作を画面全体で覆って遮断する構造にしておく ============ -->
+    <div id="findcountry-pause-overlay" class="findcountry-pause-overlay hidden">
+      <div class="findcountry-pause-box">
+        <h2 class="findcountry-pause-title">一時停止中</h2>
+        <button id="findcountry-pause-resume" class="btn btn-primary btn-large" type="button">▶ 再開</button>
+        <button id="findcountry-pause-to-select" class="btn btn-secondary" type="button">コース選択へ戻る</button>
+        <button id="findcountry-pause-to-home" class="btn btn-plain" type="button">ホームへ戻る</button>
+      </div>
     </div>
   </div>
 </section>
@@ -411,6 +498,7 @@
 <script src="./js/map.js"></script>
 <script src="./js/encyclopedia.js"></script>
 <script src="./js/review.js"></script>
+<script src="./js/findcountry.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>

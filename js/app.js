@@ -91,6 +91,13 @@ function initTopScreen() {
         EncyclopediaModule.open();
         return;
       }
+      // 第4段階「世界の国どこかな？」(第2段階: 基本画面のみ)。
+      // 既存の国旗/首都クイズのstate(questions/score/wrongIds等)とは
+      // 完全に分離しており、ここではstate.modeをこれ以上使わない
+      if (mode === "findcountry") {
+        FindCountryModule.openDifficultyScreen();
+        return;
+      }
 
       SoundManager.unlock(); // 最初のユーザー操作でAudioContextを有効化
       renderSelectScreen();
@@ -1024,6 +1031,7 @@ function initApp() {
   initTitleAwardScreen();
   initMemorialScreen();
   initMapEncyclopediaLink();
+  FindCountryModule.initEvents();
   showScreen("screen-top");
 }
 

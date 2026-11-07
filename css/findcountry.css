@@ -1,0 +1,274 @@
+/* ==========================================================
+   第4段階「世界の国どこかな？」第2段階: 基本画面のスタイル
+   style.css/map.cssのCSS変数・既存クラス(.count-card, .btn, .panel,
+   .result-score-box, .result-buttons等)をそのまま再利用し、
+   このファイルでは新モード専用の見た目だけを追加する。
+   ========================================================== */
+
+/* ---------- トップ画面: 5枚目のモードカード ----------
+   既存の.mode-select-gridは2列×2行(4枚)前提のため、5枚目は
+   単独の行として全幅にし、中途半端に余らせない */
+.mode-card-findcountry {
+  grid-column: 1 / -1;
+  background: linear-gradient(135deg, #f1edff, #e3daff);
+  border-color: #8c6fe0;
+}
+.mode-card-findcountry .mode-card-title { color: #5b3fb0; }
+
+/* ---------- 難易度・問題数選択画面 ----------
+   既存の.count-grid/.count-card/.count-card.specialをそのまま再利用し、
+   難易度カードだけ追加の説明文(件数・制限時間)を1行加える */
+.findcountry-select-lead {
+  text-align: center;
+  color: var(--color-text-sub);
+  font-weight: 700;
+  margin: -12px 0 16px;
+}
+.difficulty-card .count-num {
+  font-size: 1.15rem;
+}
+.difficulty-card-meta {
+  font-size: 0.72rem;
+  color: var(--color-text-sub);
+  margin-top: 4px;
+}
+.count-card.special .difficulty-card-meta { color: #8a6100; }
+
+/* ---------- 結果画面(仮データ) ---------- */
+.findcountry-result-mock-note {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--color-text-sub);
+  margin: -8px 0 16px;
+}
+.findcountry-result-course {
+  text-align: center;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 0 0 8px;
+}
+.findcountry-result-streak,
+.findcountry-result-points {
+  text-align: center;
+  color: var(--color-text-sub);
+  font-weight: 700;
+  margin: 4px 0 0;
+}
+
+/* ==========================================================
+   クイズ画面(#screen-mapを再利用。別の地球儀は作らない)
+   #screen-mapに.findcountry-modeが付いている間だけ、新しい
+   ヘッダー/出題文/フッター/一時停止オーバーレイを表示し、
+   既存の通常探索モード用チロム(検索・地域フィルター・ランダム
+   ボタン・国名ラベル・情報カード)を隠す。.map-globe-container
+   自体は両モードで完全に共有する(複製しない)
+   ========================================================== */
+#screen-map:not(.findcountry-mode) .findcountry-quiz-header,
+#screen-map:not(.findcountry-mode) .findcountry-quiz-prompt,
+#screen-map:not(.findcountry-mode) .findcountry-quiz-footer,
+#screen-map:not(.findcountry-mode) .findcountry-pause-overlay {
+  display: none !important;
+}
+/* 検索・地域フィルター・ランダムボタン(通常探索モード専用のUI、
+   クイズでは出題対象の手がかりになり得るため非表示にする) */
+#screen-map.findcountry-mode .map-topbar,
+#screen-map.findcountry-mode .map-toolbar-row2 {
+  display: none !important;
+}
+/* 国名ラベル・情報カードは正解の国名・首都・解説をそのまま表示して
+   しまうため、クイズ中は常に非表示にする(ネタバレ防止)。
+   小国向けの📍ピン自体(3Dオブジェクト、回答位置を探す補助)は
+   引き続き表示されるため、ピンON/OFFボタン(#map-pins-toggle-btn)は
+   このルールの対象外にしており、クイズ中も操作できる */
+#screen-map.findcountry-mode #map-country-label,
+#screen-map.findcountry-mode #map-info-card {
+  display: none !important;
+}
+
+.findcountry-quiz-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top)) 12px 8px;
+  flex-shrink: 0;
+  z-index: 30;
+}
+.findcountry-quiz-back-btn,
+.findcountry-quiz-pause-btn {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-card);
+  font-size: 1.05rem;
+  color: var(--color-text-sub);
+  cursor: pointer;
+}
+.findcountry-quiz-back-btn:active,
+.findcountry-quiz-pause-btn:active { transform: scale(0.94); }
+
+.findcountry-quiz-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.findcountry-quiz-difficulty {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+.findcountry-quiz-progress {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+
+.findcountry-quiz-status {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.findcountry-quiz-lives {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.findcountry-quiz-timer {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 2px 9px;
+}
+
+.findcountry-quiz-prompt {
+  text-align: center;
+  padding: 0 16px 10px;
+  flex-shrink: 0;
+}
+.findcountry-quiz-question-label {
+  margin: 0 0 2px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+.findcountry-quiz-country-name {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.findcountry-quiz-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px calc(12px + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  z-index: 30;
+}
+.findcountry-quiz-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-sub);
+  text-align: center;
+}
+.findcountry-quiz-pass-btn {
+  width: 100%;
+  max-width: 320px;
+  padding: 13px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary-dark);
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+.findcountry-quiz-pass-btn:active { transform: scale(0.97); }
+.findcountry-quiz-dev-tap {
+  margin: 0;
+  font-size: 0.7rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: #8a6100;
+  background: #fff6e0;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.findcountry-quiz-dev-skip-btn {
+  border: 1px dashed var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-sub);
+  font-size: 0.72rem;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+/* ---------- 一時停止オーバーレイ ---------- */
+.findcountry-pause-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(20, 24, 32, 0.72);
+}
+.findcountry-pause-box {
+  width: 100%;
+  max-width: 320px;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.findcountry-pause-title {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+.findcountry-pause-box .btn { width: 100%; }
+
+/* ==========================================================
+   PC・タブレット(幅700px以上): map.cssの情報カード切り替えと
+   同じブレークポイントに合わせ、出題文の文字を少し大きくする
+   ========================================================== */
+@media (min-width: 700px) {
+  .findcountry-quiz-country-name {
+    font-size: 1.9rem;
+  }
+  .findcountry-quiz-footer {
+    flex-direction: row;
+    justify-content: center;
+  }
+  .findcountry-quiz-pass-btn {
+    width: auto;
+    min-width: 200px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .findcountry-quiz-back-btn,
+  .findcountry-quiz-pause-btn,
+  .findcountry-quiz-pass-btn {
+    transition-duration: 0.001ms;
+  }
+}
