@@ -374,6 +374,13 @@ const FindCountryModule = (() => {
       timer.stop();
       timer = null;
     }
+    // 地球儀の初回読み込み待ち(beginTimerWhenGlobeReady)の途中で画面を
+    // 離れた場合、その待機処理はfindcountry-modeクラスの有無でも自ら
+    // 停止するが、ここでもrenderTokenを即座に進めておく。こうすることで
+    // 離脱直後に新しいゲームを開始しても、古い待機処理が「離脱前と同じ
+    // token」のまま次のrenderQuestion()の値と偶然一致する余地を作らず、
+    // 離脱した瞬間に確実に無効化できる(新しいタイマーを上書きする事故の防止)
+    renderToken += 1;
     MapModule.clearTapResultHandler();
     MapModule.clearQuizResultHighlight();
     MapModule.clearQuizSelection();
@@ -455,10 +462,19 @@ const FindCountryModule = (() => {
   // 地球儀のcanvasが存在するまで(初回読み込み中は存在しない)requestAnimationFrameで
   // 待ってからタイマーを開始する。待っている間に次の問題へ進んだり画面を
   // 離れたりした場合は、tokenの不一致・findcountry-modeクラスの有無で
-  // 判定し、古い問題のタイマーを誤って起動しない
+  // 判定し、古い問題のタイマーを誤って起動しない。
+  // さらに、同じ問題のまま(token・findcountry-modeは一致したまま)
+  // パスボタン等で既に回答確定済み(quizState.answered===true)になっていた
+  // 場合も開始しない。パスボタンは地球儀のcanvasが無くても押せるため、
+  // 「読み込み待ちの間にパスして回答確定→その直後に読み込みが完了」という
+  // 順序が起こり得る。ここでanswered済みかを確認しないと、既に結果表示
+  // (フィードバック画面)を見ている最中に新しいタイマーが裏で動き出し、
+  // 回答していないはずの時間切れ扱いにはならない(handleTimeUp側のガードは
+  // 効く)ものの、残り時間の表示だけが意味もなく進行してしまう
   function beginTimerWhenGlobeReady(token, totalSeconds) {
     if (token !== renderToken) return;
     if (!$("screen-map").classList.contains("findcountry-mode")) return;
+    if (quizState.answered) return;
     if (!document.querySelector("#map-globe-container canvas")) {
       requestAnimationFrame(() => beginTimerWhenGlobeReady(token, totalSeconds));
       return;
