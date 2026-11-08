@@ -805,24 +805,36 @@ const FindCountryModule = (() => {
   // できる状態に戻す。retryFeedbackActiveをこの関数の最初で即座にfalseに
   // するため、連打しても2回目以降は何もしない(二重処理防止)
   function handleRetryClick() {
+    // 1. 再挑戦待ち状態を解除し、連打による二重実行を防ぐ(2回目以降の
+    // クリックはここで即座に戻る)
     if (!retryFeedbackActive) return;
     retryFeedbackActive = false;
-    applyTimerPauseState();
 
-    // ハイライト解除→再挑戦開始(タップ受付再開)の順序を保証する。先に地図を
-    // 通常配色へ戻してから、最後にquizState.answered = falseでタップを
-    // 受け付け始めることで、ハイライトが残ったまま次のタップを受けることがない
-    MapModule.clearQuizResultHighlight();
+    try {
+      // 2. 赤色ハイライトを解除する
+      MapModule.clearQuizResultHighlight();
 
-    const resultText = $("findcountry-quiz-result-text");
-    resultText.classList.add("hidden");
-    resultText.classList.remove("is-wrong");
-    resultText.textContent = "";
-    $("findcountry-quiz-hint").classList.remove("hidden");
-    $("findcountry-quiz-pass").classList.remove("hidden");
-    $("findcountry-quiz-retry").classList.add("hidden");
+      // 3. 不正解メッセージを消す
+      const resultText = $("findcountry-quiz-result-text");
+      resultText.classList.add("hidden");
+      resultText.classList.remove("is-wrong");
+      resultText.textContent = "";
 
-    quizState.answered = false;
+      // 4. 「もう一度さがす」ボタンを隠し、パスボタン・ヒントなどを元に戻す
+      $("findcountry-quiz-hint").classList.remove("hidden");
+      $("findcountry-quiz-pass").classList.remove("hidden");
+      $("findcountry-quiz-retry").classList.add("hidden");
+
+      // 5. 同じ問題のタップ回答を再び受け付ける
+      quizState.answered = false;
+    } finally {
+      // 6. 最後に残り時間からタイマーを再開する。既存の一時停止オーバーレイが
+      // 表示されている場合はapplyTimerPauseState内の判定でタイマーを再開しない。
+      // 2〜5の途中で例外が発生しても、タイマーの一時停止状態がretryFeedbackActive
+      // (既に1でfalseにした)と食い違ったまま放置されることがないよう、
+      // 必ずここで最終的な一時停止/再開の状態を確定させる
+      applyTimerPauseState();
+    }
   }
 
   // ---------- パスボタン(通常コースのみ。PROでは表示されず、呼び出しても無効) ----------
