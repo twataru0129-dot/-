@@ -84,6 +84,19 @@
     <h2 class="screen-title">世界の国どこかな？</h2>
     <p class="findcountry-select-lead">難易度をえらぼう</p>
     <div id="findcountry-difficulty-options" class="count-grid"></div>
+    <button id="btn-findcountry-ranking-open" class="btn btn-secondary findcountry-ranking-entry">🏆 ランキングを見る</button>
+  </div>
+</section>
+
+<!-- ============ 世界の国どこかな？: ランキング画面(第5段階前半) ============ -->
+<section id="screen-findcountry-ranking" class="screen">
+  <div class="panel findcountry-ranking-panel">
+    <button class="btn-back" data-back="screen-findcountry-difficulty" aria-label="戻る">← 戻る</button>
+    <h2 class="screen-title">🏆 ランキング</h2>
+    <div id="findcountry-ranking-difficulty-tabs" class="findcountry-ranking-tabs"></div>
+    <div id="findcountry-ranking-count-tabs" class="findcountry-ranking-tabs"></div>
+    <p id="findcountry-ranking-course-label" class="findcountry-ranking-course-label"></p>
+    <div id="findcountry-ranking-list" class="findcountry-ranking-list"></div>
   </div>
 </section>
 
@@ -99,12 +112,14 @@
 
 <!-- ============ 世界の国どこかな？: 結果画面(第4段階第2段階で画面構築、第3段階で実データ化、
      第4段階で得点・ライフ・連続正解・ゲームオーバー表示に対応、
-     第4段階追加修正で得点計算・平均回答時間・PRO完全制覇表示を確定) ============ -->
+     第4段階追加修正で得点計算・平均回答時間・PRO完全制覇表示を確定、
+     第5段階前半でランキング順位表示を追加) ============ -->
 <section id="screen-findcountry-result" class="screen">
   <div class="panel">
     <h2 id="findcountry-result-title" class="screen-title">結果発表</h2>
     <p id="findcountry-result-gameover-note" class="findcountry-result-gameover-note hidden"></p>
     <p id="findcountry-result-complete-note" class="findcountry-result-complete-note hidden"></p>
+    <p id="findcountry-result-rank-badge" class="findcountry-result-rank-badge hidden"></p>
     <div class="result-score-box">
       <p id="findcountry-result-course" class="findcountry-result-course"></p>
       <p id="findcountry-result-planned" class="findcountry-result-planned"></p>
@@ -118,6 +133,7 @@
     </div>
     <div class="result-buttons">
       <button id="btn-findcountry-result-retry" class="btn btn-primary">もう一度遊ぶ</button>
+      <button id="btn-findcountry-result-ranking" class="btn btn-secondary">🏆 ランキングを見る</button>
       <button id="btn-findcountry-result-to-select" class="btn btn-secondary">コース選択へ戻る</button>
       <button id="btn-findcountry-result-to-home" class="btn btn-plain">ホームへ戻る</button>
     </div>

@@ -78,6 +78,100 @@
   color: var(--color-text-sub);
   margin: 4px 0 0;
 }
+.findcountry-result-rank-badge {
+  text-align: center;
+  font-weight: 800;
+  color: var(--color-gold);
+  margin: -8px 0 16px;
+}
+
+/* ---------- 難易度選択画面: ランキングへの入口 ---------- */
+.findcountry-ranking-entry {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+}
+
+/* ---------- ランキング画面(第5段階前半) ----------
+   13コース(初級/中級/上級×5・10・20・30問 + PRO)を難易度タブ・
+   問題数タブで切り替え、選んだコースのTOP5を一覧表示する。
+   新しいグリッドコンポーネントは追加せず、タブ・行とも
+   style.cssの色変数(--color-primary/--color-gold等)だけで組む */
+.findcountry-ranking-panel { max-width: 480px; }
+.findcountry-ranking-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  margin: 10px 0;
+}
+.findcountry-ranking-tabs.hidden { display: none; }
+.findcountry-ranking-tab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 2px solid var(--color-border);
+  background: var(--color-bg-card);
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--color-text-sub);
+  cursor: pointer;
+}
+.findcountry-ranking-tab.active {
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+  background: #eef3ff;
+}
+.findcountry-ranking-course-label {
+  text-align: center;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 10px 0 6px;
+}
+.findcountry-ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.findcountry-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+}
+.findcountry-rank-row.rank-1 {
+  border-color: var(--color-gold);
+  background: #fff8e6;
+}
+.findcountry-rank-num {
+  flex: 0 0 2.6em;
+  text-align: center;
+  font-weight: 800;
+  color: var(--color-text-sub);
+}
+.findcountry-rank-row.rank-1 .findcountry-rank-num { color: var(--color-gold); }
+.findcountry-rank-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.findcountry-rank-score {
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--color-primary-dark);
+}
+.findcountry-rank-row.empty .findcountry-rank-score {
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+.findcountry-rank-meta,
+.findcountry-rank-date {
+  font-size: 0.72rem;
+  color: var(--color-text-sub);
+}
 
 /* ==========================================================
    クイズ画面(#screen-mapを再利用。別の地球儀は作らない)

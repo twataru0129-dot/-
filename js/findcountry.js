@@ -276,6 +276,8 @@ const FindCountryModule = (() => {
     currentStreak: 0,
     maxStreak: 0,
     gameOver: false, // ライフ0で終了したか(結果画面の表示分岐・最終問題判定に使う)
+    rankingSubmitted: false, // このプレイの記録を既にランキングへ送信したか(二重保存防止)
+    lastRank: null, // 送信した記録がTOP5に入った順位(1〜5)。入らなければnull
   };
 
   // 現在アクティブな制限時間タイマー(問題ごとに作り直す。1問につき1個だけ
@@ -361,6 +363,8 @@ const FindCountryModule = (() => {
     quizState.currentStreak = 0;
     quizState.maxStreak = 0;
     quizState.gameOver = false;
+    quizState.rankingSubmitted = false;
+    quizState.lastRank = null;
 
     showScreen("screen-map");
     enterFindCountryMapMode();
@@ -780,7 +784,153 @@ const FindCountryModule = (() => {
     $("findcountry-result-lives").textContent =
       `残りライフ ${"❤️".repeat(Math.max(0, quizState.lives))}${"🤍".repeat(Math.max(0, maxLives - quizState.lives))}`;
 
+    // ランキングへの記録は1プレイにつき1回だけ行う。この画面に複数回
+    // 遷移しても(例: 「結果を見る」ボタンの連打)、2回目以降は送信済みの
+    // rankingSubmittedで弾き、直前に得た順位(lastRank)をそのまま使い回す。
+    // 保存処理自体はStorage側でも例外を捕捉しているが、念のためここでも
+    // 囲み、ランキング登録に失敗してもゲームの進行自体は止めない
+    if (!quizState.rankingSubmitted) {
+      quizState.rankingSubmitted = true;
+      try {
+        quizState.lastRank = Storage.submitFindCountryRecord({
+          difficultyId: quizState.difficultyId,
+          questionCount: quizState.difficultyId === PRO_DIFFICULTY_ID ? null : planned,
+          score: totalPoints,
+          correctCount,
+          answeredCount: answered,
+          avgElapsedSeconds: round2(avgElapsed),
+          maxStreak: quizState.maxStreak,
+          playedAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn("世界の国どこかな？: ランキング記録の保存に失敗しました", e);
+        quizState.lastRank = null;
+      }
+    }
+
+    const rankBadge = $("findcountry-result-rank-badge");
+    if (quizState.lastRank) {
+      rankBadge.textContent = `🏆 このコースで第${quizState.lastRank}位にランクインしました！`;
+      rankBadge.classList.remove("hidden");
+    } else {
+      rankBadge.classList.add("hidden");
+      rankBadge.textContent = "";
+    }
+
     showScreen("screen-findcountry-result");
+  }
+
+  // ---------- ランキング画面(第5段階前半) ----------
+  // 画面遷移をまたいで保持する「いまランキング画面で見ているコース」。
+  // 初期値は初級・5問。難易度選択画面からの入口ではこの値(または前回見た
+  // コース)をそのまま使い、結果画面からの入口では直前にプレイしたコースに
+  // 上書きしてから開く
+  const rankingSelection = { difficultyId: "beginner", questionCount: QUESTION_COUNTS[0] };
+
+  function openRankingScreen(difficultyId, questionCount) {
+    if (difficultyId) {
+      rankingSelection.difficultyId = difficultyId;
+      rankingSelection.questionCount = difficultyId === PRO_DIFFICULTY_ID ? null : questionCount;
+    }
+    renderRankingScreen();
+    showScreen("screen-findcountry-ranking");
+  }
+
+  function renderRankingScreen() {
+    renderRankingDifficultyTabs();
+    renderRankingCountTabs();
+    renderRankingList();
+  }
+
+  function renderRankingDifficultyTabs() {
+    const wrap = $("findcountry-ranking-difficulty-tabs");
+    wrap.innerHTML = "";
+    DIFFICULTIES.forEach((d) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "findcountry-ranking-tab" + (d.id === rankingSelection.difficultyId ? " active" : "");
+      btn.textContent = `${d.icon} ${d.label}`;
+      btn.addEventListener("click", () => {
+        rankingSelection.difficultyId = d.id;
+        if (d.id === PRO_DIFFICULTY_ID) {
+          rankingSelection.questionCount = null;
+        } else if (!rankingSelection.questionCount) {
+          rankingSelection.questionCount = QUESTION_COUNTS[0];
+        }
+        renderRankingScreen();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function renderRankingCountTabs() {
+    const wrap = $("findcountry-ranking-count-tabs");
+    wrap.innerHTML = "";
+    if (rankingSelection.difficultyId === PRO_DIFFICULTY_ID) {
+      wrap.classList.add("hidden");
+      return;
+    }
+    wrap.classList.remove("hidden");
+    QUESTION_COUNTS.forEach((count) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "findcountry-ranking-tab" + (count === rankingSelection.questionCount ? " active" : "");
+      btn.textContent = `${count}問`;
+      btn.addEventListener("click", () => {
+        rankingSelection.questionCount = count;
+        renderRankingScreen();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function formatRankingDate(isoString) {
+    const dt = new Date(isoString);
+    if (Number.isNaN(dt.getTime())) return "—";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${dt.getFullYear()}/${pad(dt.getMonth() + 1)}/${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  }
+
+  function renderRankingList() {
+    const d = difficultyById(rankingSelection.difficultyId);
+    const courseKey = Storage.findCountryCourseKey(rankingSelection.difficultyId, rankingSelection.questionCount);
+    $("findcountry-ranking-course-label").textContent = rankingSelection.difficultyId === PRO_DIFFICULTY_ID
+      ? `${d.icon} ${d.label}(${d.count}問固定)`
+      : `${d.icon} ${d.label}・${rankingSelection.questionCount}問`;
+
+    // 破損データ等でStorage側の読み取り自体が想定外に失敗しても、
+    // ランキング画面が真っ白/エラーになることなく「記録なし」として表示する
+    let records = [];
+    try {
+      records = Storage.getFindCountryRanking(courseKey);
+    } catch (e) {
+      records = [];
+    }
+
+    const list = $("findcountry-ranking-list");
+    list.innerHTML = "";
+    for (let i = 0; i < FINDCOUNTRY_RANKING_TOP_N; i++) {
+      const record = records[i];
+      const row = document.createElement("div");
+      row.className = "findcountry-rank-row" + (i === 0 ? " rank-1" : "") + (record ? "" : " empty");
+      if (record) {
+        row.innerHTML =
+          `<span class="findcountry-rank-num">${i + 1}位</span>` +
+          `<div class="findcountry-rank-main">` +
+          `<span class="findcountry-rank-score">${record.score}点</span>` +
+          `<span class="findcountry-rank-meta">正解 ${record.correctCount}/${record.answeredCount}問・平均${record.avgElapsedSeconds.toFixed(2)}秒・最大連続${record.maxStreak}</span>` +
+          `<span class="findcountry-rank-date">${formatRankingDate(record.playedAt)}</span>` +
+          `</div>`;
+      } else {
+        row.innerHTML =
+          `<span class="findcountry-rank-num">${i + 1}位</span>` +
+          `<div class="findcountry-rank-main">` +
+          `<span class="findcountry-rank-score">—</span>` +
+          `<span class="findcountry-rank-meta">記録がありません</span>` +
+          `</div>`;
+      }
+      list.appendChild(row);
+    }
   }
 
   // ---------- 初期化(一度だけ呼ぶ。画面遷移を繰り返しても再登録しない) ----------
@@ -820,6 +970,16 @@ const FindCountryModule = (() => {
     });
     $("btn-findcountry-result-to-home").addEventListener("click", () => {
       showScreen("screen-top");
+    });
+
+    $("btn-findcountry-ranking-open").addEventListener("click", () => {
+      openRankingScreen(rankingSelection.difficultyId, rankingSelection.questionCount);
+    });
+    $("btn-findcountry-result-ranking").addEventListener("click", () => {
+      openRankingScreen(
+        quizState.difficultyId,
+        quizState.difficultyId === PRO_DIFFICULTY_ID ? null : quizState.sequence.length
+      );
     });
   }
 
