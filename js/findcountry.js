@@ -465,6 +465,7 @@ const FindCountryModule = (() => {
     resultText.classList.add("hidden");
     resultText.classList.remove("is-correct", "is-wrong");
     resultText.textContent = "";
+    $("findcountry-quiz-new-badge").classList.add("hidden");
 
     $("findcountry-quiz-pass").classList.toggle("hidden", d.id === PRO_DIFFICULTY_ID);
     $("findcountry-quiz-pass").disabled = false;
@@ -535,11 +536,24 @@ const FindCountryModule = (() => {
   // 呼び出し元から明示的に0を渡す
   function finalizeAnswer(result, answeredId, secondsLeft) {
     const d = difficultyById(quizState.difficultyId);
-
+    // コレクションへの獲得登録は正解時のみ、この回答確定処理の中で一度だけ
+    // 行う(二重タップはhandleTap/handlePass側のquizState.answeredガードで
+    // そもそもfinalizeAnswerに到達しないため、ここで多重に呼ばれる心配はない)。
+    // ランキングの記録(Storage.submitFindCountryRecord、結果画面でまとめて
+    // 送信)とは異なり、こちらは問題ごとに独立して完結させる。既に獲得済みの
+    // 国・地域はStorage.captureFindCountryEntry()がfalseを返すだけで何も
+    // 起きない(重複登録防止)。保存に失敗してもクイズの進行自体は止めない
+    let isNewCapture = false;
     if (result === "correct") {
       quizState.currentStreak += 1;
       if (quizState.currentStreak > quizState.maxStreak) {
         quizState.maxStreak = quizState.currentStreak;
+      }
+      try {
+        isNewCapture = Storage.captureFindCountryEntry(quizState.currentCountry.id, new Date().toISOString());
+      } catch (e) {
+        console.warn("世界の国どこかな？: コレクションの記録に失敗しました", e);
+        isNewCapture = false;
       }
     } else {
       // 不正解・パス・時間切れは、その後に正解位置を確認しても
@@ -573,11 +587,11 @@ const FindCountryModule = (() => {
     }
 
     updateLivesDisplay();
-    showFeedback(result, answeredId);
+    showFeedback(result, answeredId, isNewCapture);
   }
 
   // ---------- 正誤判定の表示(kind: "correct" | "wrong" | "pass" | "timeout") ----------
-  function showFeedback(kind, tappedId) {
+  function showFeedback(kind, tappedId, isNewCapture) {
     const correctId = quizState.currentCountry.id;
     const correctName = quizState.currentCountry.name;
 
@@ -596,6 +610,17 @@ const FindCountryModule = (() => {
     } else {
       resultText.classList.add("is-wrong");
       resultText.textContent = `⏭ パスしました……正解は「${correctName}」でした`;
+    }
+
+    // コレクション初獲得のお知らせ。正解表示の邪魔にならないよう、
+    // 既存の文字列に埋め込まず独立した小さなバッジとして表示するだけに
+    // とどめ、派手な演出やアニメーションは付けない(連続正解のテンポを
+    // 損なわないため)
+    const newBadge = $("findcountry-quiz-new-badge");
+    if (kind === "correct" && isNewCapture) {
+      newBadge.classList.remove("hidden");
+    } else {
+      newBadge.classList.add("hidden");
     }
 
     // 正解の位置を地球儀上で確認できるようにする。selectCountryForQuiz()を
@@ -933,6 +958,128 @@ const FindCountryModule = (() => {
     }
   }
 
+  // ---------- コレクション画面(第5段階後半) ----------
+  // 対象は216件固定(COUNTRIES 198 + MAP_ONLY_REGIONS 18)。allMapIdCountries()は
+  // 出題プール構築で既に使っている関数をそのまま再利用し、データを複製しない。
+  // 一度計算すれば変わらないため、初回アクセス時にキャッシュする
+  let collectionAllIdsCache = null;
+  function collectionAllIds() {
+    if (!collectionAllIdsCache) {
+      collectionAllIdsCache = allMapIdCountries().map((c) => c.id);
+    }
+    return collectionAllIdsCache;
+  }
+
+  // 画面遷移をまたいで保持する地域フィルターとスクロール位置。地図・図鑑の
+  // 詳細画面を経由して戻ってきても(showCollectionScreen経由)、フィルターと
+  // 元のスクロール位置を維持する(第3段階A案の復習リストと同じ考え方)
+  let collectionRegionFilter = "all";
+  let collectionScrollTop = 0;
+
+  function renderCollectionScreen() {
+    // 破損データ等でStorage側の読み取り自体が想定外に失敗しても、
+    // コレクション画面が真っ白/エラーになることなく「未獲得」として表示する
+    let captured = {};
+    try {
+      captured = Storage.getFindCountryCollection();
+    } catch (e) {
+      captured = {};
+    }
+    const capturedIds = Object.keys(captured);
+    const total = collectionAllIds().length;
+    const rate = total > 0 ? Math.round((capturedIds.length / total) * 100) : 0;
+    $("findcountry-collection-summary").textContent = `獲得数 ${capturedIds.length} / ${total}件・達成率 ${rate}%`;
+
+    renderCollectionRegionTabs();
+    renderCollectionGrid(captured);
+  }
+
+  function renderCollectionRegionTabs() {
+    const wrap = $("findcountry-collection-region-tabs");
+    wrap.innerHTML = "";
+    // 世界地図・世界図鑑モードと同じregion値・ラベルをそのまま再利用し、
+    // 地域分類の体系を独自に定義し直さない
+    const order = (typeof MapModule !== "undefined" && MapModule.REGION_ORDER) || ["all"];
+    const labels = (typeof MapModule !== "undefined" && MapModule.REGION_LABELS) || { all: "🌍 全世界" };
+    order.forEach((region) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "findcountry-ranking-tab" + (region === collectionRegionFilter ? " active" : "");
+      btn.textContent = labels[region] || region;
+      btn.addEventListener("click", () => {
+        collectionRegionFilter = region;
+        renderCollectionScreen();
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function renderCollectionGrid(captured) {
+    // 世界図鑑(js/encyclopedia.js)の既存の地域フィルター・五十音順ロジックを
+    // そのまま再利用する(第3段階A案の復習リストと同じ考え方)。新しい
+    // 並び替え・絞り込みロジックは実装しない
+    const entries = EncyclopediaModule.filterAndSortByIds(collectionAllIds(), { regionFilter: collectionRegionFilter });
+
+    const grid = $("findcountry-collection-grid");
+    grid.innerHTML = "";
+    const frag = document.createDocumentFragment();
+    entries.forEach((entry) => {
+      const isCaptured = Object.prototype.hasOwnProperty.call(captured, entry.id);
+      if (isCaptured) {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "ency-card findcountry-collection-card captured";
+        card.dataset.id = entry.id;
+        const alt = entry.isFlagImage === false ? `${entry.name}のアイコン` : `${entry.name}の国旗`;
+        card.innerHTML =
+          `<img class="ency-card-flag" src="${entry.flag}" alt="${alt}" loading="lazy">` +
+          `<span class="ency-card-name">${entry.name}</span>`;
+        card.addEventListener("click", () => openCollectionEntryDetail(entry.id));
+        frag.appendChild(card);
+      } else {
+        // 未獲得は「？」のみで表示し、国旗画像自体は読み込まない。
+        // どの国・地域が残っているかのネタバレを避け、収集する楽しさを残す
+        const card = document.createElement("div");
+        card.className = "ency-card findcountry-collection-card locked";
+        card.setAttribute("aria-label", "未獲得");
+        card.innerHTML =
+          `<span class="findcountry-collection-locked-icon" aria-hidden="true">？</span>` +
+          `<span class="ency-card-name">？？？</span>`;
+        frag.appendChild(card);
+      }
+    });
+    grid.appendChild(frag);
+
+    $("findcountry-collection-empty").classList.toggle("hidden", entries.length > 0);
+  }
+
+  // 獲得済みの国・地域をタップした時の処理。既存の世界図鑑の詳細画面を
+  // そのidで開く(図鑑対象外の地図専用地域もMAP_ONLY_REGIONSとして図鑑の
+  // 「地域」カテゴリーに含まれているため、210件・6件を区別せず同じ経路で
+  // 開ける)。戻り先はjs/app.jsの画面遷移スタック(mapEncyclopediaNavStack、
+  // 第3段階A案の復習リストと同じ仕組み)に積み、地図を経由して何度
+  // 往復してもコレクションへ正しく戻れるようにする
+  function openCollectionEntryDetail(id) {
+    collectionScrollTop = document.scrollingElement ? document.scrollingElement.scrollTop : 0;
+    pushMapEncyclopediaNav({ screen: "findcountry-collection" });
+    EncyclopediaModule.openDetailById(id, encyclopediaBackOptionsFromStack());
+  }
+
+  // 画面を表示するだけで、地域フィルターは変更しない。地図・図鑑の詳細画面を
+  // 経由して戻ってきた場合に使う(js/app.jsのencyclopediaBackOptionsFromStack参照)
+  function showCollectionScreen() {
+    renderCollectionScreen();
+    showScreen("screen-findcountry-collection");
+    requestAnimationFrame(() => {
+      if (document.scrollingElement) document.scrollingElement.scrollTop = collectionScrollTop;
+    });
+  }
+
+  function openCollectionScreen() {
+    collectionScrollTop = 0;
+    showCollectionScreen();
+  }
+
   // ---------- 初期化(一度だけ呼ぶ。画面遷移を繰り返しても再登録しない) ----------
   function initEvents() {
     $("findcountry-quiz-back").addEventListener("click", handleQuizBackClick);
@@ -981,6 +1128,13 @@ const FindCountryModule = (() => {
         quizState.difficultyId === PRO_DIFFICULTY_ID ? null : quizState.sequence.length
       );
     });
+
+    $("btn-findcountry-collection-open").addEventListener("click", () => {
+      openCollectionScreen();
+    });
+    $("btn-findcountry-result-collection").addEventListener("click", () => {
+      openCollectionScreen();
+    });
   }
 
   // ---------- 外部から呼ぶ入口(トップ画面のモードカードから呼ばれる) ----------
@@ -998,5 +1152,12 @@ const FindCountryModule = (() => {
     return quizState.results.slice();
   }
 
-  return { initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, isProCompleteRun };
+  // showCollectionScreenは、js/app.jsの画面遷移スタック
+  // (encyclopediaBackOptionsFromStack)が、地図・図鑑の詳細画面を経由して
+  // コレクションへ戻る際に呼ぶための公開関数(ReviewModule.showList()と
+  // 同じ役割)
+  return {
+    initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, isProCompleteRun,
+    showCollectionScreen,
+  };
 })();

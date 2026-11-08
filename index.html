@@ -84,7 +84,10 @@
     <h2 class="screen-title">世界の国どこかな？</h2>
     <p class="findcountry-select-lead">難易度をえらぼう</p>
     <div id="findcountry-difficulty-options" class="count-grid"></div>
-    <button id="btn-findcountry-ranking-open" class="btn btn-secondary findcountry-ranking-entry">🏆 ランキングを見る</button>
+    <div class="findcountry-entry-buttons">
+      <button id="btn-findcountry-ranking-open" class="btn btn-secondary findcountry-ranking-entry">🏆 ランキング</button>
+      <button id="btn-findcountry-collection-open" class="btn btn-secondary findcountry-ranking-entry">📚 コレクション</button>
+    </div>
   </div>
 </section>
 
@@ -97,6 +100,23 @@
     <div id="findcountry-ranking-count-tabs" class="findcountry-ranking-tabs"></div>
     <p id="findcountry-ranking-course-label" class="findcountry-ranking-course-label"></p>
     <div id="findcountry-ranking-list" class="findcountry-ranking-list"></div>
+  </div>
+</section>
+
+<!-- ============ 世界の国どこかな？: コレクション画面(第5段階後半) ============
+     正解した国・地域(216件)を収集して確認できる画面。既存の世界図鑑
+     (js/encyclopedia.js)のカード(.ency-card)・地域フィルターの考え方を
+     再利用し、新しいグリッドコンポーネントは追加しない ============ -->
+<section id="screen-findcountry-collection" class="screen">
+  <div class="ency-wrap">
+    <div class="ency-topbar">
+      <button class="btn-back" data-back="screen-findcountry-difficulty" aria-label="戻る">← 戻る</button>
+      <h2 class="ency-title">📚 コレクション</h2>
+    </div>
+    <p id="findcountry-collection-summary" class="findcountry-collection-summary"></p>
+    <div id="findcountry-collection-region-tabs" class="findcountry-ranking-tabs"></div>
+    <div id="findcountry-collection-grid" class="ency-grid"></div>
+    <p id="findcountry-collection-empty" class="ency-empty hidden">該当する国・地域がありません</p>
   </div>
 </section>
 
@@ -133,7 +153,10 @@
     </div>
     <div class="result-buttons">
       <button id="btn-findcountry-result-retry" class="btn btn-primary">もう一度遊ぶ</button>
-      <button id="btn-findcountry-result-ranking" class="btn btn-secondary">🏆 ランキングを見る</button>
+      <div class="findcountry-entry-buttons">
+        <button id="btn-findcountry-result-ranking" class="btn btn-secondary">🏆 ランキング</button>
+        <button id="btn-findcountry-result-collection" class="btn btn-secondary">📚 コレクション</button>
+      </div>
       <button id="btn-findcountry-result-to-select" class="btn btn-secondary">コース選択へ戻る</button>
       <button id="btn-findcountry-result-to-home" class="btn btn-plain">ホームへ戻る</button>
     </div>
@@ -311,6 +334,7 @@
       <p id="findcountry-quiz-question-label" class="findcountry-quiz-question-label">この国・地域はどこ？</p>
       <p id="findcountry-quiz-country-name" class="findcountry-quiz-country-name"></p>
       <p id="findcountry-quiz-result-text" class="findcountry-quiz-result-text hidden" role="status" aria-live="polite"></p>
+      <span id="findcountry-quiz-new-badge" class="findcountry-quiz-new-badge hidden">🆕 コレクションに追加！</span>
     </div>
 
     <div id="map-globe-container" class="map-globe-container"></div>
