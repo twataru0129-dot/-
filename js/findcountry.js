@@ -805,10 +805,11 @@ const FindCountryModule = (() => {
   // できる状態に戻す。retryFeedbackActiveをこの関数の最初で即座にfalseに
   // するため、連打しても2回目以降は何もしない(二重処理防止)
   function handleRetryClick() {
-    // 1. 再挑戦待ち状態を解除し、連打による二重実行を防ぐ(2回目以降の
-    // クリックはここで即座に戻る)
+    // 1. 再挑戦待ち状態かどうかを確認する(連打による二重処理防止)。この時点では
+    // まだretryFeedbackActiveをfalseにしない。2〜5が1つでも失敗した場合に
+    // 再挑戦待ち状態をtrueのまま保持し、利用者が再度このボタンを押して
+    // やり直せるようにするため(falseにするのは、全て成功した後の最後だけ)
     if (!retryFeedbackActive) return;
-    retryFeedbackActive = false;
 
     try {
       // 2. 赤色ハイライトを解除する
@@ -827,13 +828,21 @@ const FindCountryModule = (() => {
 
       // 5. 同じ問題のタップ回答を再び受け付ける
       quizState.answered = false;
-    } finally {
-      // 6. 最後に残り時間からタイマーを再開する。既存の一時停止オーバーレイが
-      // 表示されている場合はapplyTimerPauseState内の判定でタイマーを再開しない。
-      // 2〜5の途中で例外が発生しても、タイマーの一時停止状態がretryFeedbackActive
-      // (既に1でfalseにした)と食い違ったまま放置されることがないよう、
-      // 必ずここで最終的な一時停止/再開の状態を確定させる
+
+      // 2〜5が全て成功した場合だけ、再挑戦待ち状態を解除し、
+      // 6. 残り時間からタイマーを再開する(既存の一時停止オーバーレイが
+      // 表示されている場合はapplyTimerPauseState内の判定でタイマーを再開しない)
+      retryFeedbackActive = false;
       applyTimerPauseState();
+    } catch (e) {
+      // 2〜5のいずれかで例外が発生した場合、retryFeedbackActiveをtrueのまま
+      // (タイマーも一時停止したまま)にして再挑戦待ち状態を保持する。
+      // ここでapplyTimerPauseStateを呼ばない(=呼ばなければタイマーは
+      // 一時停止したまま変化しない)ため、「正常に再挑戦準備が完了した場合だけ
+      // タイマーを再開する」が保証される。利用者は再度「もう一度さがす」を
+      // 押せば、quizState.answeredがまだtrueのため誤って地球儀をタップしても
+      // 回答にはならず、安全にやり直せる
+      console.warn("世界の国どこかな？: 再挑戦の準備中にエラーが発生しました", e);
     }
   }
 
