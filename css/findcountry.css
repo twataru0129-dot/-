@@ -407,6 +407,28 @@
   cursor: default;
 }
 .findcountry-quiz-pass-btn:disabled:active { transform: none; }
+/* 不正解で選んだ国・地域を赤色で確認している間に表示する「もう一度さがす」。
+   既存の「次の問題へ」ボタンと同じフッター領域・同じ大きさを使い、
+   色だけを変えて「次へ進む」ボタンと混同しないようにする */
+.findcountry-quiz-retry-btn {
+  width: 100%;
+  max-width: 320px;
+  padding: 13px 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+.findcountry-quiz-retry-btn:active { transform: scale(0.97); }
+.findcountry-quiz-retry-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
 .findcountry-quiz-next-btn {
   width: 100%;
   max-width: 320px;
@@ -484,6 +506,7 @@
     justify-content: center;
   }
   .findcountry-quiz-pass-btn,
+  .findcountry-quiz-retry-btn,
   .findcountry-quiz-next-btn {
     width: auto;
     min-width: 200px;
