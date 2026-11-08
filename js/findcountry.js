@@ -1,11 +1,10 @@
 // ==========================================================
-// 第4段階「世界の国どこかな？」第2段階: 基本画面の実装
+// 第4段階「世界の国どこかな？」第3段階: 出題・正誤判定の実装
 //
-// 今回のPRで実装するのは画面・画面遷移・地図操作の土台だけ。
-// 出題の抽選、正誤判定、タイマーのカウントダウン、ライフ減少、
-// パス処理、得点計算、最大連続正解の記録、一時停止時のタイマー制御、
-// ランキング、コレクション、PRO専用ゲームロジックは一切実装しない
-// (この段階ではすべて画面確認用の仮データで代替する)。
+// 今回実装するのは実際の出題抽選・タップ回答・正誤判定・結果集計のみ。
+// 得点計算、ライフ減少、制限時間のカウントダウン、最大連続正解の正式集計、
+// 成績の永続保存、ランキング、コレクション、PRO専用演出は実装しない
+// (第2段階からの画面・画面遷移の土台はそのまま再利用する)。
 //
 // 3D地球儀はPR #43で地図モードが使っているものをそのまま再利用する。
 // 別の地球儀インスタンスを作らず、既存の#map-globe-container/#screen-map
@@ -16,11 +15,6 @@ const FindCountryModule = (() => {
   function $(id) { return document.getElementById(id); }
 
   // ---------- 難易度・コース定義 ----------
-  // 件数・制限時間はユーザー提示の確定仕様の値をそのまま使う。
-  // 上級(212)はPRO(216)からrandomEligible:falseの4地域(南極大陸・
-  // 北キプロス・ソマリランド・シアチェン氷河)を除いた件数に一致する
-  // (216-4=212)。ここではその4地域を除外する実際の抽選処理は
-  // 実装しない(次のPR以降)。既存のrandomEligible:falseは一切変更しない
   const DIFFICULTIES = [
     { id: "beginner", label: "初級", count: 100, seconds: 30, icon: "🌱" },
     { id: "intermediate", label: "中級", count: 198, seconds: 25, icon: "⭐" },
@@ -34,27 +28,107 @@ const FindCountryModule = (() => {
     return DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES[0];
   }
 
+  // 上級(212)は、PRO(216)からこの4地域(国家としての地位が定まっていない、
+  // または国ではない地域。js/map-regions.jsでrandomEligible:falseが
+  // 付いている4件と同じ)を除いた件数。既存のrandomEligible自体は
+  // 「ランダムな国へ」専用のフラグのため一切変更せず、ここでは出題対象の
+  // 除外だけを別途このID一覧で行う
+  const ADVANCED_EXCLUDED_IDS = ["antarctica", "cyn", "sol", "kas"];
+
+  // 初級100件の確定リスト。このタスク開始前の調査時点でリポジトリ内には
+  // 実データとして存在しなかったため新規に選び直すことはせず、過去の会話で
+  // 利用者自身が明示的に提示し、全件が既存countries.jsのidと一致し重複・
+  // 欠落も無いことを確認済みの、この100件をそのまま確定リストとして使う
+  // (地域内訳: アジア28/ヨーロッパ25/アフリカ24/アメリカ19/オセアニア4)
+  const BEGINNER_100_IDS = [
+    "jp", "cn", "kr", "kp", "mn", "tw", "in", "pk", "bd", "np",
+    "af", "ir", "iq", "sa", "tr", "il", "jo", "kz", "uz", "th",
+    "vn", "kh", "mm", "my", "id", "ph", "lk", "la",
+    "gb", "ie", "fr", "de", "es", "pt", "it", "ch", "at", "be",
+    "nl", "dk", "no", "se", "fi", "is", "pl", "cz", "hu", "gr",
+    "ua", "ro", "bg", "rs", "ru",
+    "eg", "ly", "dz", "ma", "tn", "sd", "et", "ke", "tz", "so",
+    "ng", "gh", "ci", "ml", "ne", "td", "cm", "cd", "ao", "na",
+    "za", "mg", "mz", "zm",
+    "us", "ca", "mx", "gt", "ni", "pa", "cu", "cr", "br", "ar",
+    "cl", "pe", "co", "ve", "bo", "ec", "py", "uy", "do",
+    "au", "nz", "pg", "fj",
+  ];
+
+  // ---------- 出題対象プールの構築 ----------
+  // COUNTRIES(198件、quiz.js/encyclopedia.jsと同じ国旗/首都クイズ対象)と
+  // MAP_ONLY_REGIONS(18件、地図専用地域)の合算パターンは、既存の
+  // encyclopedia.js/map.jsが使っているものと同じ動的な合算にする
+  // (新モード専用に198件を複製しない)
+  function allMapIdCountries() {
+    return COUNTRIES.concat(typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : []);
+  }
+
+  function buildPoolIds(difficultyId) {
+    const allIds = allMapIdCountries().map((c) => c.id);
+    switch (difficultyId) {
+      case "beginner":
+        return BEGINNER_100_IDS.slice();
+      case "intermediate":
+        return COUNTRIES.map((c) => c.id);
+      case "advanced":
+        return allIds.filter((id) => !ADVANCED_EXCLUDED_IDS.includes(id));
+      case "pro":
+        return allIds;
+      default:
+        return COUNTRIES.map((c) => c.id);
+    }
+  }
+
+  function buildPoolCountries(difficultyId) {
+    const byId = new Map(allMapIdCountries().map((c) => [c.id, c]));
+    return buildPoolIds(difficultyId)
+      .map((id) => byId.get(id))
+      .filter(Boolean);
+  }
+
+  // ---------- 出題対象データの自己検証(既存のjs/app.js冒頭にある
+  // console.assertベースの検証パターンを踏襲)。問題が無ければ何も出力しない ----------
+  function validatePools() {
+    const all = allMapIdCountries();
+    const allIds = new Set(all.map((c) => c.id));
+    console.assert(all.length === 216, `世界の国どこかな？: 出題対象の全件数が216件ではありません(実際: ${all.length}件)`);
+    console.assert(allIds.size === all.length, "世界の国どこかな？: 全216件のIDに重複があります");
+
+    DIFFICULTIES.forEach((d) => {
+      const ids = buildPoolIds(d.id);
+      console.assert(ids.length === d.count, `世界の国どこかな？: 難易度「${d.label}」の出題対象数が${d.count}件ではありません(実際: ${ids.length}件)`);
+      console.assert(new Set(ids).size === ids.length, `世界の国どこかな？: 難易度「${d.label}」の出題対象にID重複があります`);
+      const invalidIds = ids.filter((id) => !allIds.has(id));
+      console.assert(invalidIds.length === 0, `世界の国どこかな？: 難易度「${d.label}」の出題対象に不正なIDがあります: ${invalidIds.join(", ")}`);
+    });
+
+    const advancedIds = new Set(buildPoolIds("advanced"));
+    const wronglyIncluded = ADVANCED_EXCLUDED_IDS.filter((id) => advancedIds.has(id));
+    console.assert(wronglyIncluded.length === 0, `世界の国どこかな？: 上級に除外対象の地域が含まれています: ${wronglyIncluded.join(", ")}`);
+
+    const proIds = new Set(buildPoolIds("pro"));
+    const missingFromPro = ADVANCED_EXCLUDED_IDS.filter((id) => !proIds.has(id));
+    console.assert(missingFromPro.length === 0, `世界の国どこかな？: PROに南極大陸・北キプロス・ソマリランド・シアチェン氷河が含まれていません: ${missingFromPro.join(", ")}`);
+  }
+  validatePools();
+
   // ---------- 画面遷移をまたいで保持するコース選択(成績としては保存しない) ----------
   const selection = {
     difficultyId: null,
     questionCount: null,
   };
 
-  // ---------- 今回の画面確認用の仮データ(MOCK) ----------
-  // 実際の出題処理と混同しないよう、関数名・変数名に必ずmock/Mockを付ける。
-  // 次のPRで本物の出題抽選に置き換える際、ここを参照している箇所だけを
-  // 差し替えれば済むよう、画面の更新ロジックとは分離してある
-  const MOCK_QUESTION_NAMES = ["ブラジル", "日本", "フランス", "ケニア", "インド"];
-  const mockQuiz = {
+  // ---------- 今回のプレイ中だけメモリ上で保持するクイズの進行状態 ----------
+  // 成績としてlocalStorageへは一切保存しない(仕様どおり、今回のプレイ限り)
+  const quizState = {
     difficultyId: null,
-    questionCount: null,
+    sequence: [], // 出題順に並んだ国・地域オブジェクトの配列(同一プレイ中は重複しない)
     currentIndex: 0, // 0始まり
-    lives: 3,
+    currentCountry: null,
+    answered: false, // 今の問題について既に回答確定済み(タップ・パス)かどうか
+    results: [], // {questionNumber, countryId, answeredId, result:"correct"|"wrong"|"pass"}
   };
-
-  function mockCountryNameFor(index) {
-    return MOCK_QUESTION_NAMES[index % MOCK_QUESTION_NAMES.length];
-  }
 
   // ---------- 難易度選択画面 ----------
   function renderDifficultyScreen() {
@@ -73,11 +147,9 @@ const FindCountryModule = (() => {
       card.addEventListener("click", () => {
         selection.difficultyId = d.id;
         if (d.id === PRO_DIFFICULTY_ID) {
-          // PROは問題数選択を経由しない別枠。問題数・開始条件の詳細な
-          // 確定仕様が無いため、今回は全216件・1回ずつという前提だけを
-          // 仮表示する(勝手に確定しない)
+          // PROは問題数選択を経由しない別枠。216件を1回ずつ出題する
           selection.questionCount = null;
-          startMockQuiz(d.id, null);
+          startQuiz(d.id, null);
           return;
         }
         selection.questionCount = null;
@@ -101,32 +173,46 @@ const FindCountryModule = (() => {
       card.innerHTML = `<div class="count-num">${count}</div><div class="count-unit">問</div>`;
       card.addEventListener("click", () => {
         selection.questionCount = count;
-        startMockQuiz(difficultyId, count);
+        startQuiz(difficultyId, count);
       });
       grid.appendChild(card);
     });
   }
 
+  // ---------- 出題順の決定(ランダム抽選) ----------
+  // Fisher-Yatesシャッフル(js/quiz.jsの既存のshuffleArray/pickRandom、
+  // QuizEngineの外にある素のグローバル関数)を再利用し、新たに別の
+  // シャッフル処理を実装しない。シャッフル元の配列には同じidが一度ずつしか
+  // 含まれないため(buildPoolCountries参照)、slice()した結果も同一プレイ中に
+  // 重複が生じない。PROは問題数を選ばず、216件をシャッフルした全件を使う
+  function buildQuestionSequence(difficultyId, questionCount) {
+    const pool = buildPoolCountries(difficultyId);
+    if (difficultyId === PRO_DIFFICULTY_ID) {
+      return shuffleArray(pool);
+    }
+    const count = Math.max(1, Math.min(questionCount || pool.length, pool.length));
+    return pickRandom(pool, count);
+  }
+
   // ---------- クイズ画面(既存の#screen-map/3D地球儀を再利用) ----------
-  function startMockQuiz(difficultyId, questionCount) {
-    mockQuiz.difficultyId = difficultyId;
-    mockQuiz.questionCount = questionCount; // PROはnullのまま(今回は仮実装)
-    mockQuiz.currentIndex = 0;
-    mockQuiz.lives = 3;
+  function startQuiz(difficultyId, questionCount) {
+    quizState.difficultyId = difficultyId;
+    quizState.sequence = buildQuestionSequence(difficultyId, questionCount);
+    quizState.currentIndex = 0;
+    quizState.results = [];
+    quizState.answered = false;
 
     showScreen("screen-map");
     enterFindCountryMapMode();
-    renderMockQuestion();
     hidePauseOverlay();
 
-    // 前回の通常の地図探索モードの選択状態が残っていないようにしてから
-    // クイズ用のタップ判定取得APIを登録する(PR #43のsetTapResultHandler)。
-    // 今回は正誤判定を実装しないため、開発・画面確認用にタップされた
-    // id(内部値)だけを記録する。一般利用者向けの画面には表示しない
+    // 前回の通常の地図探索モード・前回のクイズ結果の強調表示が残っていないか
+    // 確実に確認してから、クイズ用のタップ判定取得API(PR #43)を登録する
     MapModule.clearQuizSelection();
-    MapModule.setTapResultHandler((id) => {
-      showMockDevTap(id);
-    });
+    MapModule.clearQuizResultHighlight();
+    MapModule.setTapResultHandler(handleTap);
+
+    renderQuestion();
   }
 
   // クイズ専用ヘッダー/出題文/フッターの表示・非表示。.hidden(全体共通の
@@ -142,35 +228,50 @@ const FindCountryModule = (() => {
   function enterFindCountryMapMode() {
     $("screen-map").classList.add("findcountry-mode");
     setFindCountryChromeVisible(true);
+    // ライフ・残り時間は今回のPRでは実装しない(常に固定値を表示し続けると
+    // 利用者に誤解を与えるため、実装するまでは表示自体を隠す)
+    $("findcountry-quiz-status").classList.add("hidden");
     // 既存の世界地図モードと全く同じ初期化・再開ロジック(ensureReady/
-    // resumeAnimation等)を呼ぶだけで、別の地球儀は一切作らない。
-    // 既存の検索・地域フィルター・ランダムボタン・通常ピン切替ボタンの
-    // 戻るボタン(backLabel/onBack)は、クイズ画面では独自の戻るボタンを
-    // 使うため使われない(押されないボタンに紐付くだけで無害)
+    // resumeAnimation等)を呼ぶだけで、別の地球儀は一切作らない
     MapModule.open();
   }
 
   // 既存の世界地図モードへ戻った際、通常の地図操作が完全に復元されるよう、
-  // クイズ専用のタップハンドラー・UIモードを必ず元に戻す
+  // クイズ専用のタップハンドラー・強調表示・選択状態を必ず元に戻す
   function leaveFindCountryMapMode() {
     MapModule.clearTapResultHandler();
+    MapModule.clearQuizResultHighlight();
+    MapModule.clearQuizSelection();
     MapModule.close();
     $("screen-map").classList.remove("findcountry-mode");
     setFindCountryChromeVisible(false);
   }
 
-  function renderMockQuestion() {
-    const d = difficultyById(mockQuiz.difficultyId);
-    const total = mockQuiz.questionCount || d.count;
-    $("findcountry-quiz-difficulty").textContent = `${d.icon} ${d.label}`;
-    $("findcountry-quiz-progress").textContent = `第${mockQuiz.currentIndex + 1} / ${total}問`;
-    $("findcountry-quiz-lives").textContent = "❤️".repeat(Math.max(0, mockQuiz.lives));
-    $("findcountry-quiz-timer").textContent = `⏱ ${d.seconds}`;
-    $("findcountry-quiz-country-name").textContent = mockCountryNameFor(mockQuiz.currentIndex);
+  // ---------- 出題画面の表示更新 ----------
+  function renderQuestion() {
+    const d = difficultyById(quizState.difficultyId);
+    const total = quizState.sequence.length;
+    quizState.currentCountry = quizState.sequence[quizState.currentIndex];
+    quizState.answered = false;
 
-    // パスボタンはPROでは使用不可(確定仕様)。今回はボタン自体の表示/非表示だけを
-    // 実装し、実際のパス処理(ライフ減少・連続正解リセット等)は次のPR以降で行う
+    // 正解の自動ハイライト・自動カメラ移動・国名ラベル・情報カードは
+    // 一切行わない(クイズ専用の強調表示を必ず解除してから次の問題を出す)
+    MapModule.clearQuizResultHighlight();
+    MapModule.clearQuizSelection();
+
+    $("findcountry-quiz-difficulty").textContent = `${d.icon} ${d.label}`;
+    $("findcountry-quiz-progress").textContent = `第${quizState.currentIndex + 1} / ${total}問`;
+    $("findcountry-quiz-country-name").textContent = quizState.currentCountry.name;
+
+    const resultText = $("findcountry-quiz-result-text");
+    resultText.classList.add("hidden");
+    resultText.classList.remove("is-correct", "is-wrong");
+    resultText.textContent = "";
+
     $("findcountry-quiz-pass").classList.toggle("hidden", d.id === PRO_DIFFICULTY_ID);
+    $("findcountry-quiz-pass").disabled = false;
+    $("findcountry-quiz-next").classList.add("hidden");
+    $("findcountry-quiz-hint").classList.remove("hidden");
 
     if (DEBUG_MODE) {
       $("findcountry-quiz-dev-tap").classList.remove("hidden");
@@ -180,23 +281,92 @@ const FindCountryModule = (() => {
     }
   }
 
-  function showMockDevTap(id) {
-    if (!DEBUG_MODE) return;
-    $("findcountry-quiz-dev-tap").textContent = `(開発用) タップ結果: ${id}`;
+  // ---------- 回答結果の一時記録(今回のプレイ中だけメモリ上で保持) ----------
+  function recordResult(result, answeredId) {
+    quizState.results.push({
+      questionNumber: quizState.currentIndex + 1,
+      countryId: quizState.currentCountry.id,
+      answeredId: answeredId || null,
+      result, // "correct" | "wrong" | "pass"(将来の得点計算等のために区別できる形式で保持)
+    });
   }
 
-  // パスボタン: 今回は正誤判定・ライフ減少・連続正解リセットを一切行わない、
-  // 「問題の切り替え」という画面遷移だけを確認するための仮実装。
-  // 最後の問題でパスすると、画面確認用に結果画面(仮データ)へ進める
-  function handleMockPass() {
-    const d = difficultyById(mockQuiz.difficultyId);
-    const total = mockQuiz.questionCount || d.count;
-    mockQuiz.currentIndex += 1;
-    if (mockQuiz.currentIndex >= total) {
-      showMockResult();
+  // ---------- 正誤判定の表示(kind: "correct" | "wrong" | "pass") ----------
+  function showFeedback(kind, tappedId) {
+    const correctId = quizState.currentCountry.id;
+    const correctName = quizState.currentCountry.name;
+
+    const resultText = $("findcountry-quiz-result-text");
+    resultText.classList.remove("hidden", "is-correct", "is-wrong");
+
+    if (kind === "correct") {
+      resultText.classList.add("is-correct");
+      resultText.textContent = `✅ 正解！ ここが「${correctName}」です`;
+    } else if (kind === "wrong") {
+      resultText.classList.add("is-wrong");
+      resultText.textContent = `❌ 残念！不正解……正解は「${correctName}」でした`;
+    } else {
+      resultText.classList.add("is-wrong");
+      resultText.textContent = `⏭ パスしました……正解は「${correctName}」でした`;
+    }
+
+    // 正解の位置を地球儀上で確認できるようにする。selectCountryForQuiz()を
+    // {autoZoom:true}で呼び、国・地域の実際の大きさに応じた自動ズームで
+    // カメラを移動しつつ、📍を強制的に表示・拡大する(情報カードは開かない)。
+    // これによりバヌアツ・コモロのような固定ピン対象外の小国・島しょ地域や
+    // 南極大陸でも位置を確認しやすくする。setQuizResultHighlight()で
+    // 正解(緑)・実際にタップして不正解だった国(赤、タップがある場合のみ)を
+    // 色分けする。色だけに頼らないよう、上記の文字・記号による表示を必ず
+    // 併用する。既存の世界地図の色分け・国境線はこの間だけ一時的に変わり、
+    // 次の問題・退出時に必ず元へ戻す
+    MapModule.selectCountryForQuiz(correctId, { autoZoom: true });
+    MapModule.setQuizResultHighlight(correctId, kind === "wrong" ? tappedId : null);
+
+    $("findcountry-quiz-pass").classList.add("hidden");
+    $("findcountry-quiz-hint").classList.add("hidden");
+    const isLastQuestion = quizState.currentIndex + 1 >= quizState.sequence.length;
+    const nextBtn = $("findcountry-quiz-next");
+    nextBtn.textContent = isLastQuestion ? "結果を見る" : "次の問題へ ▶";
+    nextBtn.classList.remove("hidden");
+
+    if (DEBUG_MODE) {
+      $("findcountry-quiz-dev-tap").textContent = `(開発用) タップ結果: ${tappedId || "(パス)"}`;
+    }
+  }
+
+  // ---------- タップ回答(PR #43のMapModule.setTapResultHandlerから呼ばれる) ----------
+  // 海上タップ・地球儀ドラッグ・ピンチはhandleMapTap内の既存ガードで
+  // この関数に到達する前に除外済みのため、ここに渡るidは必ず実在の国・地域。
+  // 1問につき回答は1回だけ受け付け、回答確定後(answered===true)の
+  // 追加タップは無視して結果を変化させない
+  function handleTap(tappedId) {
+    if (quizState.answered) return;
+    quizState.answered = true;
+    const correctId = quizState.currentCountry.id;
+    const isCorrect = tappedId === correctId;
+    recordResult(isCorrect ? "correct" : "wrong", tappedId);
+    showFeedback(isCorrect ? "correct" : "wrong", tappedId);
+  }
+
+  // ---------- パスボタン(通常コースのみ。PROでは表示されず、呼び出しても無効) ----------
+  function handlePass() {
+    if (quizState.answered) return;
+    if (quizState.difficultyId === PRO_DIFFICULTY_ID) return;
+    quizState.answered = true;
+    recordResult("pass", null);
+    showFeedback("pass", null);
+  }
+
+  // ---------- 「次の問題へ」/「結果を見る」ボタン ----------
+  function handleNextClick() {
+    if (!quizState.answered) return; // 回答確定前はこのボタンは表示されない(念のためのガード)
+    const isLastQuestion = quizState.currentIndex + 1 >= quizState.sequence.length;
+    if (isLastQuestion) {
+      showResult();
       return;
     }
-    renderMockQuestion();
+    quizState.currentIndex += 1;
+    renderQuestion();
   }
 
   // ---------- 一時停止 ----------
@@ -229,18 +399,16 @@ const FindCountryModule = (() => {
     showScreen("screen-top");
   }
 
-  // ---------- 結果画面(仮データ) ----------
-  function showMockResult() {
+  // ---------- 結果画面(今回のプレイの実際の回答結果を集計して表示) ----------
+  function showResult() {
     leaveFindCountryMapMode();
-    const d = difficultyById(mockQuiz.difficultyId);
-    const total = mockQuiz.questionCount || d.count;
-    const mockCorrect = Math.max(0, total - 1); // 画面確認用の仮の正解数
-    const mockRate = total > 0 ? Math.round((mockCorrect / total) * 100) : 0;
+    const d = difficultyById(quizState.difficultyId);
+    const total = quizState.results.length;
+    const correctCount = quizState.results.filter((r) => r.result === "correct").length;
+    const rate = total > 0 ? Math.round((correctCount / total) * 100) : 0;
     $("findcountry-result-course").textContent = `${d.icon} ${d.label}・${total}問`;
-    $("findcountry-result-score-fraction").textContent = `${total}問中${mockCorrect}問正解！`;
-    $("findcountry-result-rate").textContent = `正答率 ${mockRate}%`;
-    $("findcountry-result-streak").textContent = `最大連続正解 ${Math.max(0, mockCorrect - 1)}`;
-    $("findcountry-result-points").textContent = `得点 ${mockCorrect * 850}点`;
+    $("findcountry-result-score-fraction").textContent = `${total}問中${correctCount}問正解！`;
+    $("findcountry-result-rate").textContent = `正答率 ${rate}%`;
     showScreen("screen-findcountry-result");
   }
 
@@ -248,7 +416,8 @@ const FindCountryModule = (() => {
   function initEvents() {
     $("findcountry-quiz-back").addEventListener("click", handleQuizBackClick);
     $("findcountry-quiz-pause").addEventListener("click", showPauseOverlay);
-    $("findcountry-quiz-pass").addEventListener("click", handleMockPass);
+    $("findcountry-quiz-pass").addEventListener("click", handlePass);
+    $("findcountry-quiz-next").addEventListener("click", handleNextClick);
 
     $("findcountry-pause-resume").addEventListener("click", hidePauseOverlay);
     $("findcountry-pause-to-select").addEventListener("click", () => {
@@ -262,7 +431,7 @@ const FindCountryModule = (() => {
 
     $("btn-findcountry-result-retry").addEventListener("click", () => {
       if (selection.difficultyId) {
-        startMockQuiz(selection.difficultyId, selection.questionCount);
+        startQuiz(selection.difficultyId, selection.questionCount);
       } else {
         renderDifficultyScreen();
         showScreen("screen-findcountry-difficulty");
@@ -280,18 +449,6 @@ const FindCountryModule = (() => {
     $("btn-findcountry-result-to-home").addEventListener("click", () => {
       showScreen("screen-top");
     });
-
-    // 開発用の確認手段(本番画面には表示しない): 結果画面(仮データ)へ
-    // すぐ進める。通常のプレイ(パスを繰り返す)でも最終的に到達できるが、
-    // 確認を早めるためDEBUG_MODE時だけ追加する
-    if (DEBUG_MODE) {
-      const devBtn = document.createElement("button");
-      devBtn.type = "button";
-      devBtn.className = "findcountry-quiz-dev-skip-btn";
-      devBtn.textContent = "(開発用) 結果画面へ";
-      devBtn.addEventListener("click", showMockResult);
-      $("findcountry-quiz-footer").appendChild(devBtn);
-    }
   }
 
   // ---------- 外部から呼ぶ入口(トップ画面のモードカードから呼ばれる) ----------

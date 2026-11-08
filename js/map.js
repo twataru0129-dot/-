@@ -42,6 +42,13 @@ const MapModule = (() => {
   // 戻すため、呼び出し元が解除し忘れても次に世界地図を開いたときには
   // 通常モードに戻る(既存の世界地図モードへの影響を防ぐ安全策)
   let tapResultHandler = null;
+  // 第4段階「世界の国どこかな？」向け(第3段階: 出題・正誤判定)。
+  // 通常の選択(selectedCountryId、オレンジ)とは完全に別の状態として持ち、
+  // この2つがどちらもnullの間は既存の色分け・国境線の見た目を一切変えない。
+  // 正解の国・地域(quizCorrectHighlightId)は緑、回答者が実際にタップして
+  // 不正解だった国・地域(quizWrongHighlightId)は赤で、クイズ中だけ強調する
+  let quizCorrectHighlightId = null;
+  let quizWrongHighlightId = null;
   let selectRequestSeq = 0; // open()/retryMapLoad()呼び出しごとに増やし、古い非同期の選択リクエストが後から発火しても無視できるようにする
   let pendingSelectId = null; // 今回のopen()呼び出しで選択すべき国・地域のid(無ければnull)
   let isRandomFlightInProgress = false; // ランダム移動のカメラアニメーション中だけtrue
@@ -642,6 +649,17 @@ const MapModule = (() => {
     if (c.parentQuizId && c.parentQuizId === selectedCountryId) return true;
     return false;
   }
+  // 第4段階「世界の国どこかな？」向け(第3段階)。quizCorrectHighlightId/
+  // quizWrongHighlightIdがどちらもnullの間(クイズ中以外は常にこの状態)は
+  // 常にnullを返し、既存のisSelected()によるオレンジ表示だけが効く
+  function quizHighlightState(feat) {
+    if (!quizCorrectHighlightId && !quizWrongHighlightId) return null;
+    const c = countryByMapCode.get(feat.id);
+    if (!c) return null;
+    if (quizWrongHighlightId && c.id === quizWrongHighlightId) return "wrong";
+    if (quizCorrectHighlightId && c.id === quizCorrectHighlightId) return "correct";
+    return null;
+  }
   // 地域フィルターが有効なとき、選択中の地域に属する国かどうか。
   // フィルターが"all"のときは常にtrue(＝既存の見た目を完全に維持する)
   function isInActiveRegion(feat) {
@@ -650,6 +668,9 @@ const MapModule = (() => {
     return !!c && c.region === currentRegionFilter;
   }
   function polygonCapColor(feat) {
+    const quizState = quizHighlightState(feat);
+    if (quizState === "wrong") return "#d32f2f";
+    if (quizState === "correct") return "#2e7d32";
     if (isSelected(feat)) return "#ffb100";
     const base = baseFillColor(feat);
     if (currentRegionFilter === "all") return rgba(base, 0.95);
@@ -674,6 +695,9 @@ const MapModule = (() => {
   // 地図全体の国境が細く自然に見えるようにする
   const BORDER_STROKE_COLOR = "#7E9A8A";
   function polygonStrokeColor(feat) {
+    const quizState = quizHighlightState(feat);
+    if (quizState === "wrong") return "#8e0000";
+    if (quizState === "correct") return "#1b5e20";
     if (isSelected(feat)) return "#8a5500";
     if (currentRegionFilter === "all") return BORDER_STROKE_COLOR;
     return isInActiveRegion(feat) ? BORDER_STROKE_COLOR : "rgba(126, 154, 138, 0.3)";
@@ -2214,14 +2238,23 @@ const MapModule = (() => {
   // 新しい対象の値に上書きされ、refreshPolygonStyles()/refreshPinLayer()が
   // その時点の状態だけを見て描画し直すため、連続選択しても前回選んだ対象の
   // ハイライトや一時目印が残ることはない(既存のselectCountry()が元々持つ性質)
-  function selectCountryForQuiz(id) {
+  // options.autoZoom(第3段階「出題・正誤判定」で追加): trueのときだけ
+  // moveCamera:trueで呼び、既存の検索・ランダム選択と同じcomputeAutoZoom
+  // (国・地域の実際の大きさに応じた自動ズーム)とtempSearchMarkerId
+  // (PIN_TARGET_IDSに無い小国・地域でも、自動ズームしてなお画面上で
+  // 十分な大きさにできない場合に一時的な📍目印を出す既存の仕組み)を
+  // そのまま再利用する。これにより、正解発表時にバヌアツ・コモロのような
+  // 固定ピン対象外の小国・島しょ地域でも位置を確認しやすくする。
+  // 省略時(既定)は従来どおりmoveCamera:falseのまま、カメラは動かさない
+  function selectCountryForQuiz(id, options) {
     if (!globeInstance || !countryById) return false;
     const country = countryById.get(id);
     if (!country) {
       console.warn(`世界の国どこかな？: selectCountryForQuizに不正なID「${id}」が指定されました`);
       return false;
     }
-    selectCountry(country, { moveCamera: false, showInfoCard: false });
+    const autoZoom = !!(options && options.autoZoom);
+    selectCountry(country, { moveCamera: autoZoom, showInfoCard: false });
     return true;
   }
   // 選択状態の解除。既存のcloseInfoCard()がそのまま使える(選択解除・
@@ -2229,6 +2262,34 @@ const MapModule = (() => {
   // 状態管理を複製せずそのまま呼ぶだけの名前だけのエイリアスにする
   function clearQuizSelection() {
     closeInfoCard();
+  }
+
+  // ---- 第3段階: 正誤判定のクイズ専用ハイライト(緑/赤) ----
+  // 既存の色分け・国境線(polygonCapColor/polygonStrokeColor)には一切手を
+  // 加えず、quizCorrectHighlightId/quizWrongHighlightIdがどちらもnullの
+  // 間は従来通りの見た目のまま(上記quizHighlightState参照)。
+  // correctId: 正解の国・地域のid(必須)。wrongId: 回答者が実際にタップして
+  // 不正解だった国・地域のid(正解した場合や未回答はnull/undefinedで省略可)。
+  // 不正なidはそれぞれ無視して処理を続ける(両方不正ならfalseを返す)
+  function setQuizResultHighlight(correctId, wrongId) {
+    if (!globeInstance || !countryById) return false;
+    const correctValid = !correctId || countryById.has(correctId);
+    const wrongValid = !wrongId || countryById.has(wrongId);
+    if (!correctValid) {
+      console.warn(`世界の国どこかな？: setQuizResultHighlightに不正な正解ID「${correctId}」が指定されました`);
+    }
+    if (!wrongValid) {
+      console.warn(`世界の国どこかな？: setQuizResultHighlightに不正な誤答ID「${wrongId}」が指定されました`);
+    }
+    quizCorrectHighlightId = correctValid && correctId ? correctId : null;
+    quizWrongHighlightId = wrongValid && wrongId ? wrongId : null;
+    refreshPolygonStyles();
+    return !!(quizCorrectHighlightId || quizWrongHighlightId);
+  }
+  function clearQuizResultHighlight() {
+    quizCorrectHighlightId = null;
+    quizWrongHighlightId = null;
+    refreshPolygonStyles();
   }
 
   // ---- C. 地図タップ結果の取得 ----
@@ -2299,6 +2360,10 @@ const MapModule = (() => {
     // 解除し忘れても、次に通常の世界地図モードを開いたときにタップが
     // 誤ってクイズ側のコールバックに渡り続ける事故を防ぐ
     tapResultHandler = null;
+    // 正誤ハイライト(緑/赤)も同じ理由で必ずリセットする。これを忘れると、
+    // 次に通常の世界地図モードを開いたときに前回の問題の色が残ってしまう
+    quizCorrectHighlightId = null;
+    quizWrongHighlightId = null;
   }
 
   function initEvents() {
@@ -2329,12 +2394,15 @@ const MapModule = (() => {
   // 表示用のラベル一覧だけを公開する。
   // moveCameraToCountry/selectCountryForQuiz/clearQuizSelection/
   // setTapResultHandler/clearTapResultHandlerは第4段階「世界の国どこかな？」
-  // 向けに追加した共通API(第1段階)。既存のopen/close/initEvents/
-  // REGION_ORDER/REGION_LABELSの名前・引数・戻り値は変更していない
+  // 向けに追加した共通API(第1段階)。setQuizResultHighlight/
+  // clearQuizResultHighlightは同モード向けの正誤ハイライトAPI(第3段階)。
+  // 既存のopen/close/initEvents/REGION_ORDER/REGION_LABELSの名前・引数・
+  // 戻り値は変更していない
   return {
     open, close, initEvents, REGION_ORDER, REGION_LABELS,
     moveCameraToCountry, selectCountryForQuiz, clearQuizSelection,
     setTapResultHandler, clearTapResultHandler,
+    setQuizResultHighlight, clearQuizResultHighlight,
   };
 })();
 
