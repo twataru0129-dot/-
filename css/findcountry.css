@@ -35,11 +35,36 @@
 .count-card.special .difficulty-card-meta { color: #8a6100; }
 
 /* ---------- 結果画面 ---------- */
+.findcountry-result-gameover-note {
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-wrong);
+  margin: -8px 0 16px;
+}
 .findcountry-result-course {
   text-align: center;
   font-weight: 800;
   color: var(--color-primary-dark);
   margin: 0 0 8px;
+}
+.findcountry-result-planned,
+.findcountry-result-answered {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-sub);
+  margin: 2px 0;
+}
+.findcountry-result-streak,
+.findcountry-result-lives {
+  text-align: center;
+  font-weight: 700;
+  margin: 6px 0 0;
+}
+.findcountry-result-points {
+  text-align: center;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 6px 0 0;
 }
 .findcountry-result-future-note {
   text-align: center;
@@ -140,6 +165,24 @@
   border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: 2px 9px;
+}
+/* 残り時間の警告。色だけに頼らず、⏱→⏰への記号の変化(updateTimerDisplay)と
+   必ず併用する。is-criticalはさらに点滅で目立たせる(prefers-reduced-motion
+   環境では下の@mediaで点滅を止め、色の変化だけにする) */
+.findcountry-quiz-timer.is-warning {
+  color: #ffffff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.findcountry-quiz-timer.is-critical {
+  color: #ffffff;
+  background: var(--color-wrong);
+  border-color: var(--color-wrong);
+  animation: findcountry-timer-pulse 1s ease-in-out infinite;
+}
+@keyframes findcountry-timer-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
 }
 
 .findcountry-quiz-prompt {
@@ -288,5 +331,8 @@
   .findcountry-quiz-pause-btn,
   .findcountry-quiz-pass-btn {
     transition-duration: 0.001ms;
+  }
+  .findcountry-quiz-timer.is-critical {
+    animation: none;
   }
 }
