@@ -480,9 +480,13 @@ const FindCountryModule = (() => {
   // 行うことで「同じ問題で2回以上ライフが減る/加点される」事故を防ぐ。
   // 呼び出し元(handleTap/handlePass/handleTimeUp)は、quizState.answeredの
   // ガードとタイマー停止だけを担当し、ここでは二重には呼ばれない前提で動く
-  function finalizeAnswer(result, answeredId) {
+  // secondsLeft: 回答確定時点の残り秒数。呼び出し元がtimer.stop()を呼ぶ
+  // "前"のtimer.remainingSeconds()の値を渡す(FindCountryTimer.stop()後は
+  // remainingSeconds()が常に0を返す設計のため、ここで読み直すと正解・
+  // 不正解・パス時の残り時間が常に0として記録されてしまう)。時間切れは
+  // 呼び出し元から明示的に0を渡す
+  function finalizeAnswer(result, answeredId, secondsLeft) {
     const d = difficultyById(quizState.difficultyId);
-    const secondsLeft = timer ? timer.remainingSeconds() : 0;
 
     if (result === "correct") {
       quizState.currentStreak += 1;
@@ -579,10 +583,13 @@ const FindCountryModule = (() => {
   function handleTap(tappedId) {
     if (quizState.answered) return;
     quizState.answered = true;
+    // timer.stop()を呼ぶと以降remainingSeconds()は常に0を返すため、
+    // 停止"前"に残り秒数を読み取ってから止める
+    const secondsLeft = timer ? timer.remainingSeconds() : 0;
     if (timer) timer.stop();
     const correctId = quizState.currentCountry.id;
     const isCorrect = tappedId === correctId;
-    finalizeAnswer(isCorrect ? "correct" : "wrong", tappedId);
+    finalizeAnswer(isCorrect ? "correct" : "wrong", tappedId, secondsLeft);
   }
 
   // ---------- パスボタン(通常コースのみ。PROでは表示されず、呼び出しても無効) ----------
@@ -590,18 +597,20 @@ const FindCountryModule = (() => {
     if (quizState.answered) return;
     if (quizState.difficultyId === PRO_DIFFICULTY_ID) return;
     quizState.answered = true;
+    const secondsLeft = timer ? timer.remainingSeconds() : 0;
     if (timer) timer.stop();
-    finalizeAnswer("pass", null);
+    finalizeAnswer("pass", null, secondsLeft);
   }
 
   // ---------- 時間切れ(FindCountryTimerのonTimeoutコールバック) ----------
   // タイマー自身がonTimeoutを呼ぶ直前に必ずstop()済みのため、ここで
   // 改めてtimer.stop()を呼ぶ必要はない。時間切れ後に地球儀をタップしても
-  // quizState.answered===trueによりhandleTapが無視するため、結果は変わらない
+  // quizState.answered===trueによりhandleTapが無視するため、結果は変わらない。
+  // 時間切れの残り秒数は必ず0として記録する
   function handleTimeUp() {
     if (quizState.answered) return; // 念のための二重発火防止
     quizState.answered = true;
-    finalizeAnswer("timeout", null);
+    finalizeAnswer("timeout", null, 0);
   }
 
   // ---------- 「次の問題へ」/「結果を見る」ボタン ----------
