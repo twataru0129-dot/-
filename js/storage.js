@@ -28,6 +28,11 @@ const FINDCOUNTRY_RANKING_KEY = STORAGE_PREFIX + "findcountry_ranking";
 const FINDCOUNTRY_RANKING_VERSION = 1;
 const FINDCOUNTRY_RANKING_TOP_N = 5;
 
+// 「世界の国どこかな？」第5段階後半: コレクション(正解した国・地域の収集)。
+// ランキングともクイズのstate(wrongIds等)とも完全に独立した専用キーに保存する
+const FINDCOUNTRY_COLLECTION_KEY = STORAGE_PREFIX + "findcountry_collection";
+const FINDCOUNTRY_COLLECTION_VERSION = 1;
+
 function keysForMode(mode) {
   return mode === "capital" ? CapitalStorageKeys : StorageKeys;
 }
@@ -108,6 +113,53 @@ function loadFindCountryRankingData() {
 // として扱わないようにする
 function saveFindCountryRankingData(data) {
   return safeSet(FINDCOUNTRY_RANKING_KEY, JSON.stringify(data));
+}
+
+// ---------- 「世界の国どこかな？」コレクション: 保存データの読み書きヘルパー ----------
+// 対象216件(COUNTRIES 198 + MAP_ONLY_REGIONS 18)の確定id集合。
+// findcountry.js自身が出題プールを組み立てる際に参照しているのと同じ
+// COUNTRIES/MAP_ONLY_REGIONSをそのまま参照するだけで、データを複製しない。
+// 不正なID(タイプミス・旧バージョンの残骸・改ざん等)での登録を防ぐために使う。
+// COUNTRIES/MAP_ONLY_REGIONSは実行時に変化しないため、初回アクセス時に1度
+// だけ計算してキャッシュする
+let findCountryCollectionValidIdsCache = null;
+function findCountryCollectionValidIds() {
+  if (!findCountryCollectionValidIdsCache) {
+    const all = (typeof COUNTRIES !== "undefined" ? COUNTRIES : [])
+      .concat(typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : []);
+    findCountryCollectionValidIdsCache = new Set(all.map((c) => c.id));
+  }
+  return findCountryCollectionValidIdsCache;
+}
+
+function isValidFindCountryCaptureEntry(id, entry) {
+  return typeof id === "string" && findCountryCollectionValidIds().has(id)
+    && !!entry && typeof entry === "object"
+    && typeof entry.firstCapturedAt === "string" && !Number.isNaN(Date.parse(entry.firstCapturedAt));
+}
+
+function emptyFindCountryCollectionData() {
+  return { version: FINDCOUNTRY_COLLECTION_VERSION, entries: {} };
+}
+
+function loadFindCountryCollectionData() {
+  const raw = safeGet(FINDCOUNTRY_COLLECTION_KEY);
+  if (!raw) return emptyFindCountryCollectionData();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || parsed.version !== FINDCOUNTRY_COLLECTION_VERSION
+      || !parsed.entries || typeof parsed.entries !== "object") {
+      return emptyFindCountryCollectionData();
+    }
+    return parsed;
+  } catch (e) {
+    console.warn("findcountryコレクションデータの読み込みに失敗しました。保存データを初期化します", e);
+    return emptyFindCountryCollectionData();
+  }
+}
+
+function saveFindCountryCollectionData(data) {
+  return safeSet(FINDCOUNTRY_COLLECTION_KEY, JSON.stringify(data));
 }
 
 const Storage = {
@@ -236,16 +288,63 @@ const Storage = {
     }
   },
 
+  // ---- 「世界の国どこかな？」コレクション(第5段階後半) ----
+  // 獲得済みの国・地域を { id: { firstCapturedAt } } の形で読み取り専用に返す。
+  // 破損している/不正なidのエントリーはここで除外されるため、呼び出し側は
+  // 常に「216件の確定idのみを対象にした、壊れていない獲得状況」を受け取れる
+  getFindCountryCollection() {
+    const data = loadFindCountryCollectionData();
+    const sanitized = {};
+    Object.keys(data.entries).forEach((id) => {
+      const entry = data.entries[id];
+      if (isValidFindCountryCaptureEntry(id, entry)) {
+        sanitized[id] = { firstCapturedAt: entry.firstCapturedAt };
+      }
+    });
+    return sanitized;
+  },
+
+  hasFindCountryCapture(id) {
+    return Object.prototype.hasOwnProperty.call(this.getFindCountryCollection(), id);
+  },
+
+  // 正解した国・地域を1件だけ獲得として記録する。idが216件の確定リストに
+  // 無い(不正なid)場合や、既に獲得済みの場合は何もせずfalseを返す。
+  // これにより「同じ国・地域を再度正解しても重複登録しない」仕様と、
+  // 呼び出し側が「今回が初獲得か」をそのまま判定できることの両方を満たす。
+  // 保存に失敗した場合もfalseを返し、クイズの進行自体は止めない
+  captureFindCountryEntry(id, capturedAtIso) {
+    try {
+      if (typeof id !== "string" || !findCountryCollectionValidIds().has(id)) return false;
+      const data = loadFindCountryCollectionData();
+      if (data.entries[id]) return false;
+      const entry = { firstCapturedAt: capturedAtIso || new Date().toISOString() };
+      if (!isValidFindCountryCaptureEntry(id, entry)) return false;
+      data.entries[id] = entry;
+      return saveFindCountryCollectionData(data);
+    } catch (e) {
+      console.warn("findcountryコレクションの保存に失敗しました", e);
+      return false;
+    }
+  },
+
   // ---- データリセット(国旗・首都両方の称号・記録だけを消す) ----
   // 効果音設定(StorageKeys.SOUND)は確認画面の文言(「称号・記録をリセット」)
   // に合わせて対象外にする。以前はStorageKeysの全キー(SOUNDを含む)を
   // 削除していたため、記録をリセットすると効果音設定まで初期化されてしまう
-  // 不一致があった
+  // 不一致があった。
+  // findcountryのランキング(第5段階前半)・コレクション(第5段階後半)も、
+  // 称号・最高記録と同じ「実績・成績」の性質を持つデータのため、ここに
+  // 含めて一緒にリセットできるようにする(このボタンでしか消せない孤立した
+  // データを残さないため)。その代わり、ユーザーが何を削除するか正しく
+  // 分かるよう、呼び出し元(js/app.js)の確認ダイアログの文言に
+  // 「ランキング・コレクション」も明記している
   resetAll() {
     const keysToRemove = [
       StorageKeys.TITLES, StorageKeys.ATTEMPTS, StorageKeys.BEST_RATE, StorageKeys.BEST_RECORDS,
       ...Object.values(CapitalStorageKeys),
       FINDCOUNTRY_RANKING_KEY,
+      FINDCOUNTRY_COLLECTION_KEY,
     ];
     keysToRemove.forEach((k) => {
       try { localStorage.removeItem(k); } catch (e) { /* noop */ }

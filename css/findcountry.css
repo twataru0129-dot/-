@@ -85,11 +85,17 @@
   margin: -8px 0 16px;
 }
 
-/* ---------- 難易度選択画面: ランキングへの入口 ---------- */
-.findcountry-ranking-entry {
-  display: block;
+/* ---------- 難易度選択画面・結果画面: ランキング/コレクションへの入口 ----------
+   2つのボタンを横並びにし、バランスよく配置する */
+.findcountry-entry-buttons {
+  display: flex;
+  gap: 8px;
   width: 100%;
   margin-top: 12px;
+}
+.findcountry-ranking-entry {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ---------- ランキング画面(第5段階前半) ----------
@@ -171,6 +177,54 @@
 .findcountry-rank-date {
   font-size: 0.72rem;
   color: var(--color-text-sub);
+}
+
+/* ---------- コレクション画面(第5段階後半) ----------
+   グリッド本体は世界図鑑の.ency-grid/.ency-cardをそのまま再利用し、
+   ここでは「獲得数・達成率の見出し」と「未獲得カードの見た目」だけを追加する */
+.findcountry-collection-summary {
+  text-align: center;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 4px 0 2px;
+}
+.findcountry-collection-card.locked {
+  cursor: default;
+}
+.findcountry-collection-card.locked:hover { border-color: var(--color-border); }
+.findcountry-collection-card.locked:active { transform: none; }
+.findcountry-collection-card.locked .ency-card-name {
+  color: var(--color-text-sub);
+}
+.findcountry-collection-locked-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 120px;
+  margin: 0 auto;
+  aspect-ratio: 4 / 3;
+  background: var(--color-border);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--color-text-sub);
+}
+
+/* ---------- クイズ画面: コレクション初獲得のお知らせ ----------
+   正解表示(.findcountry-quiz-result-text)の下に独立して表示するだけの
+   小さなバッジ。位置の確認や連続正解のテンポを妨げないよう、アニメーションは
+   付けない */
+.findcountry-quiz-new-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--color-gold);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 /* ==========================================================

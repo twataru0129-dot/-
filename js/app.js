@@ -116,7 +116,7 @@ function initTopScreen() {
   });
 
   $("btn-reset-data").addEventListener("click", async () => {
-    const ok = await showConfirm("保存データ(称号・記録)をすべてリセットしますか？\nこの操作は取り消せません。");
+    const ok = await showConfirm("保存データ(称号・記録・ランキング・コレクション)をすべてリセットしますか？\nこの操作は取り消せません。");
     if (ok) {
       Storage.resetAll();
       alert("データをリセットしました");
@@ -986,6 +986,17 @@ function encyclopediaBackOptionsFromStack() {
       onBack: () => {
         mapEncyclopediaNavStack.pop();
         ReviewModule.showList();
+      },
+    };
+  }
+  // 第5段階後半: 「世界の国どこかな？」コレクションから獲得済みの国・地域を
+  // 開いた場合、地図を経由して戻ってきてもコレクションへ正しく戻れるようにする
+  if (top && top.screen === "findcountry-collection") {
+    return {
+      backLabel: "← コレクションに戻る",
+      onBack: () => {
+        mapEncyclopediaNavStack.pop();
+        FindCountryModule.showCollectionScreen();
       },
     };
   }
