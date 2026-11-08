@@ -1,20 +1,21 @@
 // ==========================================================
 // 第4段階「世界の国どこかな？」第4段階: 得点・ライフ・タイマー・ゲームオーバー
+// (第4段階追加修正で得点計算式・回答時間計測・PRO専用ライフルールを確定)
 //
-// 今回実装するのは、制限時間のカウントダウン・ライフ管理・誤答/パス/
-// 時間切れの処理・ゲームオーバー・現在/最大連続正解数・一時停止/画面離脱/
-// バックグラウンド移行時のタイマー整合性・結果画面の拡張。
-// 得点計算は、過去の会話・リポジトリ・GitHub Issue/PRを調査したが、
-// 基礎点・時間ボーナス・連続正解ボーナス等の具体的な配点ルールが
-// 確定した仕様は見つからなかった(既存の国旗/首都クイズのstate.scoreも
-// 単なる正解数カウントであり、ポイント制の得点計算は存在しない)。
-// そのため、得点計算は独立した関数(computeScore)として呼び出し口だけを
-// 用意し、確定した配点が無い間は常にnull(未確定)を返す。架空の得点を
-// 結果画面に表示することはしない。
+// 制限時間のカウントダウン・ライフ管理・誤答/パス/時間切れの処理・
+// ゲームオーバー・現在/最大連続正解数・一時停止/画面離脱/バックグラウンド
+// 移行時のタイマー整合性・結果画面の拡張に加えて、以下の確定仕様を実装する。
 //
-// PRO専用の開始条件・特別な得点・演出・称号は今回追加しない。PROも
-// 通常コースと全く同じ共通のタイマー・ライフ・正誤処理を使う
-// (パス不可・216件1回ずつ出題は第3段階までで実装済み)。
+// 得点計算(computeScore): 1問最高1,000点。3.00秒以内に正解で満点、
+// 3.00秒を超えた分は1秒につき30点減点(下限0点)。不正解・パス・時間切れは
+// 常に0点。時間ボーナス・連続正解倍率・難易度倍率は付けない。回答時間
+// (elapsedSeconds)は0.01秒単位で扱い、一時停止中・地球儀の初回読み込み
+// 待ち中の時間は含めない(FindCountryTimerが元々それらの時間を計測に
+// 含めない設計のため、残り時間からの引き算だけで自然に満たせる)。
+//
+// PROはライフ1(1ミスで即ゲームオーバー)。通常コース(初級/中級/上級)は
+// 従来どおりライフ3。それ以外のPRO専用の開始条件・特別な演出・称号は
+// 今回追加しない(パス不可・216件1回ずつ出題は第3段階までで実装済み)。
 //
 // 3D地球儀はPR #43で地図モードが使っているものをそのまま再利用する。
 // 別の地球儀インスタンスを作らず、既存の#map-globe-container/#screen-map
@@ -33,7 +34,14 @@ const FindCountryModule = (() => {
   ];
   const QUESTION_COUNTS = [5, 10, 20, 30];
   const PRO_DIFFICULTY_ID = "pro";
-  const MAX_LIVES = 3;
+  // 通常コース(初級/中級/上級)はライフ3。PROは1ミスで即ゲームオーバーの
+  // 確定仕様のためライフ1。難易度によって初期ライフの上限が変わるため、
+  // 固定の定数ではなくmaxLivesFor()を通じて都度参照する
+  const NORMAL_MAX_LIVES = 3;
+  const PRO_MAX_LIVES = 1;
+  function maxLivesFor(difficultyId) {
+    return difficultyId === PRO_DIFFICULTY_ID ? PRO_MAX_LIVES : NORMAL_MAX_LIVES;
+  }
   // 残り時間の警告しきい値(秒)。難易度(15〜30秒)によらず固定の絶対値を使う。
   // 具体的な秒数の確定仕様は見当たらなかったため、既存の国旗/首都クイズの
   // 5秒カウントダウン(warn-3/warn-2/warn-1)と同じ「色・文字の両方で警告する」
@@ -216,18 +224,37 @@ const FindCountryModule = (() => {
     }
   }
 
-  // ---------- 得点計算(未確定) ----------
-  // 過去の会話・リポジトリ(js/quiz.js・js/storage.js等)・GitHubのIssue/PR/
-  // コミット履歴を調査したが、基礎点・時間ボーナス・連続正解ボーナスなどの
-  // 具体的な配点ルールが確定した仕様は見つからなかった。既存の国旗/首都
-  // クイズのstate.scoreも「正解数のカウント(+1ずつ)」であり、ポイント制の
-  // 得点計算そのものが存在しない。独断で正式な配点を決めることは避け、
-  // 呼び出し口(difficultyId/result/secondsLeft/totalSeconds/currentStreakを
-  // 既に渡せる構造)だけを用意し、常にnull(未確定)を返す。配点が確定した
-  // 際は、呼び出し元を一切変更せずこの関数の中身だけを差し替えれば済む
+  // ---------- 得点計算(確定仕様) ----------
+  // 1問の最高得点は1,000点。3.00秒以内に正解で1,000点、3.00秒を超えた分は
+  // 1秒につき30点減点(下限0点)。不正解・パス・時間切れは0点。
+  // 時間ボーナス・連続正解倍率・難易度倍率は付けない(確定仕様外のため)。
+  // elapsedSecondsは呼び出し元(finalizeAnswer)がタイマーの残り時間から
+  // 0.01秒単位で算出して渡す(一時停止中・地球儀読み込み待ち中の時間は
+  // タイマー自体が計測しないため、ここでも含まれない)
+  function round2(value) {
+    return Math.round(value * 100) / 100;
+  }
+
   function computeScore(context) {
-    // context: { difficultyId, result, secondsLeft, totalSeconds, currentStreak }
-    return null;
+    // context: { result, elapsedSeconds }
+    if (context.result !== "correct") return 0;
+    const overSeconds = Math.max(0, context.elapsedSeconds - 3);
+    return Math.max(0, Math.round(1000 - overSeconds * 30));
+  }
+
+  // ---------- PRO完全制覇の判定(純粋関数として分離し、結果画面の表示
+  // ロジックとテストの両方から同じ条件式を参照できるようにする) ----------
+  // PROはパス不可・1ミスで即ゲームオーバーの確定仕様のため、「ゲームオーバー
+  // にならず、予定していた全問(totalCount)に回答し、その全問が正解」は
+  // 「1問も間違えずに全問走りきった」ことと同値になる
+  function isProCompleteRun(context) {
+    // context: { difficultyId, gameOver, answered, correctCount, totalCount }
+    return (
+      context.difficultyId === PRO_DIFFICULTY_ID &&
+      !context.gameOver &&
+      context.answered === context.totalCount &&
+      context.correctCount === context.totalCount
+    );
   }
 
   // ---------- 画面遷移をまたいで保持するコース選択(成績としては保存しない) ----------
@@ -244,8 +271,8 @@ const FindCountryModule = (() => {
     currentIndex: 0, // 0始まり
     currentCountry: null,
     answered: false, // 今の問題について既に回答確定済み(タップ・パス・時間切れ)かどうか
-    results: [], // {questionNumber, countryId, answeredId, result, secondsLeft, points, livesAfter, streakAfter}
-    lives: MAX_LIVES,
+    results: [], // {questionNumber, countryId, answeredId, result, elapsedSeconds, secondsLeft, points, livesAfter, streakAfter}
+    lives: NORMAL_MAX_LIVES,
     currentStreak: 0,
     maxStreak: 0,
     gameOver: false, // ライフ0で終了したか(結果画面の表示分岐・最終問題判定に使う)
@@ -330,7 +357,7 @@ const FindCountryModule = (() => {
     quizState.currentIndex = 0;
     quizState.results = [];
     quizState.answered = false;
-    quizState.lives = MAX_LIVES;
+    quizState.lives = maxLivesFor(difficultyId);
     quizState.currentStreak = 0;
     quizState.maxStreak = 0;
     quizState.gameOver = false;
@@ -391,8 +418,9 @@ const FindCountryModule = (() => {
 
   // ---------- ライフ表示の更新 ----------
   function updateLivesDisplay() {
+    const maxLives = maxLivesFor(quizState.difficultyId);
     const filled = "❤️".repeat(Math.max(0, quizState.lives));
-    const empty = "🤍".repeat(Math.max(0, MAX_LIVES - quizState.lives));
+    const empty = "🤍".repeat(Math.max(0, maxLives - quizState.lives));
     $("findcountry-quiz-lives").textContent = filled + empty;
   }
 
@@ -516,21 +544,22 @@ const FindCountryModule = (() => {
       quizState.lives = Math.max(0, quizState.lives - 1);
     }
 
-    const points = computeScore({
-      difficultyId: quizState.difficultyId,
-      result,
-      secondsLeft,
-      totalSeconds: d.seconds,
-      currentStreak: quizState.currentStreak,
-    });
+    // 回答時間(0.01秒単位)。timer.remainingSeconds()は一時停止中の時間・
+    // 地球儀読み込み待ち中の時間(タイマー自体が開始していない)を含まない
+    // ため、ここでの引き算もそれらを自動的に除外した値になる。時間切れは
+    // secondsLeftとして0を渡されるため、その問題の制限時間がそのまま
+    // 回答時間として記録される
+    const elapsedSeconds = round2(Math.min(d.seconds, Math.max(0, d.seconds - secondsLeft)));
+    const points = computeScore({ result, elapsedSeconds });
 
     quizState.results.push({
       questionNumber: quizState.currentIndex + 1,
       countryId: quizState.currentCountry.id,
       answeredId: answeredId || null,
       result, // "correct" | "wrong" | "pass" | "timeout"
-      secondsLeft: Math.max(0, Math.round(secondsLeft)),
-      points, // 配点確定時のみ数値、それ以外はnull(架空の得点を記録しない)
+      elapsedSeconds, // 回答時間(0.01秒単位)
+      secondsLeft: round2(Math.max(0, secondsLeft)), // 回答確定時の残り時間(0.01秒単位)
+      points, // 得点(不正解・パス・時間切れは常に0)
       livesAfter: quizState.lives,
       streakAfter: quizState.currentStreak,
     });
@@ -696,19 +725,48 @@ const FindCountryModule = (() => {
   function showResult() {
     leaveFindCountryMapMode();
     const d = difficultyById(quizState.difficultyId);
+    const maxLives = maxLivesFor(quizState.difficultyId);
     const planned = quizState.sequence.length; // 予定していた問題数
     const answered = quizState.results.length; // 実際に回答(タップ・パス・時間切れ含む)した数
     const correctCount = quizState.results.filter((r) => r.result === "correct").length;
     const rate = answered > 0 ? Math.round((correctCount / answered) * 100) : 0;
+    const totalPoints = quizState.results.reduce((sum, r) => sum + r.points, 0);
+    // 平均回答時間は実際に回答した問題のみを対象にする(不正解・パス・
+    // 時間切れも含める。ゲームオーバーで打ち切られた未出題分は、そもそも
+    // quizState.resultsに積まれないため分母に含まれない)
+    const avgElapsed = answered > 0
+      ? quizState.results.reduce((sum, r) => sum + r.elapsedSeconds, 0) / answered
+      : 0;
+    const isProComplete = isProCompleteRun({
+      difficultyId: quizState.difficultyId,
+      gameOver: quizState.gameOver,
+      answered,
+      correctCount,
+      totalCount: d.count,
+    });
 
-    $("findcountry-result-title").textContent = quizState.gameOver ? "ゲームオーバー" : "結果発表";
+    $("findcountry-result-title").textContent = quizState.gameOver
+      ? "ゲームオーバー"
+      : isProComplete
+        ? "完全制覇！"
+        : "結果発表";
+
     const gameoverNote = $("findcountry-result-gameover-note");
     if (quizState.gameOver) {
-      gameoverNote.textContent = `${MAX_LIVES}回間違えたため、ここで終了です`;
+      gameoverNote.textContent = `${maxLives}回間違えたため、ここで終了です`;
       gameoverNote.classList.remove("hidden");
     } else {
       gameoverNote.classList.add("hidden");
       gameoverNote.textContent = "";
+    }
+
+    const completeNote = $("findcountry-result-complete-note");
+    if (isProComplete) {
+      completeNote.textContent = `🎉 PRO ${d.count}問すべてに正解しました！`;
+      completeNote.classList.remove("hidden");
+    } else {
+      completeNote.classList.add("hidden");
+      completeNote.textContent = "";
     }
 
     $("findcountry-result-course").textContent = `${d.icon} ${d.label}`;
@@ -716,21 +774,11 @@ const FindCountryModule = (() => {
     $("findcountry-result-answered").textContent = `実際の回答数：${answered}問`;
     $("findcountry-result-score-fraction").textContent = `${answered}問中${correctCount}問正解！`;
     $("findcountry-result-rate").textContent = `正答率 ${rate}%`;
+    $("findcountry-result-points").textContent = `合計得点 ${totalPoints}点`;
+    $("findcountry-result-avg-time").textContent = `平均回答時間 ${avgElapsed.toFixed(2)}秒`;
     $("findcountry-result-streak").textContent = `最大連続正解 ${quizState.maxStreak}`;
     $("findcountry-result-lives").textContent =
-      `残りライフ ${"❤️".repeat(Math.max(0, quizState.lives))}${"🤍".repeat(Math.max(0, MAX_LIVES - quizState.lives))}`;
-
-    // 得点は配点が確定した場合のみ表示する(今回は未確定のため常に非表示)
-    const anyScoreConfirmed = quizState.results.some((r) => r.points !== null);
-    const pointsEl = $("findcountry-result-points");
-    if (anyScoreConfirmed) {
-      const totalPoints = quizState.results.reduce((sum, r) => sum + (r.points || 0), 0);
-      pointsEl.textContent = `得点 ${totalPoints}点`;
-      pointsEl.classList.remove("hidden");
-    } else {
-      pointsEl.classList.add("hidden");
-      pointsEl.textContent = "";
-    }
+      `残りライフ ${"❤️".repeat(Math.max(0, quizState.lives))}${"🤍".repeat(Math.max(0, maxLives - quizState.lives))}`;
 
     showScreen("screen-findcountry-result");
   }
@@ -781,5 +829,14 @@ const FindCountryModule = (() => {
     showScreen("screen-findcountry-difficulty");
   }
 
-  return { initEvents, openDifficultyScreen };
+  // computeScore/maxLivesFor/getResultsは、js/quiz.jsのQuizEngineが
+  // buildQuestion等の純粋関数を公開しているのと同じ考え方で、テスト・
+  // 将来の再利用のために公開する(新しい外部向け機能の追加ではない)。
+  // getResultsは読み取り専用のコピーを返すため、呼び出し側が配列を
+  // 書き換えてもquizState.results自体には影響しない
+  function getResults() {
+    return quizState.results.slice();
+  }
+
+  return { initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, isProCompleteRun };
 })();
