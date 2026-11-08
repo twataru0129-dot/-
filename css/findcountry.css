@@ -34,25 +34,18 @@
 }
 .count-card.special .difficulty-card-meta { color: #8a6100; }
 
-/* ---------- 結果画面(仮データ) ---------- */
-.findcountry-result-mock-note {
-  text-align: center;
-  font-size: 0.78rem;
-  color: var(--color-text-sub);
-  margin: -8px 0 16px;
-}
+/* ---------- 結果画面 ---------- */
 .findcountry-result-course {
   text-align: center;
   font-weight: 800;
   color: var(--color-primary-dark);
   margin: 0 0 8px;
 }
-.findcountry-result-streak,
-.findcountry-result-points {
+.findcountry-result-future-note {
   text-align: center;
+  font-size: 0.78rem;
   color: var(--color-text-sub);
-  font-weight: 700;
-  margin: 4px 0 0;
+  margin: 10px 0 0;
 }
 
 /* ==========================================================
@@ -167,6 +160,16 @@
   color: var(--color-text);
   overflow-wrap: anywhere;
 }
+/* 正誤判定の結果表示。色だけに頼らず「✅ 正解！」「❌ 残念！不正解」のように
+   必ず文字・記号でも示す(色弱・白黒印刷等でも区別できるようにするため) */
+.findcountry-quiz-result-text {
+  margin: 6px 0 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.findcountry-quiz-result-text.is-correct { color: #1b5e20; }
+.findcountry-quiz-result-text.is-wrong { color: #b71c1c; }
 
 .findcountry-quiz-footer {
   display: flex;
@@ -197,6 +200,20 @@
   box-shadow: var(--shadow-card);
 }
 .findcountry-quiz-pass-btn:active { transform: scale(0.97); }
+.findcountry-quiz-next-btn {
+  width: 100%;
+  max-width: 320px;
+  padding: 13px 10px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+.findcountry-quiz-next-btn:active { transform: scale(0.97); }
 .findcountry-quiz-dev-tap {
   margin: 0;
   font-size: 0.7rem;
@@ -259,7 +276,8 @@
     flex-direction: row;
     justify-content: center;
   }
-  .findcountry-quiz-pass-btn {
+  .findcountry-quiz-pass-btn,
+  .findcountry-quiz-next-btn {
     width: auto;
     min-width: 200px;
   }

@@ -97,17 +97,15 @@
   </div>
 </section>
 
-<!-- ============ 世界の国どこかな？: 結果画面(仮表示、第4段階第2段階) ============ -->
+<!-- ============ 世界の国どこかな？: 結果画面(第4段階第2段階で画面構築、第3段階で実データ化) ============ -->
 <section id="screen-findcountry-result" class="screen">
   <div class="panel">
     <h2 class="screen-title">結果発表</h2>
-    <p class="findcountry-result-mock-note">※ 今回は画面確認用の仮データです</p>
     <div class="result-score-box">
       <p id="findcountry-result-course" class="findcountry-result-course"></p>
       <p id="findcountry-result-score-fraction" class="result-score-fraction"></p>
       <p id="findcountry-result-rate" class="result-score-rate"></p>
-      <p id="findcountry-result-streak" class="findcountry-result-streak"></p>
-      <p id="findcountry-result-points" class="findcountry-result-points"></p>
+      <p class="findcountry-result-future-note">得点・最大連続正解・称号は今後実装予定です</p>
     </div>
     <div class="result-buttons">
       <button id="btn-findcountry-result-retry" class="btn btn-primary">もう一度遊ぶ</button>
@@ -278,15 +276,16 @@
         <span id="findcountry-quiz-difficulty" class="findcountry-quiz-difficulty"></span>
         <span id="findcountry-quiz-progress" class="findcountry-quiz-progress"></span>
       </div>
-      <div class="findcountry-quiz-status">
+      <div id="findcountry-quiz-status" class="findcountry-quiz-status">
         <span id="findcountry-quiz-lives" class="findcountry-quiz-lives" aria-label="残りライフ"></span>
         <span id="findcountry-quiz-timer" class="findcountry-quiz-timer" aria-label="残り時間"></span>
       </div>
       <button id="findcountry-quiz-pause" class="findcountry-quiz-pause-btn" type="button" aria-label="一時停止">⏸</button>
     </div>
     <div id="findcountry-quiz-prompt" class="findcountry-quiz-prompt hidden">
-      <p class="findcountry-quiz-question-label">この国・地域はどこ？</p>
+      <p id="findcountry-quiz-question-label" class="findcountry-quiz-question-label">この国・地域はどこ？</p>
       <p id="findcountry-quiz-country-name" class="findcountry-quiz-country-name"></p>
+      <p id="findcountry-quiz-result-text" class="findcountry-quiz-result-text hidden" role="status" aria-live="polite"></p>
     </div>
 
     <div id="map-globe-container" class="map-globe-container"></div>
@@ -294,8 +293,9 @@
     <!-- ============ 世界の国どこかな？: クイズ専用フッター(第4段階第2段階) ============ -->
     <div id="findcountry-quiz-footer" class="findcountry-quiz-footer hidden">
       <p id="findcountry-quiz-dev-tap" class="findcountry-quiz-dev-tap hidden"></p>
-      <p class="findcountry-quiz-hint">地球儀をドラッグして回転、ピンチ(またはホイール)で拡大・縮小できます</p>
+      <p id="findcountry-quiz-hint" class="findcountry-quiz-hint">地球儀をドラッグして回転、ピンチ(またはホイール)で拡大・縮小できます</p>
       <button id="findcountry-quiz-pass" class="findcountry-quiz-pass-btn" type="button">⏭ パス</button>
+      <button id="findcountry-quiz-next" class="findcountry-quiz-next-btn hidden" type="button">次の問題へ ▶</button>
     </div>
 
     <button id="map-pins-toggle-btn" class="map-pins-toggle-btn" aria-pressed="false">📍 ピン OFF</button>
