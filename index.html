@@ -97,15 +97,22 @@
   </div>
 </section>
 
-<!-- ============ 世界の国どこかな？: 結果画面(第4段階第2段階で画面構築、第3段階で実データ化) ============ -->
+<!-- ============ 世界の国どこかな？: 結果画面(第4段階第2段階で画面構築、第3段階で実データ化、
+     第4段階で得点・ライフ・連続正解・ゲームオーバー表示に対応) ============ -->
 <section id="screen-findcountry-result" class="screen">
   <div class="panel">
-    <h2 class="screen-title">結果発表</h2>
+    <h2 id="findcountry-result-title" class="screen-title">結果発表</h2>
+    <p id="findcountry-result-gameover-note" class="findcountry-result-gameover-note hidden"></p>
     <div class="result-score-box">
       <p id="findcountry-result-course" class="findcountry-result-course"></p>
+      <p id="findcountry-result-planned" class="findcountry-result-planned"></p>
+      <p id="findcountry-result-answered" class="findcountry-result-answered"></p>
       <p id="findcountry-result-score-fraction" class="result-score-fraction"></p>
       <p id="findcountry-result-rate" class="result-score-rate"></p>
-      <p class="findcountry-result-future-note">得点・最大連続正解・称号は今後実装予定です</p>
+      <p id="findcountry-result-streak" class="findcountry-result-streak"></p>
+      <p id="findcountry-result-lives" class="findcountry-result-lives"></p>
+      <p id="findcountry-result-points" class="findcountry-result-points hidden"></p>
+      <p class="findcountry-result-future-note">得点は配点が未確定のため今回は表示していません</p>
     </div>
     <div class="result-buttons">
       <button id="btn-findcountry-result-retry" class="btn btn-primary">もう一度遊ぶ</button>
@@ -339,9 +346,11 @@
       <textarea id="map-tap-debug-log" class="map-tap-debug-log" readonly placeholder="地球儀をタップすると、ここに判定の内部状態が記録されます"></textarea>
     </div>
 
-    <!-- ============ 世界の国どこかな？: 一時停止オーバーレイ(第4段階第2段階)
-         今回はタイマー停止処理を実装しないが、後から追加しやすいよう
-         地球儀への操作を画面全体で覆って遮断する構造にしておく ============ -->
+    <!-- ============ 世界の国どこかな？: 一時停止オーバーレイ
+         第4段階で制限時間タイマーの一時停止/再開に対応。手動の一時停止
+         ボタンだけでなく、タブ切り替え・アプリのバックグラウンド移行時も
+         同じオーバーレイを表示する(js/findcountry.jsのhandleVisibilityChange参照)。
+         地球儀への操作は画面全体を覆うことで遮断する ============ -->
     <div id="findcountry-pause-overlay" class="findcountry-pause-overlay hidden">
       <div class="findcountry-pause-box">
         <h2 class="findcountry-pause-title">一時停止中</h2>

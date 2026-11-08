@@ -1,10 +1,20 @@
 // ==========================================================
-// 第4段階「世界の国どこかな？」第3段階: 出題・正誤判定の実装
+// 第4段階「世界の国どこかな？」第4段階: 得点・ライフ・タイマー・ゲームオーバー
 //
-// 今回実装するのは実際の出題抽選・タップ回答・正誤判定・結果集計のみ。
-// 得点計算、ライフ減少、制限時間のカウントダウン、最大連続正解の正式集計、
-// 成績の永続保存、ランキング、コレクション、PRO専用演出は実装しない
-// (第2段階からの画面・画面遷移の土台はそのまま再利用する)。
+// 今回実装するのは、制限時間のカウントダウン・ライフ管理・誤答/パス/
+// 時間切れの処理・ゲームオーバー・現在/最大連続正解数・一時停止/画面離脱/
+// バックグラウンド移行時のタイマー整合性・結果画面の拡張。
+// 得点計算は、過去の会話・リポジトリ・GitHub Issue/PRを調査したが、
+// 基礎点・時間ボーナス・連続正解ボーナス等の具体的な配点ルールが
+// 確定した仕様は見つからなかった(既存の国旗/首都クイズのstate.scoreも
+// 単なる正解数カウントであり、ポイント制の得点計算は存在しない)。
+// そのため、得点計算は独立した関数(computeScore)として呼び出し口だけを
+// 用意し、確定した配点が無い間は常にnull(未確定)を返す。架空の得点を
+// 結果画面に表示することはしない。
+//
+// PRO専用の開始条件・特別な得点・演出・称号は今回追加しない。PROも
+// 通常コースと全く同じ共通のタイマー・ライフ・正誤処理を使う
+// (パス不可・216件1回ずつ出題は第3段階までで実装済み)。
 //
 // 3D地球儀はPR #43で地図モードが使っているものをそのまま再利用する。
 // 別の地球儀インスタンスを作らず、既存の#map-globe-container/#screen-map
@@ -23,6 +33,13 @@ const FindCountryModule = (() => {
   ];
   const QUESTION_COUNTS = [5, 10, 20, 30];
   const PRO_DIFFICULTY_ID = "pro";
+  const MAX_LIVES = 3;
+  // 残り時間の警告しきい値(秒)。難易度(15〜30秒)によらず固定の絶対値を使う。
+  // 具体的な秒数の確定仕様は見当たらなかったため、既存の国旗/首都クイズの
+  // 5秒カウントダウン(warn-3/warn-2/warn-1)と同じ「色・文字の両方で警告する」
+  // 考え方だけを踏襲し、このモード向けの妥当な値として独自に決めている
+  const TIMER_WARNING_SECONDS = 10;
+  const TIMER_CRITICAL_SECONDS = 5;
 
   function difficultyById(id) {
     return DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES[0];
@@ -113,6 +130,106 @@ const FindCountryModule = (() => {
   }
   validatePools();
 
+  // ---------- 制限時間タイマー ----------
+  // js/quiz.jsのQuestionTimerと同じ設計方針(performance.now()基準で経過時間
+  // から残り時間を計算し、setIntervalの回数を数える方式は使わない。
+  // pause()/resume()はstartTimeを一時停止していた分だけ後ろにずらすことで、
+  // 一時停止中の経過時間を残り時間の計算に含めない)を踏襲する。
+  // QuestionTimerはQuizEngine.TOTAL_SECONDS固定・thinking/countdownの
+  // 2フェーズ専用で国旗/首都クイズ専用の作りのため複製・流用はせず、
+  // 任意の秒数を受け取れる汎用クラスとしてこのモード専用に新規定義する
+  // (js/quiz.js自体は一切変更しない)。
+  class FindCountryTimer {
+    constructor(totalSeconds, callbacks) {
+      // callbacks: { onTick(secondsLeftFloat), onTimeout() }
+      this.totalSeconds = totalSeconds;
+      this.callbacks = callbacks;
+      this.rafId = null;
+      this.startTime = null;
+      this.stopped = true;
+      this.paused = false;
+      this.pausedAt = null;
+      this.loop = this.loop.bind(this);
+    }
+
+    start() {
+      this.stop(); // 二重起動防止。既存のタイマーが残っていれば必ず先に止める
+      this.stopped = false;
+      this.paused = false;
+      this.pausedAt = null;
+      this.startTime = performance.now();
+      this.rafId = requestAnimationFrame(this.loop);
+    }
+
+    loop(now) {
+      if (this.stopped || this.paused) return;
+      const elapsed = (now - this.startTime) / 1000;
+      const remaining = this.totalSeconds - elapsed;
+      if (remaining <= 0) {
+        this.stop();
+        this.callbacks.onTimeout();
+        return;
+      }
+      this.callbacks.onTick(remaining);
+      this.rafId = requestAnimationFrame(this.loop);
+    }
+
+    // 一時停止・画面離脱・バックグラウンド移行時に呼ぶ。resume()で
+    // 続きから再開できる(stop()と違い、経過時間を保持したまま止める)
+    pause() {
+      if (this.stopped || this.paused) return; // 連打・多重呼び出しに対する安全策
+      this.paused = true;
+      this.pausedAt = performance.now();
+      if (this.rafId !== null) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+    }
+
+    resume() {
+      if (this.stopped || !this.paused) return;
+      const pausedDuration = performance.now() - this.pausedAt;
+      this.startTime += pausedDuration;
+      this.paused = false;
+      this.pausedAt = null;
+      this.rafId = requestAnimationFrame(this.loop);
+    }
+
+    // 回答確定時・時間切れ時・問題切替時・ゲーム終了時・画面離脱時に必ず呼ぶ
+    stop() {
+      this.stopped = true;
+      this.paused = false;
+      this.pausedAt = null;
+      if (this.rafId !== null) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+    }
+
+    // 一時停止中でも(freezeされた時点の値のまま)安全に読める残り秒数。
+    // バックグラウンド移行時、rAFが止まっていても実際の経過時間を
+    // 確認するために使う(handleVisibilityChange参照)
+    remainingSeconds() {
+      if (this.stopped) return 0;
+      const now = this.paused ? this.pausedAt : performance.now();
+      return Math.max(0, this.totalSeconds - (now - this.startTime) / 1000);
+    }
+  }
+
+  // ---------- 得点計算(未確定) ----------
+  // 過去の会話・リポジトリ(js/quiz.js・js/storage.js等)・GitHubのIssue/PR/
+  // コミット履歴を調査したが、基礎点・時間ボーナス・連続正解ボーナスなどの
+  // 具体的な配点ルールが確定した仕様は見つからなかった。既存の国旗/首都
+  // クイズのstate.scoreも「正解数のカウント(+1ずつ)」であり、ポイント制の
+  // 得点計算そのものが存在しない。独断で正式な配点を決めることは避け、
+  // 呼び出し口(difficultyId/result/secondsLeft/totalSeconds/currentStreakを
+  // 既に渡せる構造)だけを用意し、常にnull(未確定)を返す。配点が確定した
+  // 際は、呼び出し元を一切変更せずこの関数の中身だけを差し替えれば済む
+  function computeScore(context) {
+    // context: { difficultyId, result, secondsLeft, totalSeconds, currentStreak }
+    return null;
+  }
+
   // ---------- 画面遷移をまたいで保持するコース選択(成績としては保存しない) ----------
   const selection = {
     difficultyId: null,
@@ -126,9 +243,21 @@ const FindCountryModule = (() => {
     sequence: [], // 出題順に並んだ国・地域オブジェクトの配列(同一プレイ中は重複しない)
     currentIndex: 0, // 0始まり
     currentCountry: null,
-    answered: false, // 今の問題について既に回答確定済み(タップ・パス)かどうか
-    results: [], // {questionNumber, countryId, answeredId, result:"correct"|"wrong"|"pass"}
+    answered: false, // 今の問題について既に回答確定済み(タップ・パス・時間切れ)かどうか
+    results: [], // {questionNumber, countryId, answeredId, result, secondsLeft, points, livesAfter, streakAfter}
+    lives: MAX_LIVES,
+    currentStreak: 0,
+    maxStreak: 0,
+    gameOver: false, // ライフ0で終了したか(結果画面の表示分岐・最終問題判定に使う)
   };
+
+  // 現在アクティブな制限時間タイマー(問題ごとに作り直す。1問につき1個だけ
+  // 存在し、次の問題・画面離脱の際に必ずstop()してから作り直す/破棄する)
+  let timer = null;
+  // renderQuestion()を呼ぶたびに増やす。地球儀(globe.gl、1.9MB)の初回読み込み中に
+  // タイマー開始を遅延させている間に、利用者が次の問題へ進んだり画面を離れたり
+  // した場合、古い遅延開始コールバックが誤って新しいタイマーを起動しないようにする
+  let renderToken = 0;
 
   // ---------- 難易度選択画面 ----------
   function renderDifficultyScreen() {
@@ -201,6 +330,10 @@ const FindCountryModule = (() => {
     quizState.currentIndex = 0;
     quizState.results = [];
     quizState.answered = false;
+    quizState.lives = MAX_LIVES;
+    quizState.currentStreak = 0;
+    quizState.maxStreak = 0;
+    quizState.gameOver = false;
 
     showScreen("screen-map");
     enterFindCountryMapMode();
@@ -228,23 +361,55 @@ const FindCountryModule = (() => {
   function enterFindCountryMapMode() {
     $("screen-map").classList.add("findcountry-mode");
     setFindCountryChromeVisible(true);
-    // ライフ・残り時間は今回のPRでは実装しない(常に固定値を表示し続けると
-    // 利用者に誤解を与えるため、実装するまでは表示自体を隠す)
-    $("findcountry-quiz-status").classList.add("hidden");
     // 既存の世界地図モードと全く同じ初期化・再開ロジック(ensureReady/
     // resumeAnimation等)を呼ぶだけで、別の地球儀は一切作らない
     MapModule.open();
   }
 
   // 既存の世界地図モードへ戻った際、通常の地図操作が完全に復元されるよう、
-  // クイズ専用のタップハンドラー・強調表示・選択状態を必ず元に戻す
+  // クイズ専用のタップハンドラー・強調表示・選択状態を必ず元に戻す。
+  // タイマーも画面離脱時に必ず止める(バックグラウンドで動き続けない)
   function leaveFindCountryMapMode() {
+    if (timer) {
+      timer.stop();
+      timer = null;
+    }
+    // 地球儀の初回読み込み待ち(beginTimerWhenGlobeReady)の途中で画面を
+    // 離れた場合、その待機処理はfindcountry-modeクラスの有無でも自ら
+    // 停止するが、ここでもrenderTokenを即座に進めておく。こうすることで
+    // 離脱直後に新しいゲームを開始しても、古い待機処理が「離脱前と同じ
+    // token」のまま次のrenderQuestion()の値と偶然一致する余地を作らず、
+    // 離脱した瞬間に確実に無効化できる(新しいタイマーを上書きする事故の防止)
+    renderToken += 1;
     MapModule.clearTapResultHandler();
     MapModule.clearQuizResultHighlight();
     MapModule.clearQuizSelection();
     MapModule.close();
     $("screen-map").classList.remove("findcountry-mode");
     setFindCountryChromeVisible(false);
+  }
+
+  // ---------- ライフ表示の更新 ----------
+  function updateLivesDisplay() {
+    const filled = "❤️".repeat(Math.max(0, quizState.lives));
+    const empty = "🤍".repeat(Math.max(0, MAX_LIVES - quizState.lives));
+    $("findcountry-quiz-lives").textContent = filled + empty;
+  }
+
+  // ---------- 残り時間表示の更新(色だけでなく数字・記号も変化させる) ----------
+  function updateTimerDisplay(secondsLeftFloat) {
+    const el = $("findcountry-quiz-timer");
+    const rounded = Math.max(0, Math.ceil(secondsLeftFloat));
+    el.classList.remove("is-warning", "is-critical");
+    if (rounded <= TIMER_CRITICAL_SECONDS) {
+      el.classList.add("is-critical");
+      el.textContent = `⏰ ${rounded}`;
+    } else if (rounded <= TIMER_WARNING_SECONDS) {
+      el.classList.add("is-warning");
+      el.textContent = `⏱ ${rounded}`;
+    } else {
+      el.textContent = `⏱ ${rounded}`;
+    }
   }
 
   // ---------- 出題画面の表示更新 ----------
@@ -262,6 +427,7 @@ const FindCountryModule = (() => {
     $("findcountry-quiz-difficulty").textContent = `${d.icon} ${d.label}`;
     $("findcountry-quiz-progress").textContent = `第${quizState.currentIndex + 1} / ${total}問`;
     $("findcountry-quiz-country-name").textContent = quizState.currentCountry.name;
+    updateLivesDisplay();
 
     const resultText = $("findcountry-quiz-result-text");
     resultText.classList.add("hidden");
@@ -279,19 +445,105 @@ const FindCountryModule = (() => {
     } else {
       $("findcountry-quiz-dev-tap").classList.add("hidden");
     }
+
+    // 制限時間タイマーを問題ごとに必ず作り直す(二重起動防止はstart()内の
+    // stop()呼び出しでも保証されるが、ここでも明示的に古いタイマーを捨てる)。
+    // 地球儀(globe.gl本体・GeoJSON)の初回読み込みには数秒かかることがあり、
+    // ここで即座にタイマーを開始すると、利用者がまだ地球儀を見られない間に
+    // 制限時間だけが減っていく不公平が生じる。そのため、地球儀のcanvasが
+    // 実際に存在する(=タップ可能になる)のを確認してから開始する
+    if (timer) timer.stop();
+    timer = null;
+    updateTimerDisplay(d.seconds);
+    renderToken += 1;
+    beginTimerWhenGlobeReady(renderToken, d.seconds);
   }
 
-  // ---------- 回答結果の一時記録(今回のプレイ中だけメモリ上で保持) ----------
-  function recordResult(result, answeredId) {
+  // 地球儀のcanvasが存在するまで(初回読み込み中は存在しない)requestAnimationFrameで
+  // 待ってからタイマーを開始する。待っている間に次の問題へ進んだり画面を
+  // 離れたりした場合は、tokenの不一致・findcountry-modeクラスの有無で
+  // 判定し、古い問題のタイマーを誤って起動しない。
+  // さらに、同じ問題のまま(token・findcountry-modeは一致したまま)
+  // パスボタン等で既に回答確定済み(quizState.answered===true)になっていた
+  // 場合も開始しない。パスボタンは地球儀のcanvasが無くても押せるため、
+  // 「読み込み待ちの間にパスして回答確定→その直後に読み込みが完了」という
+  // 順序が起こり得る。ここでanswered済みかを確認しないと、既に結果表示
+  // (フィードバック画面)を見ている最中に新しいタイマーが裏で動き出し、
+  // 回答していないはずの時間切れ扱いにはならない(handleTimeUp側のガードは
+  // 効く)ものの、残り時間の表示だけが意味もなく進行してしまう
+  function beginTimerWhenGlobeReady(token, totalSeconds) {
+    if (token !== renderToken) return;
+    if (!$("screen-map").classList.contains("findcountry-mode")) return;
+    if (quizState.answered) return;
+    if (!document.querySelector("#map-globe-container canvas")) {
+      requestAnimationFrame(() => beginTimerWhenGlobeReady(token, totalSeconds));
+      return;
+    }
+    timer = new FindCountryTimer(totalSeconds, {
+      onTick: (secondsLeft) => updateTimerDisplay(secondsLeft),
+      onTimeout: handleTimeUp,
+    });
+    timer.start();
+    // 地球儀の読み込み完了がちょうど一時停止中のタイミングだった場合、
+    // タイマーがオーバーレイの裏で動き続けないよう直後に一時停止する
+    if (!$("findcountry-pause-overlay").classList.contains("hidden")) {
+      timer.pause();
+    }
+  }
+
+  // ---------- 回答確定(タップ・パス・時間切れを1つの処理に集約) ----------
+  // ライフ減少・連続正解の更新・得点計算・結果記録を、この関数の中だけで
+  // 行うことで「同じ問題で2回以上ライフが減る/加点される」事故を防ぐ。
+  // 呼び出し元(handleTap/handlePass/handleTimeUp)は、quizState.answeredの
+  // ガードとタイマー停止だけを担当し、ここでは二重には呼ばれない前提で動く
+  // secondsLeft: 回答確定時点の残り秒数。呼び出し元がtimer.stop()を呼ぶ
+  // "前"のtimer.remainingSeconds()の値を渡す(FindCountryTimer.stop()後は
+  // remainingSeconds()が常に0を返す設計のため、ここで読み直すと正解・
+  // 不正解・パス時の残り時間が常に0として記録されてしまう)。時間切れは
+  // 呼び出し元から明示的に0を渡す
+  function finalizeAnswer(result, answeredId, secondsLeft) {
+    const d = difficultyById(quizState.difficultyId);
+
+    if (result === "correct") {
+      quizState.currentStreak += 1;
+      if (quizState.currentStreak > quizState.maxStreak) {
+        quizState.maxStreak = quizState.currentStreak;
+      }
+    } else {
+      // 不正解・パス・時間切れは、その後に正解位置を確認しても
+      // 連続正解としては扱わない(回答確定の時点で即座に0にする)
+      quizState.currentStreak = 0;
+      quizState.lives = Math.max(0, quizState.lives - 1);
+    }
+
+    const points = computeScore({
+      difficultyId: quizState.difficultyId,
+      result,
+      secondsLeft,
+      totalSeconds: d.seconds,
+      currentStreak: quizState.currentStreak,
+    });
+
     quizState.results.push({
       questionNumber: quizState.currentIndex + 1,
       countryId: quizState.currentCountry.id,
       answeredId: answeredId || null,
-      result, // "correct" | "wrong" | "pass"(将来の得点計算等のために区別できる形式で保持)
+      result, // "correct" | "wrong" | "pass" | "timeout"
+      secondsLeft: Math.max(0, Math.round(secondsLeft)),
+      points, // 配点確定時のみ数値、それ以外はnull(架空の得点を記録しない)
+      livesAfter: quizState.lives,
+      streakAfter: quizState.currentStreak,
     });
+
+    if (quizState.lives <= 0) {
+      quizState.gameOver = true;
+    }
+
+    updateLivesDisplay();
+    showFeedback(result, answeredId);
   }
 
-  // ---------- 正誤判定の表示(kind: "correct" | "wrong" | "pass") ----------
+  // ---------- 正誤判定の表示(kind: "correct" | "wrong" | "pass" | "timeout") ----------
   function showFeedback(kind, tappedId) {
     const correctId = quizState.currentCountry.id;
     const correctName = quizState.currentCountry.name;
@@ -305,6 +557,9 @@ const FindCountryModule = (() => {
     } else if (kind === "wrong") {
       resultText.classList.add("is-wrong");
       resultText.textContent = `❌ 残念！不正解……正解は「${correctName}」でした`;
+    } else if (kind === "timeout") {
+      resultText.classList.add("is-wrong");
+      resultText.textContent = `⏰ 時間切れ……正解は「${correctName}」でした`;
     } else {
       resultText.classList.add("is-wrong");
       resultText.textContent = `⏭ パスしました……正解は「${correctName}」でした`;
@@ -324,13 +579,15 @@ const FindCountryModule = (() => {
 
     $("findcountry-quiz-pass").classList.add("hidden");
     $("findcountry-quiz-hint").classList.add("hidden");
-    const isLastQuestion = quizState.currentIndex + 1 >= quizState.sequence.length;
+    // ゲームオーバーの場合、予定していた問題がまだ残っていても
+    // ここで打ち切り、「結果を見る」に切り替える
+    const isFinalQuestion = quizState.gameOver || quizState.currentIndex + 1 >= quizState.sequence.length;
     const nextBtn = $("findcountry-quiz-next");
-    nextBtn.textContent = isLastQuestion ? "結果を見る" : "次の問題へ ▶";
+    nextBtn.textContent = isFinalQuestion ? "結果を見る" : "次の問題へ ▶";
     nextBtn.classList.remove("hidden");
 
     if (DEBUG_MODE) {
-      $("findcountry-quiz-dev-tap").textContent = `(開発用) タップ結果: ${tappedId || "(パス)"}`;
+      $("findcountry-quiz-dev-tap").textContent = `(開発用) タップ結果: ${tappedId || "(パス/時間切れ)"}`;
     }
   }
 
@@ -342,10 +599,13 @@ const FindCountryModule = (() => {
   function handleTap(tappedId) {
     if (quizState.answered) return;
     quizState.answered = true;
+    // timer.stop()を呼ぶと以降remainingSeconds()は常に0を返すため、
+    // 停止"前"に残り秒数を読み取ってから止める
+    const secondsLeft = timer ? timer.remainingSeconds() : 0;
+    if (timer) timer.stop();
     const correctId = quizState.currentCountry.id;
     const isCorrect = tappedId === correctId;
-    recordResult(isCorrect ? "correct" : "wrong", tappedId);
-    showFeedback(isCorrect ? "correct" : "wrong", tappedId);
+    finalizeAnswer(isCorrect ? "correct" : "wrong", tappedId, secondsLeft);
   }
 
   // ---------- パスボタン(通常コースのみ。PROでは表示されず、呼び出しても無効) ----------
@@ -353,15 +613,27 @@ const FindCountryModule = (() => {
     if (quizState.answered) return;
     if (quizState.difficultyId === PRO_DIFFICULTY_ID) return;
     quizState.answered = true;
-    recordResult("pass", null);
-    showFeedback("pass", null);
+    const secondsLeft = timer ? timer.remainingSeconds() : 0;
+    if (timer) timer.stop();
+    finalizeAnswer("pass", null, secondsLeft);
+  }
+
+  // ---------- 時間切れ(FindCountryTimerのonTimeoutコールバック) ----------
+  // タイマー自身がonTimeoutを呼ぶ直前に必ずstop()済みのため、ここで
+  // 改めてtimer.stop()を呼ぶ必要はない。時間切れ後に地球儀をタップしても
+  // quizState.answered===trueによりhandleTapが無視するため、結果は変わらない。
+  // 時間切れの残り秒数は必ず0として記録する
+  function handleTimeUp() {
+    if (quizState.answered) return; // 念のための二重発火防止
+    quizState.answered = true;
+    finalizeAnswer("timeout", null, 0);
   }
 
   // ---------- 「次の問題へ」/「結果を見る」ボタン ----------
   function handleNextClick() {
     if (!quizState.answered) return; // 回答確定前はこのボタンは表示されない(念のためのガード)
-    const isLastQuestion = quizState.currentIndex + 1 >= quizState.sequence.length;
-    if (isLastQuestion) {
+    const isFinalQuestion = quizState.gameOver || quizState.currentIndex + 1 >= quizState.sequence.length;
+    if (isFinalQuestion) {
       showResult();
       return;
     }
@@ -369,12 +641,33 @@ const FindCountryModule = (() => {
     renderQuestion();
   }
 
-  // ---------- 一時停止 ----------
+  // ---------- 一時停止(手動ボタン・タブ切り替え/バックグラウンド移行の両方から呼ぶ) ----------
   function showPauseOverlay() {
     $("findcountry-pause-overlay").classList.remove("hidden");
+    if (timer) timer.pause();
   }
   function hidePauseOverlay() {
     $("findcountry-pause-overlay").classList.add("hidden");
+    if (timer) timer.resume();
+  }
+
+  // タブ切り替え・アプリのバックグラウンド移行を検知し、自動的に一時停止する。
+  // 復帰時に勝手にタイマーが進行しないよう、再開は既存の「▶ 再開」ボタンの
+  // 操作だけで行う(可視化に戻ったタイミングで自動再開はしない)。
+  // rAFはタブが非表示の間スロットリングされ発火しない(=onTimeoutが
+  // 呼ばれない)ため、隠れる直前の時点でperformance.now()基準の正確な
+  // 残り時間を確認し、既に0以下であれば時間切れを不正に回避させず
+  // その場で確定させる
+  function handleVisibilityChange() {
+    if (!document.hidden) return;
+    if (!$("screen-map").classList.contains("findcountry-mode")) return;
+    if (!timer || quizState.answered || quizState.gameOver) return;
+    if (timer.remainingSeconds() <= 0) {
+      timer.stop();
+      handleTimeUp();
+    } else {
+      showPauseOverlay();
+    }
   }
 
   // ---------- 終了・戻る ----------
@@ -403,12 +696,42 @@ const FindCountryModule = (() => {
   function showResult() {
     leaveFindCountryMapMode();
     const d = difficultyById(quizState.difficultyId);
-    const total = quizState.results.length;
+    const planned = quizState.sequence.length; // 予定していた問題数
+    const answered = quizState.results.length; // 実際に回答(タップ・パス・時間切れ含む)した数
     const correctCount = quizState.results.filter((r) => r.result === "correct").length;
-    const rate = total > 0 ? Math.round((correctCount / total) * 100) : 0;
-    $("findcountry-result-course").textContent = `${d.icon} ${d.label}・${total}問`;
-    $("findcountry-result-score-fraction").textContent = `${total}問中${correctCount}問正解！`;
+    const rate = answered > 0 ? Math.round((correctCount / answered) * 100) : 0;
+
+    $("findcountry-result-title").textContent = quizState.gameOver ? "ゲームオーバー" : "結果発表";
+    const gameoverNote = $("findcountry-result-gameover-note");
+    if (quizState.gameOver) {
+      gameoverNote.textContent = `${MAX_LIVES}回間違えたため、ここで終了です`;
+      gameoverNote.classList.remove("hidden");
+    } else {
+      gameoverNote.classList.add("hidden");
+      gameoverNote.textContent = "";
+    }
+
+    $("findcountry-result-course").textContent = `${d.icon} ${d.label}`;
+    $("findcountry-result-planned").textContent = `予定問題数：${planned}問`;
+    $("findcountry-result-answered").textContent = `実際の回答数：${answered}問`;
+    $("findcountry-result-score-fraction").textContent = `${answered}問中${correctCount}問正解！`;
     $("findcountry-result-rate").textContent = `正答率 ${rate}%`;
+    $("findcountry-result-streak").textContent = `最大連続正解 ${quizState.maxStreak}`;
+    $("findcountry-result-lives").textContent =
+      `残りライフ ${"❤️".repeat(Math.max(0, quizState.lives))}${"🤍".repeat(Math.max(0, MAX_LIVES - quizState.lives))}`;
+
+    // 得点は配点が確定した場合のみ表示する(今回は未確定のため常に非表示)
+    const anyScoreConfirmed = quizState.results.some((r) => r.points !== null);
+    const pointsEl = $("findcountry-result-points");
+    if (anyScoreConfirmed) {
+      const totalPoints = quizState.results.reduce((sum, r) => sum + (r.points || 0), 0);
+      pointsEl.textContent = `得点 ${totalPoints}点`;
+      pointsEl.classList.remove("hidden");
+    } else {
+      pointsEl.classList.add("hidden");
+      pointsEl.textContent = "";
+    }
+
     showScreen("screen-findcountry-result");
   }
 
@@ -418,6 +741,7 @@ const FindCountryModule = (() => {
     $("findcountry-quiz-pause").addEventListener("click", showPauseOverlay);
     $("findcountry-quiz-pass").addEventListener("click", handlePass);
     $("findcountry-quiz-next").addEventListener("click", handleNextClick);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     $("findcountry-pause-resume").addEventListener("click", hidePauseOverlay);
     $("findcountry-pause-to-select").addEventListener("click", () => {
