@@ -41,11 +41,17 @@ function safeGet(key) {
   }
 }
 
+// 戻り値は保存に成功したかどうか(true/false)。既存の呼び出し元の多くは
+// この戻り値を使わず今までどおり「呼びっぱなし」のままで問題ないが、
+// submitFindCountryRecord()のように保存の成否そのものを呼び出し元の
+// 判断に使いたい箇所のために、例外を飲み込むだけでなく結果を返すようにする
 function safeSet(key, value) {
   try {
     localStorage.setItem(key, value);
+    return true;
   } catch (e) {
     console.warn("localStorageの保存に失敗しました", e);
+    return false;
   }
 }
 
@@ -97,8 +103,11 @@ function loadFindCountryRankingData() {
   }
 }
 
+// 戻り値は保存に成功したかどうか。呼び出し元(submitFindCountryRecord)は
+// これがfalseの場合、メモリ上でのみ算出した順位を「保存できた記録の順位」
+// として扱わないようにする
 function saveFindCountryRankingData(data) {
-  safeSet(FINDCOUNTRY_RANKING_KEY, JSON.stringify(data));
+  return safeSet(FINDCOUNTRY_RANKING_KEY, JSON.stringify(data));
 }
 
 const Storage = {
@@ -200,8 +209,14 @@ const Storage = {
   // 1プレイ分の記録を該当コースのランキングに登録する。
   // record: { difficultyId, questionCount(PROはnull), score, correctCount,
   //           answeredCount, avgElapsedSeconds, maxStreak, playedAt(ISO文字列) }
-  // 戻り値: TOP5にランクインしていれば1〜5の順位、入らなければnull。
-  // 保存処理自体が例外を投げてもゲームを止めないよう、ここで必ずcatchする
+  // 戻り値: 実際にlocalStorageへの保存まで成功し、かつTOP5にランクイン
+  // していれば1〜5の順位、それ以外(ランク外、または保存自体に失敗した場合)
+  // はnull。saveFindCountryRankingData()はlocalStorage.setItem()の成否を
+  // そのまま返すため、ここで必ず確認する。確認しないと、容量超過等で
+  // 保存できていないのに(メモリ上で計算しただけの)順位を返してしまい、
+  // 結果画面に実際には記録されていない「ランクインしました」が表示される
+  // 事故につながる。保存処理自体が例外を投げてもゲームを止めないよう、
+  // ここで必ずcatchする
   submitFindCountryRecord(record) {
     try {
       if (!isValidFindCountryRecord(record)) return null;
@@ -211,7 +226,8 @@ const Storage = {
         .filter(isValidFindCountryRecord);
       const merged = existing.concat([record]).sort(compareFindCountryRecords).slice(0, FINDCOUNTRY_RANKING_TOP_N);
       data.courses[courseKey] = merged;
-      saveFindCountryRankingData(data);
+      const saved = saveFindCountryRankingData(data);
+      if (!saved) return null;
       const rank = merged.indexOf(record);
       return rank === -1 ? null : rank + 1;
     } catch (e) {
