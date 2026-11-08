@@ -49,6 +49,12 @@ const FindCountryModule = (() => {
   const TIMER_WARNING_SECONDS = 10;
   const TIMER_CRITICAL_SECONDS = 5;
 
+  // 不正解時の再挑戦(第5段階後半2回目の確定仕様)。通常コース(初級/中級/上級)は
+  // ライフが残っている限り同じ問題に再挑戦できる。「❌ ざんねん、まちがえだよ」を
+  // 確認するための短い表示時間で、この間はタイマーを一時停止し不公平な時間
+  // 消費を防ぐ(PROはライフ1のため、この再挑戦には入らず従来どおり即終了する)
+  const WRONG_RETRY_DISPLAY_MS = 1200;
+
   function difficultyById(id) {
     return DIFFICULTIES.find((d) => d.id === id) || DIFFICULTIES[0];
   }
@@ -270,7 +276,12 @@ const FindCountryModule = (() => {
     sequence: [], // 出題順に並んだ国・地域オブジェクトの配列(同一プレイ中は重複しない)
     currentIndex: 0, // 0始まり
     currentCountry: null,
-    answered: false, // 今の問題について既に回答確定済み(タップ・パス・時間切れ)かどうか
+    answered: false, // 今の問題について既に回答確定済み(タップ・パス・時間切れ、または
+    // 再挑戦の短い結果表示中)で、追加のタップ・パスを受け付けない状態かどうか
+    hasMistakeThisQuestion: false, // この問題で一度でも不正解タップがあったか(再挑戦後に
+    // 正解しても連続正解には加算しない判定・既にリセット済みの連続正解の多重リセット防止に使う)
+    canAdvance: false, // この問題の最終結果が確定し、「次の問題へ」/「結果を見る」ボタンで
+    // 進んでよい状態かどうか(answeredは再挑戦の短い表示中もtrueになるため別管理する)
     results: [], // {questionNumber, countryId, answeredId, result, elapsedSeconds, secondsLeft, points, livesAfter, streakAfter}
     lives: NORMAL_MAX_LIVES,
     currentStreak: 0,
@@ -287,6 +298,36 @@ const FindCountryModule = (() => {
   // タイマー開始を遅延させている間に、利用者が次の問題へ進んだり画面を離れたり
   // した場合、古い遅延開始コールバックが誤って新しいタイマーを起動しないようにする
   let renderToken = 0;
+
+  // 不正解の再挑戦メッセージ(「❌ ざんねん、まちがえだよ」)を表示している間かどうか。
+  // 一時停止オーバーレイとは別の「一時停止したい理由」として扱い、どちらか片方でも
+  // 真であればタイマーは止めたままにする(applyTimerPauseState参照)
+  let retryFeedbackActive = false;
+  let retryFeedbackTimeoutId = null;
+
+  // 一時停止オーバーレイの表示中・再挑戦メッセージの表示中のどちらかであれば
+  // タイマーを一時停止し、両方とも解消していれば再開する。呼び出し元がどちらの
+  // 状態を変更した場合も、このまとめた判定だけを呼べば整合性が保てる
+  function applyTimerPauseState() {
+    if (!timer) return;
+    const overlayOpen = !$("findcountry-pause-overlay").classList.contains("hidden");
+    if (overlayOpen || retryFeedbackActive) {
+      timer.pause();
+    } else {
+      timer.resume();
+    }
+  }
+
+  // 問題の切り替え・クイズからの離脱時に、前の問題の再挑戦メッセージ用の
+  // 保留中タイマーを確実に破棄する(破棄後の状態をUIへは反映しない。
+  // renderQuestion/leaveFindCountryMapMode側で別途全体を正しい状態に戻すため)
+  function cancelRetryFeedback() {
+    if (retryFeedbackTimeoutId !== null) {
+      clearTimeout(retryFeedbackTimeoutId);
+      retryFeedbackTimeoutId = null;
+    }
+    retryFeedbackActive = false;
+  }
 
   // ---------- 難易度選択画面 ----------
   function renderDifficultyScreen() {
@@ -401,6 +442,7 @@ const FindCountryModule = (() => {
   // クイズ専用のタップハンドラー・強調表示・選択状態を必ず元に戻す。
   // タイマーも画面離脱時に必ず止める(バックグラウンドで動き続けない)
   function leaveFindCountryMapMode() {
+    cancelRetryFeedback();
     if (timer) {
       timer.stop();
       timer = null;
@@ -450,6 +492,13 @@ const FindCountryModule = (() => {
     const total = quizState.sequence.length;
     quizState.currentCountry = quizState.sequence[quizState.currentIndex];
     quizState.answered = false;
+    quizState.hasMistakeThisQuestion = false;
+    // 「次の問題へ」/「結果を見る」ボタンは実際には.hiddenで隠れているため
+    // 通常のタップでは押せないが、念のための防御としてhandleNextClick側でも
+    // 判定する。answeredは再挑戦の短い表示中もtrueになるため、「この問題の
+    // 最終結果が確定したか」はこのフラグで別途管理する(showFeedbackでtrueにする)
+    quizState.canAdvance = false;
+    cancelRetryFeedback();
 
     // 正解の自動ハイライト・自動カメラ移動・国名ラベル・情報カードは
     // 一切行わない(クイズ専用の強調表示を必ず解除してから次の問題を出す)
@@ -519,22 +568,28 @@ const FindCountryModule = (() => {
     timer.start();
     // 地球儀の読み込み完了がちょうど一時停止中のタイミングだった場合、
     // タイマーがオーバーレイの裏で動き続けないよう直後に一時停止する
-    if (!$("findcountry-pause-overlay").classList.contains("hidden")) {
-      timer.pause();
-    }
+    applyTimerPauseState();
   }
 
   // ---------- 回答確定(タップ・パス・時間切れを1つの処理に集約) ----------
   // ライフ減少・連続正解の更新・得点計算・結果記録を、この関数の中だけで
   // 行うことで「同じ問題で2回以上ライフが減る/加点される」事故を防ぐ。
-  // 呼び出し元(handleTap/handlePass/handleTimeUp)は、quizState.answeredの
-  // ガードとタイマー停止だけを担当し、ここでは二重には呼ばれない前提で動く
+  // 呼び出し元(handleTap/handleWrongTap/handlePass/handleTimeUp)は、
+  // quizState.answeredのガードとタイマー停止だけを担当し、ここでは二重には
+  // 呼ばれない前提で動く。この関数へ到達するのは「その問題の最終結果」
+  // (正解・パス・時間切れ・ライフが尽きたことによる不正解)の時だけで、
+  // ライフが残っている不正解(再挑戦)はhandleWrongTap側で完結し、ここには
+  // 来ない(quizState.resultsに積まれず、ランキングの回答数を水増ししない)
   // secondsLeft: 回答確定時点の残り秒数。呼び出し元がtimer.stop()を呼ぶ
   // "前"のtimer.remainingSeconds()の値を渡す(FindCountryTimer.stop()後は
   // remainingSeconds()が常に0を返す設計のため、ここで読み直すと正解・
   // 不正解・パス時の残り時間が常に0として記録されてしまう)。時間切れは
   // 呼び出し元から明示的に0を渡す
-  function finalizeAnswer(result, answeredId, secondsLeft) {
+  // opts.livesAlreadyHandled: 再挑戦の末にライフが尽きた不正解(result==="wrong")で
+  // true。この場合はhandleWrongTap側で既にライフを1減らしているため、ここでは
+  // 二重に減らさない
+  function finalizeAnswer(result, answeredId, secondsLeft, opts) {
+    opts = opts || {};
     const d = difficultyById(quizState.difficultyId);
     // コレクションへの獲得登録は正解時のみ、この回答確定処理の中で一度だけ
     // 行う(二重タップはhandleTap/handlePass側のquizState.answeredガードで
@@ -545,9 +600,14 @@ const FindCountryModule = (() => {
     // 起きない(重複登録防止)。保存に失敗してもクイズの進行自体は止めない
     let isNewCapture = false;
     if (result === "correct") {
-      quizState.currentStreak += 1;
-      if (quizState.currentStreak > quizState.maxStreak) {
-        quizState.maxStreak = quizState.currentStreak;
+      // 再挑戦の末に正解した問題(hasMistakeThisQuestion)は、一発正解として
+      // 連続正解に加算しない(連続正解自体は最初の不正解タップの時点で
+      // 既に0へリセット済みのため、ここでは単に加算しないだけでよい)
+      if (!quizState.hasMistakeThisQuestion) {
+        quizState.currentStreak += 1;
+        if (quizState.currentStreak > quizState.maxStreak) {
+          quizState.maxStreak = quizState.currentStreak;
+        }
       }
       try {
         isNewCapture = Storage.captureFindCountryEntry(quizState.currentCountry.id, new Date().toISOString());
@@ -559,7 +619,9 @@ const FindCountryModule = (() => {
       // 不正解・パス・時間切れは、その後に正解位置を確認しても
       // 連続正解としては扱わない(回答確定の時点で即座に0にする)
       quizState.currentStreak = 0;
-      quizState.lives = Math.max(0, quizState.lives - 1);
+      if (!opts.livesAlreadyHandled) {
+        quizState.lives = Math.max(0, quizState.lives - 1);
+      }
     }
 
     // 回答時間(0.01秒単位)。timer.remainingSeconds()は一時停止中の時間・
@@ -592,6 +654,7 @@ const FindCountryModule = (() => {
 
   // ---------- 正誤判定の表示(kind: "correct" | "wrong" | "pass" | "timeout") ----------
   function showFeedback(kind, tappedId, isNewCapture) {
+    quizState.canAdvance = true; // この問題の最終結果が確定した(次へ進めてよい)
     const correctId = quizState.currentCountry.id;
     const correctName = quizState.currentCountry.name;
 
@@ -602,8 +665,13 @@ const FindCountryModule = (() => {
       resultText.classList.add("is-correct");
       resultText.textContent = `✅ 正解！ ここが「${correctName}」です`;
     } else if (kind === "wrong") {
+      // この分岐はライフが尽きてゲームオーバーになった最後の不正解タップの時だけ
+      // 通る(ライフが残っている不正解はhandleWrongTap側で再挑戦させ、ここには
+      // 来ない)。正解の国名は表示しないが、「従来どおり」地球儀上の位置は
+      // 下のMapModule呼び出しで確認できるようにする(このelse ifブロックの外、
+      // 既存のselectCountryForQuiz/setQuizResultHighlight呼び出しは変更しない)
       resultText.classList.add("is-wrong");
-      resultText.textContent = `❌ 残念！不正解……正解は「${correctName}」でした`;
+      resultText.textContent = "❌ ざんねん、まちがえだよ";
     } else if (kind === "timeout") {
       resultText.classList.add("is-wrong");
       resultText.textContent = `⏰ 時間切れ……正解は「${correctName}」でした`;
@@ -652,18 +720,90 @@ const FindCountryModule = (() => {
   // ---------- タップ回答(PR #43のMapModule.setTapResultHandlerから呼ばれる) ----------
   // 海上タップ・地球儀ドラッグ・ピンチはhandleMapTap内の既存ガードで
   // この関数に到達する前に除外済みのため、ここに渡るidは必ず実在の国・地域。
-  // 1問につき回答は1回だけ受け付け、回答確定後(answered===true)の
-  // 追加タップは無視して結果を変化させない
+  // 1問につき回答は1回だけ受け付け、回答確定後(answered===true、再挑戦の
+  // 短い結果表示中も含む)の追加タップは無視して結果を変化させない
   function handleTap(tappedId) {
     if (quizState.answered) return;
-    quizState.answered = true;
-    // timer.stop()を呼ぶと以降remainingSeconds()は常に0を返すため、
-    // 停止"前"に残り秒数を読み取ってから止める
-    const secondsLeft = timer ? timer.remainingSeconds() : 0;
-    if (timer) timer.stop();
     const correctId = quizState.currentCountry.id;
-    const isCorrect = tappedId === correctId;
-    finalizeAnswer(isCorrect ? "correct" : "wrong", tappedId, secondsLeft);
+    if (tappedId === correctId) {
+      quizState.answered = true;
+      // timer.stop()を呼ぶと以降remainingSeconds()は常に0を返すため、
+      // 停止"前"に残り秒数を読み取ってから止める
+      const secondsLeft = timer ? timer.remainingSeconds() : 0;
+      if (timer) timer.stop();
+      finalizeAnswer("correct", tappedId, secondsLeft);
+      return;
+    }
+    handleWrongTap(tappedId);
+  }
+
+  // ---------- 不正解タップの処理(第5段階後半2回目: 不正解時の再挑戦) ----------
+  // 通常コース(初級/中級/上級、ライフ3)は、ライフが残っている限り同じ問題に
+  // 再挑戦できる。ライフは不正解のたびに必ず1減らし、連続正解もその時点で
+  // 即座に0へリセットする(再挑戦後に正解しても一発正解としては加算しない)。
+  // PROはライフ1のため、この関数の最初の不正解で必ずlives<=0側の分岐へ入り、
+  // 従来どおりパス不可・1ミス即ゲームオーバーの仕様を変更しない
+  function handleWrongTap(tappedId) {
+    quizState.hasMistakeThisQuestion = true;
+    quizState.currentStreak = 0;
+    quizState.lives = Math.max(0, quizState.lives - 1);
+    updateLivesDisplay();
+
+    if (quizState.lives <= 0) {
+      // ライフが尽きたら、この問題を最終結果として確定する(ゲームオーバー)。
+      // ライフは既にここで減らし済みのため、finalizeAnswer側では二重に
+      // 減らさないようlivesAlreadyHandledを伝える。従来どおり正解位置を
+      // 確認できるようにしてから結果画面へ進める(showFeedback参照)
+      quizState.answered = true;
+      const secondsLeft = timer ? timer.remainingSeconds() : 0;
+      if (timer) timer.stop();
+      finalizeAnswer("wrong", tappedId, secondsLeft, { livesAlreadyHandled: true });
+      return;
+    }
+
+    showWrongRetryFeedback(tappedId);
+  }
+
+  // 不正解だがライフが残っている間の、短い「❌ ざんねん、まちがえだよ」表示。
+  // 正解の国名・ハイライト・自動ズームは一切行わない(再挑戦の答えを
+  // 教えてしまわないようにするため)。表示中はタップ・パスを受け付けず、
+  // 制限時間タイマーも一時停止して不公平な時間消費を防ぐ。表示時間が
+  // 終わったら自動的に同じ問題へ再挑戦できる状態に戻す
+  function showWrongRetryFeedback(tappedId) {
+    quizState.answered = true;
+    retryFeedbackActive = true;
+    applyTimerPauseState();
+
+    const resultText = $("findcountry-quiz-result-text");
+    resultText.classList.remove("hidden", "is-correct");
+    resultText.classList.add("is-wrong");
+    resultText.textContent = "❌ ざんねん、まちがえだよ";
+    $("findcountry-quiz-new-badge").classList.add("hidden");
+    $("findcountry-quiz-hint").classList.add("hidden");
+    $("findcountry-quiz-pass").disabled = true;
+
+    if (DEBUG_MODE) {
+      $("findcountry-quiz-dev-tap").textContent = `(開発用) タップ結果: ${tappedId}(再挑戦可)`;
+    }
+
+    retryFeedbackTimeoutId = setTimeout(() => {
+      retryFeedbackTimeoutId = null;
+      hideWrongRetryFeedback();
+    }, WRONG_RETRY_DISPLAY_MS);
+  }
+
+  // showWrongRetryFeedback()の表示を終え、同じ問題に再びタップできる状態へ戻す
+  function hideWrongRetryFeedback() {
+    retryFeedbackActive = false;
+    applyTimerPauseState();
+
+    const resultText = $("findcountry-quiz-result-text");
+    resultText.classList.add("hidden");
+    resultText.classList.remove("is-wrong");
+    resultText.textContent = "";
+    $("findcountry-quiz-hint").classList.remove("hidden");
+    $("findcountry-quiz-pass").disabled = false;
+    quizState.answered = false;
   }
 
   // ---------- パスボタン(通常コースのみ。PROでは表示されず、呼び出しても無効) ----------
@@ -689,7 +829,10 @@ const FindCountryModule = (() => {
 
   // ---------- 「次の問題へ」/「結果を見る」ボタン ----------
   function handleNextClick() {
-    if (!quizState.answered) return; // 回答確定前はこのボタンは表示されない(念のためのガード)
+    // 回答確定前・再挑戦の短い表示中はこのボタンは実際には隠れているが、
+    // 念のための防御として明示的にcanAdvanceを確認する(answeredだけでは
+    // 再挑戦中かどうかを区別できないため)
+    if (!quizState.canAdvance) return;
     const isFinalQuestion = quizState.gameOver || quizState.currentIndex + 1 >= quizState.sequence.length;
     if (isFinalQuestion) {
       showResult();
@@ -702,11 +845,14 @@ const FindCountryModule = (() => {
   // ---------- 一時停止(手動ボタン・タブ切り替え/バックグラウンド移行の両方から呼ぶ) ----------
   function showPauseOverlay() {
     $("findcountry-pause-overlay").classList.remove("hidden");
-    if (timer) timer.pause();
+    applyTimerPauseState();
   }
   function hidePauseOverlay() {
     $("findcountry-pause-overlay").classList.add("hidden");
-    if (timer) timer.resume();
+    // 再挑戦メッセージの表示中に一時停止を解除した場合、applyTimerPauseStateが
+    // retryFeedbackActiveを見てタイマーを一時停止したままにする(再挑戦メッセージ
+    // 自体の表示終了はhideWrongRetryFeedback()が別途行う)
+    applyTimerPauseState();
   }
 
   // タブ切り替え・アプリのバックグラウンド移行を検知し、自動的に一時停止する。
