@@ -41,6 +41,12 @@
   color: var(--color-wrong);
   margin: -8px 0 16px;
 }
+.findcountry-result-complete-note {
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-correct);
+  margin: -8px 0 16px;
+}
 .findcountry-result-course {
   text-align: center;
   font-weight: 800;
@@ -66,11 +72,11 @@
   color: var(--color-primary-dark);
   margin: 6px 0 0;
 }
-.findcountry-result-future-note {
+.findcountry-result-avg-time {
   text-align: center;
-  font-size: 0.78rem;
+  font-size: 0.85rem;
   color: var(--color-text-sub);
-  margin: 10px 0 0;
+  margin: 4px 0 0;
 }
 
 /* ==========================================================
