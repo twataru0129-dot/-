@@ -310,15 +310,17 @@ const FindCountryModule = (() => {
       resultText.textContent = `⏭ パスしました……正解は「${correctName}」でした`;
     }
 
-    // 正解の位置を地球儀上で確認できるようにする。selectCountryForQuiz()で
-    // 小国・南極大陸等の📍を強制的に表示・拡大し(情報カードは開かない)、
-    // setQuizResultHighlight()で正解(緑)・実際にタップして不正解だった国
-    // (赤、タップがある場合のみ)を色分けする。色だけに頼らないよう、
-    // 上記の文字・記号による表示を必ず併用する。既存の世界地図の色分け・
-    // 国境線はこの間だけ一時的に変わり、次の問題・退出時に必ず元へ戻す
-    MapModule.selectCountryForQuiz(correctId);
+    // 正解の位置を地球儀上で確認できるようにする。selectCountryForQuiz()を
+    // {autoZoom:true}で呼び、国・地域の実際の大きさに応じた自動ズームで
+    // カメラを移動しつつ、📍を強制的に表示・拡大する(情報カードは開かない)。
+    // これによりバヌアツ・コモロのような固定ピン対象外の小国・島しょ地域や
+    // 南極大陸でも位置を確認しやすくする。setQuizResultHighlight()で
+    // 正解(緑)・実際にタップして不正解だった国(赤、タップがある場合のみ)を
+    // 色分けする。色だけに頼らないよう、上記の文字・記号による表示を必ず
+    // 併用する。既存の世界地図の色分け・国境線はこの間だけ一時的に変わり、
+    // 次の問題・退出時に必ず元へ戻す
+    MapModule.selectCountryForQuiz(correctId, { autoZoom: true });
     MapModule.setQuizResultHighlight(correctId, kind === "wrong" ? tappedId : null);
-    MapModule.moveCameraToCountry(correctId);
 
     $("findcountry-quiz-pass").classList.add("hidden");
     $("findcountry-quiz-hint").classList.add("hidden");

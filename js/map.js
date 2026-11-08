@@ -2238,14 +2238,23 @@ const MapModule = (() => {
   // 新しい対象の値に上書きされ、refreshPolygonStyles()/refreshPinLayer()が
   // その時点の状態だけを見て描画し直すため、連続選択しても前回選んだ対象の
   // ハイライトや一時目印が残ることはない(既存のselectCountry()が元々持つ性質)
-  function selectCountryForQuiz(id) {
+  // options.autoZoom(第3段階「出題・正誤判定」で追加): trueのときだけ
+  // moveCamera:trueで呼び、既存の検索・ランダム選択と同じcomputeAutoZoom
+  // (国・地域の実際の大きさに応じた自動ズーム)とtempSearchMarkerId
+  // (PIN_TARGET_IDSに無い小国・地域でも、自動ズームしてなお画面上で
+  // 十分な大きさにできない場合に一時的な📍目印を出す既存の仕組み)を
+  // そのまま再利用する。これにより、正解発表時にバヌアツ・コモロのような
+  // 固定ピン対象外の小国・島しょ地域でも位置を確認しやすくする。
+  // 省略時(既定)は従来どおりmoveCamera:falseのまま、カメラは動かさない
+  function selectCountryForQuiz(id, options) {
     if (!globeInstance || !countryById) return false;
     const country = countryById.get(id);
     if (!country) {
       console.warn(`世界の国どこかな？: selectCountryForQuizに不正なID「${id}」が指定されました`);
       return false;
     }
-    selectCountry(country, { moveCamera: false, showInfoCard: false });
+    const autoZoom = !!(options && options.autoZoom);
+    selectCountry(country, { moveCamera: autoZoom, showInfoCard: false });
     return true;
   }
   // 選択状態の解除。既存のcloseInfoCard()がそのまま使える(選択解除・
