@@ -373,14 +373,18 @@ const FindCountryModule = (() => {
       // カードごとに「国・地域数」「制限時間」「ライフ(♡)」を独立した3行で
       // 表示する(PROが未解放の場合は♡の行の代わりに進捗を表示する)
       const headIcon = locked ? "🔒" : d.icon;
-      const livesLine = locked
+      // 第6段階追加修正: ♡の行は未解放・解放済みに関わらず必ず表示し、
+      // 未解放の場合はその下に小さくクリア進捗を追加する(♡の行自体は置き換えない)
+      const livesLine = `<div class="difficulty-card-line difficulty-card-lives">♡ ${d.maxLives}</div>`;
+      const progressLine = locked
         ? `<div class="difficulty-card-line difficulty-card-progress">クリア済み ${proStatus.clearedCount} / ${proStatus.total}コース</div>`
-        : `<div class="difficulty-card-line difficulty-card-lives">♡ ${d.maxLives}</div>`;
+        : "";
       card.innerHTML =
         `<div class="difficulty-card-head">${headIcon} ${d.label}</div>` +
         `<div class="difficulty-card-line">${d.count}の国と地域</div>` +
         `<div class="difficulty-card-line">制限時間${d.seconds}秒</div>` +
-        livesLine;
+        livesLine +
+        progressLine;
       card.addEventListener("click", () => {
         if (locked) {
           // 画面上の無効化だけでなく分かりやすい案内も出す(タップ自体は
