@@ -51,6 +51,12 @@ const MapModule = (() => {
   let quizWrongHighlightId = null;
   let selectRequestSeq = 0; // open()/retryMapLoad()呼び出しごとに増やし、古い非同期の選択リクエストが後から発火しても無視できるようにする
   let pendingSelectId = null; // 今回のopen()呼び出しで選択すべき国・地域のid(無ければnull)
+  // 「世界の国どこかな？」が新しいゲームを開始する際に使う、地球儀構築完了
+  // (onGlobeReady)時点の既定視点の差し替え先id。resetInitialViewToCountry()が
+  // globeInstanceまだ構築前(このセッションで初めて地図を開く場合)に呼ばれた
+  // ときだけ設定し、onGlobeReadyが既定の(15,30)視点の代わりにこの国・地域を
+  // 使う。一度きりのonGlobeReady内で読み取った後は特に消さなくても実害はない
+  let pendingInitialFocusId = null;
   let isRandomFlightInProgress = false; // ランダム移動のカメラアニメーション中だけtrue
   let hasInteracted = false;
   let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
@@ -1684,13 +1690,29 @@ const MapModule = (() => {
         // そのため、既に国・地域が選択済みであれば既定視点へは戻さず、
         // その国・地域へ改めて正しく向き直す
         const alreadySelected = selectedCountryId && countryById && countryById.get(selectedCountryId);
+        // 「世界の国どこかな？」が新しいゲームの第1問用に既定視点の差し替えを
+        // 予約していた場合(resetInitialViewToCountry、地球儀がまだ構築されて
+        // いなかったため保留されたケース)は、こちらを優先する
+        const initialFocusCountry = !alreadySelected && pendingInitialFocusId && countryById
+          ? countryById.get(pendingInitialFocusId)
+          : null;
         if (!alreadySelected) {
-          globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
+          if (initialFocusCountry) {
+            const anchor = anchorForCountry(initialFocusCountry);
+            globeInstance.pointOfView({ lat: anchor.lat, lng: anchor.lng, altitude: INITIAL_VIEW_ALTITUDE }, 0);
+          } else {
+            globeInstance.pointOfView({ lat: 15, lng: 30, altitude: INITIAL_VIEW_ALTITUDE }, 0);
+          }
         }
         startAutoRotate();
         if (alreadySelected) {
           selectCountry(alreadySelected, { moveCamera: true });
+        } else if (initialFocusCountry) {
+          // startAutoRotate()の直後に止めることで、見た目には一度も回転しない
+          // (既存のselectCountry()がalreadySelectedの場合に行っているのと同じ考え方)
+          globeInstance.controls().autoRotate = false;
         }
+        pendingInitialFocusId = null;
         hookRendererForLabelSync();
         // 📍の3Dオブジェクト化に使うThree.jsクラスをここで一度だけ取得してから、
         // 実際のピンレイヤーを構築する(取得完了まで📍は一時的に表示されない)
@@ -2230,6 +2252,34 @@ const MapModule = (() => {
     return true;
   }
 
+  // ---- A'. 新しいゲーム開始時の初期視点(第1問にだけ使う) ----
+  // moveCameraToCountryと違い、現在のズーム倍率(computeAutoZoom/
+  // clampAltitudeToZoomLimits)は一切参照せず、常に世界地図モードを開いた
+  // ときと同じ標準の初期倍率(INITIAL_VIEW_ALTITUDE)に戻す。情報カード回避の
+  // ための注視点シフト(cardAvoidanceTarget)も行わず、指定した国・地域の
+  // 実ポリゴンに基づく代表点(anchorForCountry)を画面の正面中央に置く。
+  // 地球儀がこのセッションでまだ構築されていない場合(globeInstance===null)は
+  // 即座には適用できないため、構築完了時(onGlobeReady)に使う既定視点を
+  // この国・地域に差し替える形で予約だけ行う(戻り値はfalse。実際に視点が
+  // 反映されるのはonGlobeReady発火後になるが、既存の(15,30)の既定視点に
+  // 上書きされることはない)
+  function resetInitialViewToCountry(id) {
+    const country = countryById && countryById.get(id);
+    if (globeInstance && country) {
+      const anchor = anchorForCountry(country);
+      globeInstance.pointOfView({ lat: anchor.lat, lng: anchor.lng, altitude: INITIAL_VIEW_ALTITUDE }, 0);
+      const controls = globeInstance.controls();
+      if (controls) controls.autoRotate = false;
+      return true;
+    }
+    if (!globeInstance) {
+      pendingInitialFocusId = id;
+    } else {
+      console.warn(`世界の国どこかな？: resetInitialViewToCountryに不正なID「${id}」が指定されました`);
+    }
+    return false;
+  }
+
   // ---- B. 連続選択に対応するAPI ----
   // 既存のselectCountry()をmoveCamera:false(地図タップと同じ経路)かつ
   // showInfoCard:false(国名・首都・解説が見える情報カードを開かない)で
@@ -2400,7 +2450,7 @@ const MapModule = (() => {
   // 戻り値は変更していない
   return {
     open, close, initEvents, REGION_ORDER, REGION_LABELS,
-    moveCameraToCountry, selectCountryForQuiz, clearQuizSelection,
+    moveCameraToCountry, resetInitialViewToCountry, selectCountryForQuiz, clearQuizSelection,
     setTapResultHandler, clearTapResultHandler,
     setQuizResultHighlight, clearQuizResultHighlight,
   };
