@@ -24,15 +24,47 @@
   font-weight: 700;
   margin: -12px 0 16px;
 }
-.difficulty-card .count-num {
-  font-size: 1.15rem;
+/* 第6段階確定仕様: 初級/中級/上級/PROを同じ基本サイズの2列×2行にする。
+   .count-card.specialは難易度選択画面のPROカード専用(他画面では未使用)の
+   ため、ここで打ち消してもstyle.css側の定義自体は変更せず他機能に影響しない */
+#findcountry-difficulty-options .count-card.special {
+  grid-column: auto;
 }
-.difficulty-card-meta {
-  font-size: 0.72rem;
+.difficulty-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 112px;
+}
+.difficulty-card-head {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin-bottom: 6px;
+}
+.count-card.special .difficulty-card-head { color: #8a6100; }
+.difficulty-card-line {
+  font-size: 0.78rem;
   color: var(--color-text-sub);
-  margin-top: 4px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
-.count-card.special .difficulty-card-meta { color: #8a6100; }
+.difficulty-card-lives {
+  font-weight: 800;
+  color: var(--color-primary-dark);
+}
+.count-card.special .difficulty-card-lives { color: #8a6100; }
+.difficulty-card-progress {
+  font-weight: 700;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  white-space: normal;
+  color: #8a6100;
+  margin-top: 2px;
+}
+.count-card.locked {
+  opacity: 0.8;
+}
 
 /* ---------- 結果画面 ---------- */
 .findcountry-result-gameover-note {
@@ -45,6 +77,19 @@
   text-align: center;
   font-weight: 700;
   color: var(--color-correct);
+  margin: -8px 0 16px;
+}
+.findcountry-result-clear-note {
+  text-align: center;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: var(--color-correct);
+  margin: -8px 0 16px;
+}
+.findcountry-result-pro-unlock-note {
+  text-align: center;
+  font-weight: 800;
+  color: var(--color-gold);
   margin: -8px 0 16px;
 }
 .findcountry-result-course {

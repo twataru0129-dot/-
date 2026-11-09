@@ -162,6 +162,49 @@ function saveFindCountryCollectionData(data) {
   return safeSet(FINDCOUNTRY_COLLECTION_KEY, JSON.stringify(data));
 }
 
+// ---------- 「世界の国どこかな？」初級/中級/上級コースのクリア記録・PRO解放(第6段階) ----------
+// ランキング・コレクションとは完全に独立した専用キーに保存し、どちらの
+// 既存の保存形式にも一切手を加えない。courseKeyはStorage.findCountryCourseKey()と
+// 同じ形式("beginner_5"等)の文字列
+const FINDCOUNTRY_PROGRESS_KEY = STORAGE_PREFIX + "findcountry_progress";
+const FINDCOUNTRY_PROGRESS_VERSION = 1;
+// PRO解放に必要な12コース(初級/中級/上級 × 5/10/20/30問)の確定キー一覧。
+// PRO自身やそれ以外のキーがclearedCoursesに記録されていても、この一覧に
+// 含まれないものは解放判定に使わない
+const FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS = [
+  "beginner_5", "beginner_10", "beginner_20", "beginner_30",
+  "intermediate_5", "intermediate_10", "intermediate_20", "intermediate_30",
+  "advanced_5", "advanced_10", "advanced_20", "advanced_30",
+];
+
+function emptyFindCountryProgressData() {
+  return { version: FINDCOUNTRY_PROGRESS_VERSION, clearedCourses: {} };
+}
+
+function loadFindCountryProgressData() {
+  const raw = safeGet(FINDCOUNTRY_PROGRESS_KEY);
+  if (!raw) return emptyFindCountryProgressData();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || parsed.version !== FINDCOUNTRY_PROGRESS_VERSION
+      || !parsed.clearedCourses || typeof parsed.clearedCourses !== "object") {
+      return emptyFindCountryProgressData();
+    }
+    return parsed;
+  } catch (e) {
+    console.warn("findcountryのクリア記録の読み込みに失敗しました。保存データを初期化します", e);
+    return emptyFindCountryProgressData();
+  }
+}
+
+function saveFindCountryProgressData(data) {
+  return safeSet(FINDCOUNTRY_PROGRESS_KEY, JSON.stringify(data));
+}
+
+function countClearedProUnlockCourses(clearedCourses) {
+  return FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.filter((k) => !!clearedCourses[k]).length;
+}
+
 const Storage = {
   // ---- 効果音設定 ----
   isSoundEnabled() {
@@ -328,16 +371,54 @@ const Storage = {
     }
   },
 
+  // ---- 「世界の国どこかな？」初級/中級/上級12コースのクリア記録・PRO解放(第6段階) ----
+  // 「クリア」したかどうかの判定自体(ライフを残して最後まで到達したか)は
+  // 呼び出し元(js/findcountry.js)が行い、ここでは判定済みのcourseKeyを
+  // 記録するだけにする(保存層に判定ロジックを持たせない)
+  getFindCountryProUnlockProgress() {
+    const data = loadFindCountryProgressData();
+    const clearedCount = countClearedProUnlockCourses(data.clearedCourses);
+    return {
+      clearedCount,
+      total: FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.length,
+      unlocked: clearedCount === FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.length,
+    };
+  },
+  isFindCountryProUnlocked() {
+    return this.getFindCountryProUnlockProgress().unlocked;
+  },
+
+  // 指定コースをクリア済みとして記録する。既にクリア済みの場合や保存自体に
+  // 失敗した場合は何もしない(何度呼んでも安全)。戻り値のjustUnlockedProは
+  // 「この呼び出しによって初めて12コース全てがクリア済みになったか」を表し、
+  // PRO解放のお知らせを1回だけ出すタイミングの判定に使う
+  markFindCountryCourseCleared(courseKey) {
+    try {
+      const data = loadFindCountryProgressData();
+      if (data.clearedCourses[courseKey]) return { justUnlockedPro: false };
+      const wasUnlocked = countClearedProUnlockCourses(data.clearedCourses) === FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.length;
+      data.clearedCourses[courseKey] = true;
+      const saved = saveFindCountryProgressData(data);
+      if (!saved) return { justUnlockedPro: false };
+      const nowUnlocked = countClearedProUnlockCourses(data.clearedCourses) === FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.length;
+      return { justUnlockedPro: !wasUnlocked && nowUnlocked };
+    } catch (e) {
+      console.warn("findcountryのクリア記録の保存に失敗しました", e);
+      return { justUnlockedPro: false };
+    }
+  },
+
   // ---- データリセット(国旗・首都両方の称号・記録だけを消す) ----
   // 効果音設定(StorageKeys.SOUND)は確認画面の文言(「称号・記録をリセット」)
   // に合わせて対象外にする。以前はStorageKeysの全キー(SOUNDを含む)を
   // 削除していたため、記録をリセットすると効果音設定まで初期化されてしまう
   // 不一致があった。
-  // findcountryのランキング(第5段階前半)・コレクション(第5段階後半)も、
-  // 称号・最高記録と同じ「実績・成績」の性質を持つデータのため、ここに
-  // 含めて一緒にリセットできるようにする(このボタンでしか消せない孤立した
-  // データを残さないため)。その代わり、ユーザーが何を削除するか正しく
-  // 分かるよう、呼び出し元(js/app.js)の確認ダイアログの文言に
+  // findcountryのランキング(第5段階前半)・コレクション(第5段階後半)・
+  // 12コースのクリア記録とPRO解放状態(第6段階)も、称号・最高記録と同じ
+  // 「実績・成績」の性質を持つデータのため、ここに含めて一緒にリセットできる
+  // ようにする(このボタンでしか消せない孤立したデータを残さないため。
+  // リセット後はPROが再び未解放に戻る)。その代わり、ユーザーが何を削除するか
+  // 正しく分かるよう、呼び出し元(js/app.js)の確認ダイアログの文言に
   // 「ランキング・コレクション」も明記している
   resetAll() {
     const keysToRemove = [
@@ -345,6 +426,7 @@ const Storage = {
       ...Object.values(CapitalStorageKeys),
       FINDCOUNTRY_RANKING_KEY,
       FINDCOUNTRY_COLLECTION_KEY,
+      FINDCOUNTRY_PROGRESS_KEY,
     ];
     keysToRemove.forEach((k) => {
       try { localStorage.removeItem(k); } catch (e) { /* noop */ }
