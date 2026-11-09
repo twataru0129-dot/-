@@ -386,6 +386,38 @@
   color: var(--color-text-sub);
   text-align: center;
 }
+/* 「もう一度さがす」「パス」をまとめる領域。既定ではどちらか一方だけが
+   表示される(通常の問題回答中のパス単独/ライフ1個での再挑戦単独)ため、
+   縦積みでも見た目は既存の単独ボタンと同じになる。不正解確認中にライフが
+   2個以上残っている場合だけ.pairedを付け、画面幅に応じて横並びに切り替える */
+.findcountry-quiz-wrong-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 480px;
+}
+/* パスは、もう一度さがす(オレンジ)と並んで表示される場合だけ、区別しやすい
+   落ち着いた色にする(通常の単独パスボタンの見た目は変えない) */
+.findcountry-quiz-wrong-actions.paired .findcountry-quiz-pass-btn {
+  background: var(--color-text-sub);
+  border: none;
+  color: #fff;
+}
+@media (min-width: 400px) {
+  .findcountry-quiz-wrong-actions.paired {
+    flex-direction: row;
+    justify-content: center;
+  }
+  .findcountry-quiz-wrong-actions.paired .findcountry-quiz-pass-btn,
+  .findcountry-quiz-wrong-actions.paired .findcountry-quiz-retry-btn {
+    flex: 1 1 0;
+    width: auto;
+    max-width: calc(50% - 4px);
+    min-width: 0;
+  }
+}
 .findcountry-quiz-pass-btn {
   width: 100%;
   max-width: 320px;
@@ -400,8 +432,7 @@
   box-shadow: var(--shadow-card);
 }
 .findcountry-quiz-pass-btn:active { transform: scale(0.97); }
-/* 不正解の再挑戦メッセージ表示中はタップ・パスを受け付けないため、
-   操作できないことが見てわかるよう薄く表示する */
+/* 操作できない状態(念のための防御)を見てわかるよう薄く表示する */
 .findcountry-quiz-pass-btn:disabled {
   opacity: 0.45;
   cursor: default;

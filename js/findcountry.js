@@ -14,8 +14,9 @@
 // 含めない設計のため、残り時間からの引き算だけで自然に満たせる)。
 //
 // PROはライフ1(1ミスで即ゲームオーバー)。通常コース(初級/中級/上級)は
-// 従来どおりライフ3。それ以外のPRO専用の開始条件・特別な演出・称号は
-// 今回追加しない(パス不可・216件1回ずつ出題は第3段階までで実装済み)。
+// 難易度ごとに異なる最大ライフ(初級5/中級4/上級3)をDIFFICULTIESで一元管理する。
+// それ以外のPRO専用の開始条件・特別な演出・称号は今回追加しない
+// (パス不可・216件1回ずつ出題は第3段階までで実装済み)。
 //
 // 3D地球儀はPR #43で地図モードが使っているものをそのまま再利用する。
 // 別の地球儀インスタンスを作らず、既存の#map-globe-container/#screen-map
@@ -26,21 +27,28 @@ const FindCountryModule = (() => {
   function $(id) { return document.getElementById(id); }
 
   // ---------- 難易度・コース定義 ----------
+  // 難易度ごとの最大ライフ数(maxLives)もここで一元管理する。新しいゲーム
+  // 開始時(startQuiz)にmaxLivesFor()で参照し、その値をquizState.livesの
+  // 初期値として設定する。PROはパス不可・1ミスで即ゲームオーバーの確定仕様の
+  // ためライフ1のまま変更しない
   const DIFFICULTIES = [
-    { id: "beginner", label: "初級", count: 100, seconds: 30, icon: "🌱" },
-    { id: "intermediate", label: "中級", count: 198, seconds: 25, icon: "⭐" },
-    { id: "advanced", label: "上級", count: 212, seconds: 20, icon: "🔥" },
-    { id: "pro", label: "PRO", count: 216, seconds: 15, icon: "👑", special: true },
+    { id: "beginner", label: "初級", count: 100, seconds: 30, icon: "🌱", maxLives: 5 },
+    { id: "intermediate", label: "中級", count: 198, seconds: 25, icon: "⭐", maxLives: 4 },
+    { id: "advanced", label: "上級", count: 212, seconds: 20, icon: "🔥", maxLives: 3 },
+    { id: "pro", label: "PRO", count: 216, seconds: 15, icon: "👑", special: true, maxLives: 1 },
   ];
   const QUESTION_COUNTS = [5, 10, 20, 30];
   const PRO_DIFFICULTY_ID = "pro";
-  // 通常コース(初級/中級/上級)はライフ3。PROは1ミスで即ゲームオーバーの
-  // 確定仕様のためライフ1。難易度によって初期ライフの上限が変わるため、
-  // 固定の定数ではなくmaxLivesFor()を通じて都度参照する
-  const NORMAL_MAX_LIVES = 3;
-  const PRO_MAX_LIVES = 1;
   function maxLivesFor(difficultyId) {
-    return difficultyId === PRO_DIFFICULTY_ID ? PRO_MAX_LIVES : NORMAL_MAX_LIVES;
+    return difficultyById(difficultyId).maxLives;
+  }
+  // パスは、不正解確認中(再挑戦待ち)かどうかに関わらず、残りライフが2個以上の
+  // ときだけ表示・実行できる。ライフ1個でパスを許すとパスだけでライフ0=
+  // ゲームオーバーになり得るため、ライフ1個は「もう一度さがす」でのみ
+  // 粘れるようにする(PROはライフ1固定・パス不可の既存仕様のまま)
+  const MIN_LIVES_TO_PASS = 2;
+  function isPassAllowed() {
+    return quizState.difficultyId !== PRO_DIFFICULTY_ID && quizState.lives >= MIN_LIVES_TO_PASS;
   }
   // 残り時間の警告しきい値(秒)。難易度(15〜30秒)によらず固定の絶対値を使う。
   // 具体的な秒数の確定仕様は見当たらなかったため、既存の国旗/首都クイズの
@@ -283,7 +291,7 @@ const FindCountryModule = (() => {
     canAdvance: false, // この問題の最終結果が確定し、「次の問題へ」/「結果を見る」ボタンで
     // 進んでよい状態かどうか(answeredは「もう一度さがす」を待っている間もtrueになるため別管理する)
     results: [], // {questionNumber, countryId, answeredId, result, elapsedSeconds, secondsLeft, points, livesAfter, streakAfter}
-    lives: NORMAL_MAX_LIVES,
+    lives: maxLivesFor(DIFFICULTIES[0].id), // 実際の値はstartQuiz()で必ず上書きされる仮の初期値
     currentStreak: 0,
     maxStreak: 0,
     gameOver: false, // ライフ0で終了したか(結果画面の表示分岐・最終問題判定に使う)
@@ -410,6 +418,14 @@ const FindCountryModule = (() => {
     enterFindCountryMapMode();
     hidePauseOverlay();
 
+    // 新しいゲームの第1問だけ、地球儀の向き・ズームを日本中心の標準視点に
+    // 戻す(MapModule.resetInitialViewToCountry、第5段階後半4回目の確定仕様)。
+    // 第2問以降(renderQuestion単独での呼び出し)・再挑戦・パス後・一時停止
+    // 再開では呼ばないため、既存のカメラの向き・ズームはそのまま維持される。
+    // 地球儀がこのセッションでまだ構築されていない場合は、MapModule側で
+    // 構築完了後に反映されるよう予約だけされる(戻り値はfalseだが問題ない)
+    MapModule.resetInitialViewToCountry("jp");
+
     // 前回の通常の地図探索モード・前回のクイズ結果の強調表示が残っていないか
     // 確実に確認してから、クイズ用のタップ判定取得API(PR #43)を登録する
     MapModule.clearQuizSelection();
@@ -516,8 +532,10 @@ const FindCountryModule = (() => {
     resultText.textContent = "";
     $("findcountry-quiz-new-badge").classList.add("hidden");
 
-    $("findcountry-quiz-pass").classList.toggle("hidden", d.id === PRO_DIFFICULTY_ID);
+    // パスは残りライフが2個以上のときだけ表示する(PROは既存どおり常に非表示)
+    $("findcountry-quiz-pass").classList.toggle("hidden", !isPassAllowed());
     $("findcountry-quiz-pass").disabled = false;
+    $("findcountry-quiz-wrong-actions").classList.remove("paired");
     $("findcountry-quiz-next").classList.add("hidden");
     $("findcountry-quiz-hint").classList.remove("hidden");
 
@@ -739,7 +757,7 @@ const FindCountryModule = (() => {
   }
 
   // ---------- 不正解タップの処理(第5段階後半2回目: 不正解時の再挑戦) ----------
-  // 通常コース(初級/中級/上級、ライフ3)は、ライフが残っている限り同じ問題に
+  // 通常コース(初級/中級/上級、maxLivesFor参照)は、ライフが残っている限り同じ問題に
   // 再挑戦できる。ライフは不正解のたびに必ず1減らし、連続正解もその時点で
   // 即座に0へリセットする(再挑戦後に正解しても一発正解としては加算しない)。
   // PROはライフ1のため、この関数の最初の不正解で必ずlives<=0側の分岐へ入り、
@@ -782,8 +800,12 @@ const FindCountryModule = (() => {
     resultText.textContent = "❌ ざんねん、まちがえだよ";
     $("findcountry-quiz-new-badge").classList.add("hidden");
     $("findcountry-quiz-hint").classList.add("hidden");
-    // フッター領域を「もう一度さがす」に譲る(パスは再挑戦ボタンを押すまで使えない)
-    $("findcountry-quiz-pass").classList.add("hidden");
+    // 残りライフが2個以上なら「もう一度さがす」と並べてパスも表示する
+    // (どちらを押すまでも同じ不正解確認状態を保持する)。ライフ1個なら
+    // パスはライフ0=ゲームオーバーにつながり得るため表示しない
+    const showPassToo = isPassAllowed();
+    $("findcountry-quiz-pass").classList.toggle("hidden", !showPassToo);
+    $("findcountry-quiz-wrong-actions").classList.toggle("paired", showPassToo);
 
     // 間違えて選んだ国・地域だけを赤色で強調する。既存のMapModule.
     // setQuizResultHighlightをそのまま再利用し、correctIdにはnullを渡すことで
@@ -822,8 +844,11 @@ const FindCountryModule = (() => {
       resultText.textContent = "";
 
       // 4. 「もう一度さがす」ボタンを隠し、パスボタン・ヒントなどを元に戻す
+      // (パスの表示は常にisPassAllowed()基準。再挑戦自体はライフを変えないため、
+      // 値自体は不正解確認中に表示していたものと変わらない)
       $("findcountry-quiz-hint").classList.remove("hidden");
-      $("findcountry-quiz-pass").classList.remove("hidden");
+      $("findcountry-quiz-wrong-actions").classList.remove("paired");
+      $("findcountry-quiz-pass").classList.toggle("hidden", !isPassAllowed());
       $("findcountry-quiz-retry").classList.add("hidden");
 
       // 5. 同じ問題のタップ回答を再び受け付ける
@@ -847,13 +872,37 @@ const FindCountryModule = (() => {
   }
 
   // ---------- パスボタン(通常コースのみ。PROでは表示されず、呼び出しても無効) ----------
-  function handlePass() {
-    if (quizState.answered) return;
-    if (quizState.difficultyId === PRO_DIFFICULTY_ID) return;
-    quizState.answered = true;
+  // パス確定の共通処理(通常のパス・不正解確認中のパスの両方から呼ぶ)。
+  // timer.remainingSeconds()は停止"前"に読む必要があるため(timer.stop()後は
+  // 常に0を返す)、呼び出し元のどちらの経路でも同じ順序(読み取り→停止→確定)
+  // で呼べるようにこの関数にまとめる
+  function finalizeCurrentAsPass() {
     const secondsLeft = timer ? timer.remainingSeconds() : 0;
     if (timer) timer.stop();
     finalizeAnswer("pass", null, secondsLeft);
+  }
+
+  function handlePass() {
+    // 見た目(.hidden)だけでなく、処理側でも残りライフ1個以下でのパスを拒否する
+    // (PROは常にisPassAllowed()がfalseになるため、既存どおりパス不可のまま)
+    if (!isPassAllowed()) return;
+
+    if (retryFeedbackActive) {
+      // 不正解確認中のパス。不正解タップで既に1個減ったライフから、
+      // パスによってさらに1個減らす(finalizeAnswer側の既存のpass分岐が
+      // 行う)。再挑戦待ち状態はここで終了し、タイマーは再開せずfinalizeCurrentAsPass
+      // 内でそのまま停止させる。quizState.answeredは元からtrueのままなので
+      // (showWrongRetryFeedbackで設定済み、ここでは変更しない)、連打しても
+      // retryFeedbackActiveが既にfalseになっていればここには二度と入らず、
+      // 下のif (quizState.answered) returnで弾かれる(二重処理防止)
+      retryFeedbackActive = false;
+      finalizeCurrentAsPass();
+      return;
+    }
+
+    if (quizState.answered) return;
+    quizState.answered = true;
+    finalizeCurrentAsPass();
   }
 
   // ---------- 時間切れ(FindCountryTimerのonTimeoutコールバック) ----------
