@@ -908,6 +908,12 @@ img { max-width: 100%; }
   font-weight: 700;
   margin-bottom: 20px;
 }
+.modal-subtext {
+  font-size: 0.8rem;
+  color: var(--color-text-sub);
+  margin: -14px 0 20px;
+}
+.modal-subtext:empty { display: none; }
 
 /* iOSで保存した画像を表示するモーダル */
 .image-preview-box {

@@ -139,13 +139,18 @@
     <h2 id="findcountry-result-title" class="screen-title">結果発表</h2>
     <p id="findcountry-result-gameover-note" class="findcountry-result-gameover-note hidden"></p>
     <p id="findcountry-result-complete-note" class="findcountry-result-complete-note hidden"></p>
+    <p id="findcountry-result-clear-note" class="findcountry-result-clear-note hidden"></p>
+    <p id="findcountry-result-pro-unlock-note" class="findcountry-result-pro-unlock-note hidden"></p>
     <p id="findcountry-result-rank-badge" class="findcountry-result-rank-badge hidden"></p>
     <div class="result-score-box">
       <p id="findcountry-result-course" class="findcountry-result-course"></p>
-      <p id="findcountry-result-planned" class="findcountry-result-planned"></p>
-      <p id="findcountry-result-answered" class="findcountry-result-answered"></p>
-      <p id="findcountry-result-score-fraction" class="result-score-fraction"></p>
-      <p id="findcountry-result-rate" class="result-score-rate"></p>
+      <!-- 第6段階確定仕様: 予定問題数・実際の回答数・○問中○問正解・正答率は
+           結果画面の見た目から削除する(内部の集計処理・保存データは維持)。
+           表示のみhiddenにし、要素・textContentの更新自体は変更しない -->
+      <p id="findcountry-result-planned" class="findcountry-result-planned hidden"></p>
+      <p id="findcountry-result-answered" class="findcountry-result-answered hidden"></p>
+      <p id="findcountry-result-score-fraction" class="result-score-fraction hidden"></p>
+      <p id="findcountry-result-rate" class="result-score-rate hidden"></p>
       <p id="findcountry-result-points" class="findcountry-result-points"></p>
       <p id="findcountry-result-avg-time" class="findcountry-result-avg-time"></p>
       <p id="findcountry-result-streak" class="findcountry-result-streak"></p>
@@ -534,6 +539,22 @@
     <div class="modal-buttons">
       <button id="confirm-modal-yes" class="btn btn-danger">終了する</button>
       <button id="confirm-modal-no" class="btn btn-plain">続ける</button>
+    </div>
+  </div>
+</div>
+
+<!-- データリセット: 2段階確認モーダル(第6段階確定仕様)。途中終了確認モーダル
+     (#confirm-modal)とは完全に別のモーダルとして用意し、既存の他の確認
+     ダイアログ(クイズ終了・「世界の国どこかな？」終了)のボタン文言・配置には
+     一切影響しない。左ボタン=安全側(キャンセル/いいえ)・右ボタン=危険な
+     実行側(赤色)の順でDOMに置き、2段階ともテキストだけをJSで差し替える -->
+<div id="reset-confirm-modal" class="modal hidden">
+  <div class="modal-box">
+    <p id="reset-confirm-text" class="modal-text">保存データをすべて削除しますか？</p>
+    <p id="reset-confirm-subtext" class="modal-subtext"></p>
+    <div class="modal-buttons">
+      <button id="reset-confirm-cancel" class="btn btn-plain">キャンセル</button>
+      <button id="reset-confirm-yes" class="btn btn-danger">すべて削除する</button>
     </div>
   </div>
 </div>

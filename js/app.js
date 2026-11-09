@@ -115,16 +115,18 @@ function initTopScreen() {
     updateSoundButton();
   });
 
-  $("btn-reset-data").addEventListener("click", async () => {
-    const ok = await showConfirm("保存データ(称号・記録・ランキング・コレクション)をすべてリセットしますか？\nこの操作は取り消せません。");
-    if (ok) {
-      Storage.resetAll();
-      alert("データをリセットしました");
-    }
-  });
+  $("btn-reset-data").addEventListener("click", handleResetDataClick);
 
   document.querySelectorAll("[data-back]").forEach((btn) => {
-    btn.addEventListener("click", () => showScreen(btn.dataset.back));
+    btn.addEventListener("click", () => {
+      // 難易度選択画面へ戻る場合だけは、PRO解放状況(第6段階)が画面を
+      // 離れている間に変わっている可能性があるため、必ず再描画してから表示する
+      if (btn.dataset.back === "screen-findcountry-difficulty") {
+        FindCountryModule.openDifficultyScreen();
+        return;
+      }
+      showScreen(btn.dataset.back);
+    });
   });
 }
 
@@ -881,6 +883,76 @@ function initMemorialScreen() {
     $("image-preview-modal").classList.add("hidden");
     showScreen("screen-top");
   });
+}
+
+// ==========================================================
+// データリセット: 2段階確認(第6段階確定仕様)
+// 既存の#confirm-modal(クイズ終了・「世界の国どこかな？」終了)は一切
+// 変更せず、完全に別の専用モーダル(#reset-confirm-modal)を使う。
+// 「キャンセル/いいえ」ボタンを押すか、ダイアログの外側(暗い背景)を
+// タップした場合は必ず安全側(未削除)に倒す。第2段階の「はい」を押すまでは
+// いかなる保存データも削除しない
+// ==========================================================
+function showResetConfirmStep(text, subtext, yesLabel, noLabel) {
+  return new Promise((resolve) => {
+    const modal = $("reset-confirm-modal");
+    $("reset-confirm-text").textContent = text;
+    $("reset-confirm-subtext").textContent = subtext;
+    const yesBtn = $("reset-confirm-yes");
+    const noBtn = $("reset-confirm-cancel");
+    yesBtn.textContent = yesLabel;
+    noBtn.textContent = noLabel;
+    modal.classList.remove("hidden");
+    function cleanup(result) {
+      modal.classList.add("hidden");
+      yesBtn.removeEventListener("click", onYes);
+      noBtn.removeEventListener("click", onNo);
+      modal.removeEventListener("click", onOverlay);
+      resolve(result);
+    }
+    function onYes() { cleanup(true); }
+    function onNo() { cleanup(false); }
+    // ダイアログの外側(.modal-box の外、暗い背景部分)をタップした場合も
+    // 安全側(キャンセル扱い)に倒す
+    function onOverlay(e) { if (e.target === modal) cleanup(false); }
+    yesBtn.addEventListener("click", onYes);
+    noBtn.addEventListener("click", onNo);
+    modal.addEventListener("click", onOverlay);
+  });
+}
+
+// resetConfirmBusyは、「データをリセット」ボタンの連打でこのフロー自体が
+// 多重に起動し、削除処理が重複実行されることを防ぐためのガード
+let resetConfirmBusy = false;
+async function handleResetDataClick() {
+  if (resetConfirmBusy) return;
+  resetConfirmBusy = true;
+  try {
+    const step1 = await showResetConfirmStep(
+      "保存データをすべて削除しますか？",
+      "称号・記録・ランキング・コレクションが削除されます。この操作は取り消せません。",
+      "すべて削除する",
+      "キャンセル"
+    );
+    if (!step1) return; // キャンセル: 何も削除しない
+
+    const step2 = await showResetConfirmStep(
+      "本当にリセットしますか？",
+      "削除したデータは元に戻せません。",
+      "はい",
+      "いいえ"
+    );
+    if (!step2) return; // いいえ: 何も削除しない
+
+    // 第2段階の「はい」を押した場合だけ、ここで初めて全削除処理を実行する。
+    // 既存のStorage.resetAll()をそのまま再利用し、削除対象を独自に増減
+    // させない(「世界の国どこかな？」の12コースクリア記録・PRO解放状態も
+    // Storage.resetAll()側に既に含めているため、ここでは何も追加しない)
+    Storage.resetAll();
+    alert("データをリセットしました");
+  } finally {
+    resetConfirmBusy = false;
+  }
 }
 
 // ==========================================================

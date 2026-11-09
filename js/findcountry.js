@@ -271,6 +271,25 @@ const FindCountryModule = (() => {
     );
   }
 
+  // ---------- 通常コース(初級/中級/上級)のクリア判定(第6段階確定仕様) ----------
+  // 「クリア」は正解率ではなく、ライフを残して出題予定数の最後まで到達した
+  // かどうかで判定する(不正解・パスがあってもよい。全問正解は条件にしない)。
+  // showResult()はこの問題が最終問題になった時点でしか呼ばれないため、
+  // !gameOverであれば自動的に「ライフを1個以上残して予定数まで到達した」
+  // ことと同値になる(answered===totalCountは一応の確認として残す)。
+  // 途中でゲームをやめた場合は常にshowResult()自体が呼ばれないため、ここでは
+  // 判定しない(backToCourseSelect経由であり、この関数に到達しない)。
+  // PRO解放条件(12コースクリア)の判定にもこの関数をそのまま使い、結果画面の
+  // 表示文言から判定を逆算する形にはしない
+  function isNormalCourseClear(context) {
+    // context: { difficultyId, gameOver, answered, totalCount }
+    return (
+      context.difficultyId !== PRO_DIFFICULTY_ID &&
+      !context.gameOver &&
+      context.answered === context.totalCount
+    );
+  }
+
   // ---------- 画面遷移をまたいで保持するコース選択(成績としては保存しない) ----------
   const selection = {
     difficultyId: null,
@@ -337,20 +356,38 @@ const FindCountryModule = (() => {
   }
 
   // ---------- 難易度選択画面 ----------
+  // PRO解放に必要な12コース(初級/中級/上級×5/10/20/30問)のクリア状況を
+  // 毎回localStorageから読み直す(この画面が表示されるたびに最新の状態を
+  // 反映するため、キャッシュしない)
   function renderDifficultyScreen() {
     const grid = $("findcountry-difficulty-options");
     grid.innerHTML = "";
+    const proStatus = Storage.getFindCountryProUnlockProgress(); // {clearedCount, total, unlocked}
     DIFFICULTIES.forEach((d) => {
       const card = document.createElement("button");
       card.type = "button";
-      card.className = "count-card difficulty-card" + (d.special ? " special" : "");
-      const metaText = d.special
-        ? `${d.count}の国・地域・1回ずつ出題`
-        : `${d.count}の国・地域`;
-      card.innerHTML = d.special
-        ? `<div class="count-crown">${d.icon}</div><div class="count-num">${d.label}</div><div class="count-complete">PRO MODE</div><div class="difficulty-card-meta">${metaText}・制限時間${d.seconds}秒</div>`
-        : `<div class="count-num">${d.icon} ${d.label}</div><div class="difficulty-card-meta">${metaText}・制限時間${d.seconds}秒</div>`;
+      const isPro = d.id === PRO_DIFFICULTY_ID;
+      const locked = isPro && !proStatus.unlocked;
+      card.className = "count-card difficulty-card" + (d.special ? " special" : "") + (locked ? " locked" : "");
+      // 第6段階確定仕様: 初級/中級/上級/PROを同じ基本サイズの2列×2行にし、
+      // カードごとに「国・地域数」「制限時間」「ライフ(♡)」を独立した3行で
+      // 表示する(PROが未解放の場合は♡の行の代わりに進捗を表示する)
+      const headIcon = locked ? "🔒" : d.icon;
+      const livesLine = locked
+        ? `<div class="difficulty-card-line difficulty-card-progress">クリア済み ${proStatus.clearedCount} / ${proStatus.total}コース</div>`
+        : `<div class="difficulty-card-line difficulty-card-lives">♡ ${d.maxLives}</div>`;
+      card.innerHTML =
+        `<div class="difficulty-card-head">${headIcon} ${d.label}</div>` +
+        `<div class="difficulty-card-line">${d.count}の国と地域</div>` +
+        `<div class="difficulty-card-line">制限時間${d.seconds}秒</div>` +
+        livesLine;
       card.addEventListener("click", () => {
+        if (locked) {
+          // 画面上の無効化だけでなく分かりやすい案内も出す(タップ自体は
+          // 妨げないが、この中でstartQuiz()を呼ばないため開始はしない)
+          alert(`🔒 PROは12コースすべてをクリアすると解放されます(クリア済み ${proStatus.clearedCount} / ${proStatus.total}コース)`);
+          return;
+        }
         selection.difficultyId = d.id;
         if (d.id === PRO_DIFFICULTY_ID) {
           // PROは問題数選択を経由しない別枠。216件を1回ずつ出題する
@@ -402,6 +439,13 @@ const FindCountryModule = (() => {
 
   // ---------- クイズ画面(既存の#screen-map/3D地球儀を再利用) ----------
   function startQuiz(difficultyId, questionCount) {
+    // 画面上の無効化(renderDifficultyScreenのロック表示)だけでなく、
+    // この開始処理そのものでも未解放のPROを拒否する(内部関数の直接呼び出しや
+    // 画面遷移の抜け道からPROが始まらないようにするための第6段階確定仕様)
+    if (difficultyId === PRO_DIFFICULTY_ID && !Storage.isFindCountryProUnlocked()) {
+      console.warn("世界の国どこかな？: PROは未解放のため開始できません");
+      return;
+    }
     quizState.difficultyId = difficultyId;
     quizState.sequence = buildQuestionSequence(difficultyId, questionCount);
     quizState.currentIndex = 0;
@@ -694,8 +738,10 @@ const FindCountryModule = (() => {
       resultText.classList.add("is-wrong");
       resultText.textContent = `⏰ 時間切れ……正解は「${correctName}」でした`;
     } else {
+      // 国名を含めない統一文言(第6段階確定仕様)。通常のパス・不正解確認中
+      // からのパスのどちらもこの分岐を通るため、修正箇所はここ1箇所だけでよい
       resultText.classList.add("is-wrong");
-      resultText.textContent = `⏭ パスしました……正解は「${correctName}」でした`;
+      resultText.textContent = "⏭ パスしました。正解はこちら！";
     }
 
     // コレクション初獲得のお知らせ。正解表示の邪魔にならないよう、
@@ -973,6 +1019,8 @@ const FindCountryModule = (() => {
   function backToCourseSelect() {
     leaveFindCountryMapMode();
     if (selection.difficultyId === PRO_DIFFICULTY_ID || !selection.difficultyId) {
+      // 念のためPRO解放状態を最新に再描画してから表示する
+      renderDifficultyScreen();
       showScreen("screen-findcountry-difficulty");
     } else {
       renderCountScreen(selection.difficultyId);
@@ -1008,6 +1056,12 @@ const FindCountryModule = (() => {
       correctCount,
       totalCount: d.count,
     });
+    const isNormalClear = isNormalCourseClear({
+      difficultyId: quizState.difficultyId,
+      gameOver: quizState.gameOver,
+      answered,
+      totalCount: planned,
+    });
 
     $("findcountry-result-title").textContent = quizState.gameOver
       ? "ゲームオーバー"
@@ -1036,6 +1090,18 @@ const FindCountryModule = (() => {
       completeNote.textContent = "";
     }
 
+    // 第6段階確定仕様: 通常コース(初級/中級/上級)をクリアした場合、正解数より
+    // コースクリアを中心に表示する(全問正解は条件にしない。不正解・パスが
+    // あってもライフを残して最後まで到達していればクリア)
+    const clearNote = $("findcountry-result-clear-note");
+    if (isNormalClear) {
+      clearNote.textContent = `🎉 ${planned}問コースクリア！`;
+      clearNote.classList.remove("hidden");
+    } else {
+      clearNote.classList.add("hidden");
+      clearNote.textContent = "";
+    }
+
     $("findcountry-result-course").textContent = `${d.icon} ${d.label}`;
     $("findcountry-result-planned").textContent = `予定問題数：${planned}問`;
     $("findcountry-result-answered").textContent = `実際の回答数：${answered}問`;
@@ -1047,11 +1113,12 @@ const FindCountryModule = (() => {
     $("findcountry-result-lives").textContent =
       `残りライフ ${"❤️".repeat(Math.max(0, quizState.lives))}${"🤍".repeat(Math.max(0, maxLives - quizState.lives))}`;
 
-    // ランキングへの記録は1プレイにつき1回だけ行う。この画面に複数回
-    // 遷移しても(例: 「結果を見る」ボタンの連打)、2回目以降は送信済みの
-    // rankingSubmittedで弾き、直前に得た順位(lastRank)をそのまま使い回す。
-    // 保存処理自体はStorage側でも例外を捕捉しているが、念のためここでも
-    // 囲み、ランキング登録に失敗してもゲームの進行自体は止めない
+    // ランキングへの記録・12コースのクリア記録(第6段階)は1プレイにつき1回
+    // だけ行う。この画面に複数回遷移しても(例: 「結果を見る」ボタンの連打)、
+    // 2回目以降は送信済みのrankingSubmittedで弾き、直前に得た順位(lastRank)
+    // をそのまま使い回す。保存処理自体はStorage側でも例外を捕捉しているが、
+    // 念のためここでも囲み、記録に失敗してもゲームの進行自体は止めない
+    let proUnlockJustHappened = false;
     if (!quizState.rankingSubmitted) {
       quizState.rankingSubmitted = true;
       try {
@@ -1069,6 +1136,17 @@ const FindCountryModule = (() => {
         console.warn("世界の国どこかな？: ランキング記録の保存に失敗しました", e);
         quizState.lastRank = null;
       }
+
+      // 通常コースをクリアした場合だけ、PRO解放対象の12コースの記録として
+      // 登録する(ランキングの順位・得点とは完全に独立した保存データ)
+      if (isNormalClear) {
+        try {
+          const courseKey = Storage.findCountryCourseKey(quizState.difficultyId, planned);
+          proUnlockJustHappened = Storage.markFindCountryCourseCleared(courseKey).justUnlockedPro;
+        } catch (e) {
+          console.warn("世界の国どこかな？: コースクリア記録の保存に失敗しました", e);
+        }
+      }
     }
 
     const rankBadge = $("findcountry-result-rank-badge");
@@ -1078,6 +1156,18 @@ const FindCountryModule = (() => {
     } else {
       rankBadge.classList.add("hidden");
       rankBadge.textContent = "";
+    }
+
+    // 12コース目をクリアした直後(この呼び出しで初めて解放された場合)だけ、
+    // PRO解放のお知らせを表示する。justUnlockedProは解放が初めて成立した
+    // その1回だけtrueになるため、再表示されることはない
+    const proUnlockNote = $("findcountry-result-pro-unlock-note");
+    if (proUnlockJustHappened) {
+      proUnlockNote.textContent = "🎊 12コースクリア！ PROモードが解放されました！";
+      proUnlockNote.classList.remove("hidden");
+    } else {
+      proUnlockNote.classList.add("hidden");
+      proUnlockNote.textContent = "";
     }
 
     showScreen("screen-findcountry-result");
@@ -1397,6 +1487,6 @@ const FindCountryModule = (() => {
   // 同じ役割)
   return {
     initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, isProCompleteRun,
-    showCollectionScreen,
+    isNormalCourseClear, showCollectionScreen,
   };
 })();
