@@ -1017,7 +1017,10 @@ const FindCountryModule = (() => {
 
     const gameoverNote = $("findcountry-result-gameover-note");
     if (quizState.gameOver) {
-      gameoverNote.textContent = `${maxLives}回間違えたため、ここで終了です`;
+      // ライフは不正解だけでなくパス・時間切れでも減るため、難易度別の
+      // 最大ライフ数を使った「○回間違えたため」という表現は実際のプレイ
+      // 内容と一致しない場合がある。難易度に関わらず同じ文言に統一する
+      gameoverNote.textContent = "❤️ ライフがなくなったため、ゲームオーバー！";
       gameoverNote.classList.remove("hidden");
     } else {
       gameoverNote.classList.add("hidden");
