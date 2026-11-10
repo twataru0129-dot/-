@@ -496,6 +496,10 @@ const FindCountryModule = (() => {
   function enterFindCountryMapMode() {
     $("screen-map").classList.add("findcountry-mode");
     setFindCountryChromeVisible(true);
+    // 追加修正の確定仕様: 対象の小国・地域のピンを常時ONにする。通常の
+    // 世界地図モードのピン設定(localStorageの好み)は一切変更しない
+    // (leaveFindCountryMapModeで必ずfalseに戻す、このモードだけの一時状態)
+    MapModule.setPinsForcedVisible(true);
     // 既存の世界地図モードと全く同じ初期化・再開ロジック(ensureReady/
     // resumeAnimation等)を呼ぶだけで、別の地球儀は一切作らない
     MapModule.open();
@@ -520,6 +524,9 @@ const FindCountryModule = (() => {
     MapModule.clearTapResultHandler();
     MapModule.clearQuizResultHighlight();
     MapModule.clearQuizSelection();
+    // 通常の世界地図モードへ戻る前に、ピンの強制表示を必ず解除する
+    // (このモードだけの一時状態。通常モードのpinsVisible設定はそのまま)
+    MapModule.setPinsForcedVisible(false);
     MapModule.close();
     $("screen-map").classList.remove("findcountry-mode");
     setFindCountryChromeVisible(false);

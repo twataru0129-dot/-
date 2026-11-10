@@ -110,6 +110,10 @@ const MapModule = (() => {
     }
   }
   let pinsVisible = loadPinsVisiblePref();
+  // 「世界の国どこかな？」専用の強制表示フラグ(追加修正)。永続化しない
+  // (localStorageのpinsVisible設定=通常の世界地図モードの好みは一切変更しない)。
+  // findcountry.jsがモード開始/終了時にだけ切り替える、このモードだけの一時状態
+  let pinsForcedVisible = false;
 
   // ---------- 見た目の通常ピン対象(固定リスト) ----------
   // 「ズームしても場所や形が分かりづらい、本当に小さい国・地域」だけを
@@ -886,8 +890,14 @@ const MapModule = (() => {
       if (!anchor || !c) return;
       const isSelectedPin = id === selectedCountryId;
       if (!isSelectedPin) {
-        if (!pinsVisible) return;
-        if (currentRegionFilter !== "all" && c.region !== currentRegionFilter) return;
+        // 「世界の国どこかな？」では地域フィルターの概念が無いため、
+        // pinsForcedVisible中は地域フィルターの判定もせず常に全件表示する
+        if (pinsForcedVisible) {
+          // 何もしない(表示する)
+        } else {
+          if (!pinsVisible) return;
+          if (currentRegionFilter !== "all" && c.region !== currentRegionFilter) return;
+        }
       }
       data.push({ id, lat: anchor.lat, lng: anchor.lng, selected: isSelectedPin });
     });
@@ -923,6 +933,16 @@ const MapModule = (() => {
     pinsVisible = !pinsVisible;
     savePinsVisiblePref(pinsVisible);
     updatePinsToggleButton();
+    refreshPinLayer();
+  }
+
+  // 「世界の国どこかな？」専用: 対象の小国・地域のピンを常時ON/OFFにする
+  // (追加修正の確定仕様)。通常の世界地図モードのpinsVisible設定(永続化された
+  // 好み)やボタンの見た目は一切変更しない。findcountry.js側がモード開始時に
+  // true、終了時に必ずfalseで呼ぶ。globeInstance未構築でも安全に呼べる
+  // (refreshPinLayer自身が未構築時は何もしないため、フラグだけ先に立てておける)
+  function setPinsForcedVisible(enabled) {
+    pinsForcedVisible = !!enabled;
     refreshPinLayer();
   }
   // ボタンは地球儀コンテナのDOM構造の外(兄弟要素)に置いているため、
@@ -2453,6 +2473,7 @@ const MapModule = (() => {
     moveCameraToCountry, resetInitialViewToCountry, selectCountryForQuiz, clearQuizSelection,
     setTapResultHandler, clearTapResultHandler,
     setQuizResultHighlight, clearQuizResultHighlight,
+    setPinsForcedVisible,
   };
 })();
 
