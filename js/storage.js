@@ -25,8 +25,12 @@ const CapitalStorageKeys = {
 // 「世界の国どこかな？」第5段階前半: ランキング・成績保存。国旗/首都クイズとは
 // 完全に別のキーに保存し、既存のStorageKeys/CapitalStorageKeysには一切触れない
 const FINDCOUNTRY_RANKING_KEY = STORAGE_PREFIX + "findcountry_ranking";
-const FINDCOUNTRY_RANKING_VERSION = 1;
+// 追加修正(名前入力・正解数ベースのクリア条件)でレコードの意味・出題数の
+// 数え方が変わるため、バージョンを2に上げて旧形式のデータは読み込まない
+// (テスト段階のため、互換性維持より確定仕様への統一を優先する)
+const FINDCOUNTRY_RANKING_VERSION = 2;
 const FINDCOUNTRY_RANKING_TOP_N = 5;
+const FINDCOUNTRY_NAME_MAX_LENGTH = 12;
 
 // 「世界の国どこかな？」第5段階後半: コレクション(正解した国・地域の収集)。
 // ランキングともクイズのstate(wrongIds等)とも完全に独立した専用キーに保存する
@@ -74,7 +78,10 @@ function isValidFindCountryRecord(r) {
     && Number.isFinite(r.maxStreak) && r.maxStreak >= 0
     && typeof r.playedAt === "string" && !Number.isNaN(Date.parse(r.playedAt))
     && typeof r.difficultyId === "string" && r.difficultyId.length > 0
-    && (r.questionCount === null || Number.isFinite(r.questionCount));
+    && (r.questionCount === null || Number.isFinite(r.questionCount))
+    // 追加修正: TOP5入賞時の名前(呼び出し元が既にtrim・12文字以内・空なら
+    // 「ななし」に正規化済みの文字列を渡す。ここでは型と長さだけ再確認する)
+    && typeof r.name === "string" && r.name.length > 0 && r.name.length <= FINDCOUNTRY_NAME_MAX_LENGTH;
 }
 
 // 得点が高い方を上位に。同点なら平均回答時間が短い方、それも同じなら
@@ -167,7 +174,10 @@ function saveFindCountryCollectionData(data) {
 // 既存の保存形式にも一切手を加えない。courseKeyはStorage.findCountryCourseKey()と
 // 同じ形式("beginner_5"等)の文字列
 const FINDCOUNTRY_PROGRESS_KEY = STORAGE_PREFIX + "findcountry_progress";
-const FINDCOUNTRY_PROGRESS_VERSION = 1;
+// 追加修正で「クリア」の定義が出題数到達から正解数到達に変わったため、
+// バージョンを2に上げて旧ルールでの記録を読み込まない(テスト段階のため
+// 互換性維持より確定仕様への統一を優先する。PRO解放状態も連動して再ロックされる)
+const FINDCOUNTRY_PROGRESS_VERSION = 2;
 // PRO解放に必要な12コース(初級/中級/上級 × 5/10/20/30問)の確定キー一覧。
 // PRO自身やそれ以外のキーがclearedCoursesに記録されていても、この一覧に
 // 含まれないものは解放判定に使わない
@@ -301,9 +311,34 @@ const Storage = {
     return list.filter(isValidFindCountryRecord).slice(0, FINDCOUNTRY_RANKING_TOP_N);
   },
 
+  // 追加修正: 名前入力画面を表示する前に、実際に登録せず「TOP5に入るか」
+  // だけを調べるための読み取り専用プレビュー。submitFindCountryRecordと
+  // 完全に同じ比較・並び替え・上位5件への絞り込みロジックを使うことで、
+  // 「名前入力のために順位が変わる」ことが起こらないようにする
+  // (名前入力の有無に関わらず、入る/入らないの判定自体は同じ基準)。
+  // probe: { score, avgElapsedSeconds, playedAt(ISO文字列) }
+  // 戻り値: 入賞すればその順位(1〜5)、入らなければnull。何も保存しない
+  previewFindCountryRank(courseKey, probe) {
+    try {
+      if (!probe || !Number.isFinite(probe.score) || probe.score < 0) return null;
+      if (!Number.isFinite(probe.avgElapsedSeconds) || probe.avgElapsedSeconds < 0) return null;
+      if (typeof probe.playedAt !== "string" || Number.isNaN(Date.parse(probe.playedAt))) return null;
+      const data = loadFindCountryRankingData();
+      const existing = (Array.isArray(data.courses[courseKey]) ? data.courses[courseKey] : [])
+        .filter(isValidFindCountryRecord);
+      const marker = { score: probe.score, avgElapsedSeconds: probe.avgElapsedSeconds, playedAt: probe.playedAt };
+      const merged = existing.concat([marker]).sort(compareFindCountryRecords).slice(0, FINDCOUNTRY_RANKING_TOP_N);
+      const rank = merged.indexOf(marker);
+      return rank === -1 ? null : rank + 1;
+    } catch (e) {
+      return null;
+    }
+  },
+
   // 1プレイ分の記録を該当コースのランキングに登録する。
   // record: { difficultyId, questionCount(PROはnull), score, correctCount,
-  //           answeredCount, avgElapsedSeconds, maxStreak, playedAt(ISO文字列) }
+  //           answeredCount, avgElapsedSeconds, maxStreak, playedAt(ISO文字列),
+  //           name(追加修正: TOP5入賞時に入力された表示名、呼び出し元で正規化済み) }
   // 戻り値: 実際にlocalStorageへの保存まで成功し、かつTOP5にランクイン
   // していれば1〜5の順位、それ以外(ランク外、または保存自体に失敗した場合)
   // はnull。saveFindCountryRankingData()はlocalStorage.setItem()の成否を

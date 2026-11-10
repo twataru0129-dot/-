@@ -650,3 +650,21 @@
     animation: none;
   }
 }
+
+/* ---------- ランキングTOP5入賞時の名前入力画面(追加修正) ----------
+   既存の.field-label/.text-input/.field-note(メダル画像作成画面で使用)を
+   そのまま再利用し、見出し文だけこのモード用に追加する */
+.findcountry-name-entry-lead {
+  text-align: center;
+  color: var(--color-text-sub);
+  font-weight: 700;
+  margin: -12px 0 20px;
+}
+
+/* ランキング一覧: 名前はStorageに保存された任意の文字列のため、
+   HTMLとしては解釈せずtextContentで安全に差し込む(js/findcountry.js参照) */
+.findcountry-rank-name {
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  word-break: break-all;
+}
