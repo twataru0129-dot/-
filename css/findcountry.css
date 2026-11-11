@@ -141,6 +141,14 @@
 .findcountry-ranking-entry {
   flex: 1;
   min-width: 0;
+  /* 追加修正: 「📚 コレクション」が2列の半幅ボタンで折り返さないよう、
+     共通の.btnより余白・文字サイズをこの2つのボタンだけ少し絞る
+     (ランキング側も同じクラスのため、高さ・幅は引き続き統一される) */
+  padding-left: 8px;
+  padding-right: 8px;
+  gap: 4px;
+  font-size: 0.88rem;
+  white-space: nowrap;
 }
 
 /* ---------- ランキング画面(第5段階前半) ----------
@@ -296,11 +304,13 @@
 }
 /* 国名ラベル・情報カードは正解の国名・首都・解説をそのまま表示して
    しまうため、クイズ中は常に非表示にする(ネタバレ防止)。
-   小国向けの📍ピン自体(3Dオブジェクト、回答位置を探す補助)は
-   引き続き表示されるため、ピンON/OFFボタン(#map-pins-toggle-btn)は
-   このルールの対象外にしており、クイズ中も操作できる */
+   追加修正の確定仕様: 対象の小国・地域の📍ピンは常時ONにするため、
+   切替操作そのものが不要・無意味になったピンON/OFFボタンもクイズ中は
+   非表示にする(実際の表示状態はjs/map.jsのpinsForcedVisibleで強制し、
+   CSSでボタンを隠すだけに留めない。findcountry.jsのenter/leaveFindCountryMapMode参照) */
 #screen-map.findcountry-mode #map-country-label,
-#screen-map.findcountry-mode #map-info-card {
+#screen-map.findcountry-mode #map-info-card,
+#screen-map.findcountry-mode #map-pins-toggle-btn {
   display: none !important;
 }
 
@@ -359,13 +369,21 @@
   line-height: 1;
 }
 .findcountry-quiz-timer {
-  font-size: 0.82rem;
+  /* 追加修正: 視認性向上のため数字を大きく太字にする。制限時間の計算・
+     警告しきい値・一時停止等のロジックは一切変更しない(表示だけの変更)。
+     min-width+text-alignで1桁→2桁の変化による横幅のガタつきを抑え、
+     ハート表示・難易度・問題番号・一時停止ボタンとの位置関係を保つ */
+  font-size: 1.3rem;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   color: var(--color-primary-dark);
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: 999px;
-  padding: 2px 9px;
+  padding: 3px 12px;
+  min-width: 68px;
+  text-align: center;
+  line-height: 1.3;
 }
 /* 残り時間の警告。色だけに頼らず、⏱→⏰への記号の変化(updateTimerDisplay)と
    必ず併用する。is-criticalはさらに点滅で目立たせる(prefers-reduced-motion
@@ -631,4 +649,22 @@
   .findcountry-quiz-timer.is-critical {
     animation: none;
   }
+}
+
+/* ---------- ランキングTOP5入賞時の名前入力画面(追加修正) ----------
+   既存の.field-label/.text-input/.field-note(メダル画像作成画面で使用)を
+   そのまま再利用し、見出し文だけこのモード用に追加する */
+.findcountry-name-entry-lead {
+  text-align: center;
+  color: var(--color-text-sub);
+  font-weight: 700;
+  margin: -12px 0 20px;
+}
+
+/* ランキング一覧: 名前はStorageに保存された任意の文字列のため、
+   HTMLとしては解釈せずtextContentで安全に差し込む(js/findcountry.js参照) */
+.findcountry-rank-name {
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  word-break: break-all;
 }

@@ -103,6 +103,20 @@
   </div>
 </section>
 
+<!-- ============ 世界の国どこかな？: ランキングTOP5入賞時の名前入力画面(追加修正)
+     結果画面を表示する前に、TOP5に入った場合だけこの画面を経由する。
+     名前は任意入力(空なら「ななし」)で、「登録する」を押すまで保存しない ============ -->
+<section id="screen-findcountry-name-entry" class="screen">
+  <div class="panel">
+    <h2 class="screen-title">🏆 TOP5入賞！</h2>
+    <p class="findcountry-name-entry-lead">ランキングに登録する名前を入力してください</p>
+    <label class="field-label" for="findcountry-name-entry-input">名前(省略可)</label>
+    <input id="findcountry-name-entry-input" class="text-input" type="text" placeholder="例：たろう" maxlength="12" autocomplete="off" enterkeyhint="done">
+    <p class="field-note">※未入力の場合は「ななし」として登録されます</p>
+    <button id="findcountry-name-entry-submit" class="btn btn-primary btn-large">登録する</button>
+  </div>
+</section>
+
 <!-- ============ 世界の国どこかな？: コレクション画面(第5段階後半) ============
      正解した国・地域(216件)を収集して確認できる画面。既存の世界図鑑
      (js/encyclopedia.js)のカード(.ency-card)・地域フィルターの考え方を

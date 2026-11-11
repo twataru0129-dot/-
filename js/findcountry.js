@@ -271,22 +271,23 @@ const FindCountryModule = (() => {
     );
   }
 
-  // ---------- 通常コース(初級/中級/上級)のクリア判定(第6段階確定仕様) ----------
-  // 「クリア」は正解率ではなく、ライフを残して出題予定数の最後まで到達した
-  // かどうかで判定する(不正解・パスがあってもよい。全問正解は条件にしない)。
-  // showResult()はこの問題が最終問題になった時点でしか呼ばれないため、
-  // !gameOverであれば自動的に「ライフを1個以上残して予定数まで到達した」
-  // ことと同値になる(answered===totalCountは一応の確認として残す)。
+  // ---------- 通常コース(初級/中級/上級)のクリア判定(追加修正で確定仕様を変更) ----------
+  // 「クリア」は出題数ではなく正解数で判定する: ゲームオーバーにならず、
+  // 正解数(correctCount)が目標の正解数(targetCorrectCount、選んだ問題数
+  // 5/10/20/30)に到達していればクリア。パス・時間切れ・不正解があっても、
+  // その分は正解数に数えず別の国・地域が追加出題されるだけで、クリアの
+  // 妨げにはならない(全問正解・出題数の一致は条件にしない)。
+  // 出題対象を使い切って(pool枯渇)目標に届かなかった場合もここでfalseになる。
   // 途中でゲームをやめた場合は常にshowResult()自体が呼ばれないため、ここでは
   // 判定しない(backToCourseSelect経由であり、この関数に到達しない)。
   // PRO解放条件(12コースクリア)の判定にもこの関数をそのまま使い、結果画面の
   // 表示文言から判定を逆算する形にはしない
   function isNormalCourseClear(context) {
-    // context: { difficultyId, gameOver, answered, totalCount }
+    // context: { difficultyId, gameOver, correctCount, targetCorrectCount }
     return (
       context.difficultyId !== PRO_DIFFICULTY_ID &&
       !context.gameOver &&
-      context.answered === context.totalCount
+      context.correctCount >= context.targetCorrectCount
     );
   }
 
@@ -300,8 +301,13 @@ const FindCountryModule = (() => {
   // 成績としてlocalStorageへは一切保存しない(仕様どおり、今回のプレイ限り)
   const quizState = {
     difficultyId: null,
-    sequence: [], // 出題順に並んだ国・地域オブジェクトの配列(同一プレイ中は重複しない)
-    currentIndex: 0, // 0始まり
+    pool: [], // 追加修正: まだ出題していない国・地域(シャッフル済み、pop()で1件ずつ引く)
+    targetCorrectCount: 0, // 追加修正: クリアに必要な正解数(通常は選んだ問題数、PROはpool全件)
+    correctCount: 0, // 追加修正: これまでの正解数(再挑戦の末の正解も含む。パス・時間切れ・
+    // 不正解は含まない)。isNormalCourseClear/進捗表示/PRO完全制覇判定がこの値を見る
+    sequence: [], // 実際に出題した国・地域オブジェクトの配列(出題順。同一プレイ中は重複しない。
+    // パス・時間切れのたびに追加出題するため、長さはtargetCorrectCountと一致するとは限らない)
+    currentIndex: 0, // 0始まり(sequence内の現在の問題の位置)
     currentCountry: null,
     answered: false, // 今の問題について既に回答確定済み(タップ・パス・時間切れ、または
     // 「もう一度さがす」ボタンを待っている間)で、追加のタップ・パスを受け付けない状態かどうか
@@ -313,8 +319,9 @@ const FindCountryModule = (() => {
     lives: maxLivesFor(DIFFICULTIES[0].id), // 実際の値はstartQuiz()で必ず上書きされる仮の初期値
     currentStreak: 0,
     maxStreak: 0,
-    gameOver: false, // ライフ0で終了したか(結果画面の表示分岐・最終問題判定に使う)
-    rankingSubmitted: false, // このプレイの記録を既にランキングへ送信したか(二重保存防止)
+    gameOver: false, // ライフ0で終了したか(結果画面の表示分岐・終了判定に使う)
+    resultShown: false, // showResult()の処理(クリア記録・ランキング判定)を既に実行したか
+    // (「結果を見る」の連打等による二重処理防止。showResult()の先頭で必ず確認する)
     lastRank: null, // 送信した記録がTOP5に入った順位(1〜5)。入らなければnull
   };
 
@@ -426,19 +433,18 @@ const FindCountryModule = (() => {
     });
   }
 
-  // ---------- 出題順の決定(ランダム抽選) ----------
-  // Fisher-Yatesシャッフル(js/quiz.jsの既存のshuffleArray/pickRandom、
-  // QuizEngineの外にある素のグローバル関数)を再利用し、新たに別の
-  // シャッフル処理を実装しない。シャッフル元の配列には同じidが一度ずつしか
-  // 含まれないため(buildPoolCountries参照)、slice()した結果も同一プレイ中に
-  // 重複が生じない。PROは問題数を選ばず、216件をシャッフルした全件を使う
-  function buildQuestionSequence(difficultyId, questionCount) {
-    const pool = buildPoolCountries(difficultyId);
-    if (difficultyId === PRO_DIFFICULTY_ID) {
-      return shuffleArray(pool);
-    }
-    const count = Math.max(1, Math.min(questionCount || pool.length, pool.length));
-    return pickRandom(pool, count);
+  // ---------- 出題プールの構築(追加修正: 正解数ベースのクリア条件) ----------
+  // Fisher-Yatesシャッフル(js/quiz.jsの既存のshuffleArray、QuizEngineの
+  // 外にある素のグローバル関数)を再利用し、新たに別のシャッフル処理は
+  // 実装しない。以前は選んだ問題数ぶんだけ配列を事前に切り出していたが、
+  // パス・時間切れのたびに別の国・地域を追加出題できるよう、難易度の
+  // 出題対象全件をシャッフルした「プール」をそのまま保持し、1問ごとに
+  // pool.pop()で1件ずつ引き出す方式に変更する(PROも従来どおり216件全件が
+  // プールになるため、動作は変わらない)。シャッフル元の配列には同じidが
+  // 一度ずつしか含まれないため(buildPoolCountries参照)、同一プレイ中に
+  // 重複出題が起きることはない
+  function buildPool(difficultyId) {
+    return shuffleArray(buildPoolCountries(difficultyId));
   }
 
   // ---------- クイズ画面(既存の#screen-map/3D地球儀を再利用) ----------
@@ -450,16 +456,22 @@ const FindCountryModule = (() => {
       console.warn("世界の国どこかな？: PROは未解放のため開始できません");
       return;
     }
+    const d = difficultyById(difficultyId);
     quizState.difficultyId = difficultyId;
-    quizState.sequence = buildQuestionSequence(difficultyId, questionCount);
-    quizState.currentIndex = 0;
+    quizState.pool = buildPool(difficultyId);
+    // 追加修正: クリアに必要な正解数。通常コースは選んだ問題数(5/10/20/30)、
+    // PROは既存仕様どおり全件(d.count、pool.lengthと常に一致する)
+    quizState.targetCorrectCount = difficultyId === PRO_DIFFICULTY_ID ? d.count : questionCount;
+    quizState.correctCount = 0;
+    quizState.sequence = [];
+    quizState.currentIndex = -1;
     quizState.results = [];
     quizState.answered = false;
     quizState.lives = maxLivesFor(difficultyId);
     quizState.currentStreak = 0;
     quizState.maxStreak = 0;
     quizState.gameOver = false;
-    quizState.rankingSubmitted = false;
+    quizState.resultShown = false;
     quizState.lastRank = null;
 
     showScreen("screen-map");
@@ -496,6 +508,10 @@ const FindCountryModule = (() => {
   function enterFindCountryMapMode() {
     $("screen-map").classList.add("findcountry-mode");
     setFindCountryChromeVisible(true);
+    // 追加修正の確定仕様: 対象の小国・地域のピンを常時ONにする。通常の
+    // 世界地図モードのピン設定(localStorageの好み)は一切変更しない
+    // (leaveFindCountryMapModeで必ずfalseに戻す、このモードだけの一時状態)
+    MapModule.setPinsForcedVisible(true);
     // 既存の世界地図モードと全く同じ初期化・再開ロジック(ensureReady/
     // resumeAnimation等)を呼ぶだけで、別の地球儀は一切作らない
     MapModule.open();
@@ -520,6 +536,9 @@ const FindCountryModule = (() => {
     MapModule.clearTapResultHandler();
     MapModule.clearQuizResultHighlight();
     MapModule.clearQuizSelection();
+    // 通常の世界地図モードへ戻る前に、ピンの強制表示を必ず解除する
+    // (このモードだけの一時状態。通常モードのpinsVisible設定はそのまま)
+    MapModule.setPinsForcedVisible(false);
     MapModule.close();
     $("screen-map").classList.remove("findcountry-mode");
     setFindCountryChromeVisible(false);
@@ -550,10 +569,14 @@ const FindCountryModule = (() => {
   }
 
   // ---------- 出題画面の表示更新 ----------
+  // 追加修正: 呼ばれるたびにプールから新しい国・地域を1件引いて出題する
+  // (固定の配列をインデックスで辿る方式から変更。パス・時間切れの後に
+  // 別の国・地域を出すのも、この関数を呼ぶだけで自然に実現できる)
   function renderQuestion() {
     const d = difficultyById(quizState.difficultyId);
-    const total = quizState.sequence.length;
-    quizState.currentCountry = quizState.sequence[quizState.currentIndex];
+    quizState.currentCountry = quizState.pool.pop();
+    quizState.sequence.push(quizState.currentCountry);
+    quizState.currentIndex = quizState.sequence.length - 1;
     quizState.answered = false;
     quizState.hasMistakeThisQuestion = false;
     // 「次の問題へ」/「結果を見る」ボタンは実際には.hiddenで隠れているため
@@ -570,7 +593,13 @@ const FindCountryModule = (() => {
     MapModule.clearQuizSelection();
 
     $("findcountry-quiz-difficulty").textContent = `${d.icon} ${d.label}`;
-    $("findcountry-quiz-progress").textContent = `第${quizState.currentIndex + 1} / ${total}問`;
+    // 追加修正: 出題回数ではなく正解進捗で進捗表示を出す(例: 正解4問なら
+    // 「第5 / 5問」。パスしても正解数が変わらない限り同じ表示のまま)。
+    // renderQuestion()はisGameFinished()がfalseのとき(=correctCountが
+    // targetCorrectCount未満のとき)しか呼ばれないため、+1してもtargetを
+    // 超えない
+    const progressNumber = quizState.correctCount + 1;
+    $("findcountry-quiz-progress").textContent = `第${progressNumber} / ${quizState.targetCorrectCount}問`;
     $("findcountry-quiz-country-name").textContent = quizState.currentCountry.name;
     updateLivesDisplay();
 
@@ -666,6 +695,9 @@ const FindCountryModule = (() => {
     // 起きない(重複登録防止)。保存に失敗してもクイズの進行自体は止めない
     let isNewCapture = false;
     if (result === "correct") {
+      // 追加修正: クリア判定・進捗表示に使う正解数。再挑戦の末の正解でも
+      // (streakとは違い)必ず+1する
+      quizState.correctCount += 1;
       // 再挑戦の末に正解した問題(hasMistakeThisQuestion)は、一発正解として
       // 連続正解に加算しない(連続正解自体は最初の不正解タップの時点で
       // 既に0へリセット済みのため、ここでは単に加算しないだけでよい)
@@ -716,6 +748,21 @@ const FindCountryModule = (() => {
 
     updateLivesDisplay();
     showFeedback(result, answeredId, isNewCapture);
+  }
+
+  // ---------- このプレイを終えて結果画面へ進むべきかどうか(追加修正) ----------
+  // 以前は「出題予定数まで到達したか(currentIndex+1>=sequence.length)」で
+  // 判定していたが、正解数ベースのクリア条件に合わせて次の3条件のいずれかで
+  // 終了する: ①ライフが尽きた、②必要な正解数に到達した、③出題対象を
+  // 使い切った(安全策。実際の出題対象数と目標正解数・ライフ数の関係上、
+  // 通常は起こり得ない)。showFeedback()(ボタン文言の切り替え)と
+  // handleNextClick()(実際に結果画面へ進むかどうか)の両方から呼び、
+  // 判定基準がずれないようにする
+  function isGameFinished() {
+    if (quizState.gameOver) return true;
+    if (quizState.correctCount >= quizState.targetCorrectCount) return true;
+    if (quizState.pool.length === 0) return true;
+    return false;
   }
 
   // ---------- 正誤判定の表示(kind: "correct" | "wrong" | "pass" | "timeout") ----------
@@ -774,9 +821,10 @@ const FindCountryModule = (() => {
     $("findcountry-quiz-pass").classList.add("hidden");
     $("findcountry-quiz-retry").classList.add("hidden"); // 念のための後始末(通常は既にhandleRetryClickで隠れている)
     $("findcountry-quiz-hint").classList.add("hidden");
-    // ゲームオーバーの場合、予定していた問題がまだ残っていても
-    // ここで打ち切り、「結果を見る」に切り替える
-    const isFinalQuestion = quizState.gameOver || quizState.currentIndex + 1 >= quizState.sequence.length;
+    // ゲームオーバー・目標正解数への到達の場合、まだパス等で消費した分の
+    // 余力があっても(あるいは目標未達でも)ここで打ち切り、「結果を見る」に
+    // 切り替える(isGameFinished参照)
+    const isFinalQuestion = isGameFinished();
     const nextBtn = $("findcountry-quiz-next");
     nextBtn.textContent = isFinalQuestion ? "結果を見る" : "次の問題へ ▶";
     nextBtn.classList.remove("hidden");
@@ -972,12 +1020,12 @@ const FindCountryModule = (() => {
     // 念のための防御として明示的にcanAdvanceを確認する(answeredだけでは
     // 再挑戦中かどうかを区別できないため)
     if (!quizState.canAdvance) return;
-    const isFinalQuestion = quizState.gameOver || quizState.currentIndex + 1 >= quizState.sequence.length;
-    if (isFinalQuestion) {
+    if (isGameFinished()) {
       showResult();
       return;
     }
-    quizState.currentIndex += 1;
+    // 追加修正: 固定配列のインデックスを進めるのではなく、renderQuestion()
+    // 自身がプールから次の国・地域を1件引いて出題する
     renderQuestion();
   }
 
@@ -1038,18 +1086,30 @@ const FindCountryModule = (() => {
   }
 
   // ---------- 結果画面(今回のプレイの実際の回答結果を集計して表示) ----------
+  // 追加修正: TOP5に入った場合、結果画面を表示する前に名前入力画面を挟む。
+  // そのため、この関数は「集計・12コースクリア記録・TOP5判定」までを
+  // 同期的に行い、実際に画面へ描画するrenderResultScreen()の呼び出しだけを
+  // (TOP5の場合は名前入力後まで)遅らせる構成にする
   function showResult() {
+    // 「結果を見る」の連打等でこの関数が多重に呼ばれても、集計・保存処理は
+    // 必ず1回だけ実行する(2回目以降は即座に無視する。画面遷移は既に
+    // 1回目の呼び出しで行われているため、何もしなくてよい)
+    if (quizState.resultShown) return;
+    quizState.resultShown = true;
+
     leaveFindCountryMapMode();
     const d = difficultyById(quizState.difficultyId);
     const maxLives = maxLivesFor(quizState.difficultyId);
-    const planned = quizState.sequence.length; // 予定していた問題数
-    const answered = quizState.results.length; // 実際に回答(タップ・パス・時間切れ含む)した数
-    const correctCount = quizState.results.filter((r) => r.result === "correct").length;
+    const target = quizState.targetCorrectCount; // クリアに必要な正解数(通常:5/10/20/30、PRO:216)
+    const answered = quizState.results.length; // 実際に確定した回答数(パス・時間切れ・再挑戦の末の正解/不正解を含む)
+    const correctCount = quizState.correctCount;
     const rate = answered > 0 ? Math.round((correctCount / answered) * 100) : 0;
     const totalPoints = quizState.results.reduce((sum, r) => sum + r.points, 0);
-    // 平均回答時間は実際に回答した問題のみを対象にする(不正解・パス・
-    // 時間切れも含める。ゲームオーバーで打ち切られた未出題分は、そもそも
-    // quizState.resultsに積まれないため分母に含まれない)
+    // 平均回答時間は実際に確定した回答履歴(quizState.results)のみを対象にする
+    // (不正解・パス・時間切れも含める。ゲームオーバーで打ち切られた分や、
+    // 再挑戦の途中経過はそもそもquizState.resultsに積まれないため分母に
+    // 含まれない。再挑戦の末の正解/不正解は、その問題の「最終結果」として
+    // 1件だけ記録されるため二重計上もされない)
     const avgElapsed = answered > 0
       ? quizState.results.reduce((sum, r) => sum + r.elapsedSeconds, 0) / answered
       : 0;
@@ -1060,12 +1120,82 @@ const FindCountryModule = (() => {
       correctCount,
       totalCount: d.count,
     });
+    // 追加修正: 出題数ではなく正解数(correctCount>=target)でクリアを判定する
     const isNormalClear = isNormalCourseClear({
       difficultyId: quizState.difficultyId,
       gameOver: quizState.gameOver,
-      answered,
-      totalCount: planned,
+      correctCount,
+      targetCorrectCount: target,
     });
+
+    // 12コースのクリア記録(第6段階)は、ランキングのTOP5判定・名前入力の
+    // 有無とは完全に独立して、1プレイにつき必ず1回だけ記録する
+    let proUnlockJustHappened = false;
+    if (isNormalClear) {
+      try {
+        const courseKey = Storage.findCountryCourseKey(quizState.difficultyId, target);
+        proUnlockJustHappened = Storage.markFindCountryCourseCleared(courseKey).justUnlockedPro;
+      } catch (e) {
+        console.warn("世界の国どこかな？: コースクリア記録の保存に失敗しました", e);
+      }
+    }
+
+    const resultCtx = {
+      d, maxLives, target, answered, correctCount, rate, totalPoints, avgElapsed,
+      isProComplete, isNormalClear, proUnlockJustHappened,
+    };
+
+    // 追加修正: 名前のためにランキング順位が変わらないよう、保存前の
+    // プレビュー(Storage.previewFindCountryRank)で「TOP5に入るか」だけを
+    // 先に判定する。入らない場合は何も保存せず(非TOP5の記録はもともと
+    // 保持しない)、そのまま結果画面を表示する
+    const courseKey = Storage.findCountryCourseKey(
+      quizState.difficultyId,
+      quizState.difficultyId === PRO_DIFFICULTY_ID ? null : target
+    );
+    const playedAt = new Date().toISOString();
+    const roundedAvg = round2(avgElapsed);
+    let previewRank = null;
+    try {
+      previewRank = Storage.previewFindCountryRank(courseKey, { score: totalPoints, avgElapsedSeconds: roundedAvg, playedAt });
+    } catch (e) {
+      previewRank = null;
+    }
+
+    if (!previewRank) {
+      quizState.lastRank = null;
+      renderResultScreen(resultCtx);
+      return;
+    }
+
+    // TOP5入賞: 名前入力画面を経由してから実際に登録する(ゲームオーバーで
+    // 終わった場合でも、途中退出でなくこの画面へ到達していれば対象になる)
+    showNameEntryScreen((name) => {
+      let rank = null;
+      try {
+        rank = Storage.submitFindCountryRecord({
+          difficultyId: quizState.difficultyId,
+          questionCount: quizState.difficultyId === PRO_DIFFICULTY_ID ? null : target,
+          score: totalPoints,
+          correctCount,
+          answeredCount: answered,
+          avgElapsedSeconds: roundedAvg,
+          maxStreak: quizState.maxStreak,
+          playedAt,
+          name,
+        });
+      } catch (e) {
+        console.warn("世界の国どこかな？: ランキング記録の保存に失敗しました", e);
+      }
+      quizState.lastRank = rank;
+      renderResultScreen(resultCtx);
+    });
+  }
+
+  // 実際に結果画面のDOMへ反映してから表示する(showResult()から、TOP5で
+  // なければ即座に、TOP5なら名前入力後に呼ばれる)
+  function renderResultScreen(ctx) {
+    const { d, maxLives, target, answered, correctCount, rate, totalPoints, avgElapsed, isProComplete, isNormalClear, proUnlockJustHappened } = ctx;
 
     $("findcountry-result-title").textContent = quizState.gameOver
       ? "ゲームオーバー"
@@ -1094,12 +1224,11 @@ const FindCountryModule = (() => {
       completeNote.textContent = "";
     }
 
-    // 第6段階確定仕様: 通常コース(初級/中級/上級)をクリアした場合、正解数より
-    // コースクリアを中心に表示する(全問正解は条件にしない。不正解・パスが
-    // あってもライフを残して最後まで到達していればクリア)
+    // 通常コース(初級/中級/上級)をクリアした場合、正解数よりコースクリアを
+    // 中心に表示する(追加修正: 出題数ではなく正解数がtargetに到達したかで判定)
     const clearNote = $("findcountry-result-clear-note");
     if (isNormalClear) {
-      clearNote.textContent = `🎉 ${planned}問コースクリア！`;
+      clearNote.textContent = `🎉 ${target}問コースクリア！`;
       clearNote.classList.remove("hidden");
     } else {
       clearNote.classList.add("hidden");
@@ -1107,7 +1236,7 @@ const FindCountryModule = (() => {
     }
 
     $("findcountry-result-course").textContent = `${d.icon} ${d.label}`;
-    $("findcountry-result-planned").textContent = `予定問題数：${planned}問`;
+    $("findcountry-result-planned").textContent = `予定問題数：${target}問`;
     $("findcountry-result-answered").textContent = `実際の回答数：${answered}問`;
     $("findcountry-result-score-fraction").textContent = `${answered}問中${correctCount}問正解！`;
     $("findcountry-result-rate").textContent = `正答率 ${rate}%`;
@@ -1116,42 +1245,6 @@ const FindCountryModule = (() => {
     $("findcountry-result-streak").textContent = `最大連続正解 ${quizState.maxStreak}`;
     $("findcountry-result-lives").textContent =
       `残りライフ ${"❤️".repeat(Math.max(0, quizState.lives))}${"🤍".repeat(Math.max(0, maxLives - quizState.lives))}`;
-
-    // ランキングへの記録・12コースのクリア記録(第6段階)は1プレイにつき1回
-    // だけ行う。この画面に複数回遷移しても(例: 「結果を見る」ボタンの連打)、
-    // 2回目以降は送信済みのrankingSubmittedで弾き、直前に得た順位(lastRank)
-    // をそのまま使い回す。保存処理自体はStorage側でも例外を捕捉しているが、
-    // 念のためここでも囲み、記録に失敗してもゲームの進行自体は止めない
-    let proUnlockJustHappened = false;
-    if (!quizState.rankingSubmitted) {
-      quizState.rankingSubmitted = true;
-      try {
-        quizState.lastRank = Storage.submitFindCountryRecord({
-          difficultyId: quizState.difficultyId,
-          questionCount: quizState.difficultyId === PRO_DIFFICULTY_ID ? null : planned,
-          score: totalPoints,
-          correctCount,
-          answeredCount: answered,
-          avgElapsedSeconds: round2(avgElapsed),
-          maxStreak: quizState.maxStreak,
-          playedAt: new Date().toISOString(),
-        });
-      } catch (e) {
-        console.warn("世界の国どこかな？: ランキング記録の保存に失敗しました", e);
-        quizState.lastRank = null;
-      }
-
-      // 通常コースをクリアした場合だけ、PRO解放対象の12コースの記録として
-      // 登録する(ランキングの順位・得点とは完全に独立した保存データ)
-      if (isNormalClear) {
-        try {
-          const courseKey = Storage.findCountryCourseKey(quizState.difficultyId, planned);
-          proUnlockJustHappened = Storage.markFindCountryCourseCleared(courseKey).justUnlockedPro;
-        } catch (e) {
-          console.warn("世界の国どこかな？: コースクリア記録の保存に失敗しました", e);
-        }
-      }
-    }
 
     const rankBadge = $("findcountry-result-rank-badge");
     if (quizState.lastRank) {
@@ -1175,6 +1268,40 @@ const FindCountryModule = (() => {
     }
 
     showScreen("screen-findcountry-result");
+  }
+
+  // ---------- ランキングTOP5入賞時の名前入力(追加修正) ----------
+  // 名前は任意入力。前後の空白を除去し、12文字を超える分は切り詰め、
+  // 空になった場合は「ななし」にする。表示側は必ずtextContentで差し込み、
+  // HTMLとして解釈しない(renderRankingList参照)
+  const RANKING_NAME_MAX_LENGTH = 12;
+  function sanitizeRankingName(raw) {
+    const trimmed = (typeof raw === "string" ? raw : "").trim().slice(0, RANKING_NAME_MAX_LENGTH);
+    return trimmed || "ななし";
+  }
+
+  let nameEntrySubmitHandler = null;
+  let nameEntryBusy = false; // 「登録する」連打による二重登録を防止する
+
+  function showNameEntryScreen(onSubmit) {
+    nameEntrySubmitHandler = onSubmit;
+    nameEntryBusy = false;
+    $("findcountry-name-entry-input").value = "";
+    showScreen("screen-findcountry-name-entry");
+    // iOSのソフトウェアキーボードを自動で開く。showScreen直後だと要素が
+    // まだレイアウト確定前のことがあるため、次のフレームで行う
+    requestAnimationFrame(() => {
+      try { $("findcountry-name-entry-input").focus(); } catch (e) { /* noop */ }
+    });
+  }
+
+  function handleNameEntrySubmit() {
+    if (nameEntryBusy) return; // 連打防止(1回目の処理が終わるまで以降は無視)
+    nameEntryBusy = true;
+    const name = sanitizeRankingName($("findcountry-name-entry-input").value);
+    const handler = nameEntrySubmitHandler;
+    nameEntrySubmitHandler = null;
+    if (handler) handler(name);
   }
 
   // ---------- ランキング画面(第5段階前半) ----------
@@ -1271,13 +1398,18 @@ const FindCountryModule = (() => {
       const row = document.createElement("div");
       row.className = "findcountry-rank-row" + (i === 0 ? " rank-1" : "") + (record ? "" : " empty");
       if (record) {
+        // 追加修正: record.nameは利用者が入力した任意の文字列のため、
+        // innerHTMLのテンプレートには直接埋め込まず(HTMLとして解釈され得る
+        // ため)、空のプレースホルダーを用意してtextContentで安全に差し込む
         row.innerHTML =
           `<span class="findcountry-rank-num">${i + 1}位</span>` +
           `<div class="findcountry-rank-main">` +
+          `<span class="findcountry-rank-name"></span>` +
           `<span class="findcountry-rank-score">${record.score}点</span>` +
           `<span class="findcountry-rank-meta">正解 ${record.correctCount}/${record.answeredCount}問・平均${record.avgElapsedSeconds.toFixed(2)}秒・最大連続${record.maxStreak}</span>` +
           `<span class="findcountry-rank-date">${formatRankingDate(record.playedAt)}</span>` +
           `</div>`;
+        row.querySelector(".findcountry-rank-name").textContent = record.name || "ななし";
       } else {
         row.innerHTML =
           `<span class="findcountry-rank-num">${i + 1}位</span>` +
@@ -1420,6 +1552,16 @@ const FindCountryModule = (() => {
     $("findcountry-quiz-retry").addEventListener("click", handleRetryClick);
     $("findcountry-quiz-next").addEventListener("click", handleNextClick);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // 追加修正: ランキングTOP5入賞時の名前入力画面
+    $("findcountry-name-entry-submit").addEventListener("click", handleNameEntrySubmit);
+    $("findcountry-name-entry-input").addEventListener("keydown", (e) => {
+      // スマホのソフトウェアキーボードの「完了」キーでも登録できるようにする
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleNameEntrySubmit();
+      }
+    });
 
     $("findcountry-pause-resume").addEventListener("click", hidePauseOverlay);
     $("findcountry-pause-to-select").addEventListener("click", () => {
