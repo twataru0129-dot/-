@@ -339,6 +339,27 @@
 .findcountry-quiz-back-btn:active,
 .findcountry-quiz-pause-btn:active { transform: scale(0.94); }
 
+/* 幅の狭いiPhone(iPhone SE等)向け: ハート(5個)+一時停止ボタンが
+   戻るボタン・難易度表示と重ならないよう、ヘッダーの余白・間隔を詰める */
+@media (max-width: 360px) {
+  .findcountry-quiz-header {
+    gap: 5px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .findcountry-quiz-lives {
+    font-size: 0.92rem;
+    padding: 2px 6px;
+    letter-spacing: -2px;
+  }
+  .findcountry-quiz-difficulty {
+    font-size: 0.72rem;
+  }
+  .findcountry-quiz-progress {
+    font-size: 0.78rem;
+  }
+}
+
 .findcountry-quiz-info {
   flex: 1;
   min-width: 0;
@@ -357,33 +378,58 @@
   color: var(--color-text-sub);
 }
 
+/* UI改善: ライフ(ハート)は一時停止ボタンと同じ行・同じ高さに表示する。
+   以前はここにタイマーも縦積みで入っていたが、タイマーは出題文の下へ
+   移動した(.findcountry-quiz-timer-wrap参照)。表示回数(初級5/中級4/
+   上級3/PRO1)自体は変更しない */
 .findcountry-quiz-status {
   flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
+  align-items: center;
 }
 .findcountry-quiz-lives {
-  font-size: 0.85rem;
+  /* 既存より少し拡大しつつ、5個が1行に収まり戻る/一時停止ボタンと
+     重ならない範囲に収める(狭いiPhoneでの確認済みサイズ)。
+     薄い水色の枠で軽くグループ感を出す(参考画像のイメージ、必須ではない) */
+  font-size: 1.05rem;
   line-height: 1;
+  letter-spacing: -1px;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border: 1px solid #a9d9f7;
+  border-radius: 999px;
+  background: #f3faff;
+}
+
+/* UI改善: タイマーを出題文(国名)の直下・地球儀の上に中央配置するための
+   ラッパー。タイマー自体(#findcountry-quiz-timer)のサイズ変化(1桁→2桁)で
+   位置がガタつかないよう、ここでflexで中央寄せするだけに留める */
+.findcountry-quiz-timer-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0 8px;
 }
 .findcountry-quiz-timer {
-  /* 追加修正: 視認性向上のため数字を大きく太字にする。制限時間の計算・
-     警告しきい値・一時停止等のロジックは一切変更しない(表示だけの変更)。
-     min-width+text-alignで1桁→2桁の変化による横幅のガタつきを抑え、
-     ハート表示・難易度・問題番号・一時停止ボタンとの位置関係を保つ */
-  font-size: 1.3rem;
+  /* UI改善: 水平の丸いカプセル型。薄い水色の背景+淡い水色の枠で、
+     時計の記号と数字を横並びに表示する。制限時間の計算・警告しきい値・
+     一時停止等のロジックは一切変更しない(表示だけの変更)。
+     min-width+tabular-numsで1桁→2桁の変化による横幅・位置のガタつきを
+     抑える。国名より小さく、視覚的に従属する大きさに留める */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: clamp(1.3rem, 6vw, 1.7rem);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--color-primary-dark);
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
+  background: #e3f3ff;
+  border: 1px solid #a9d9f7;
   border-radius: 999px;
-  padding: 3px 12px;
-  min-width: 68px;
+  padding: 4px 20px;
+  min-width: 5.5ch;
   text-align: center;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 /* 残り時間の警告。色だけに頼らず、⏱→⏰への記号の変化(updateTimerDisplay)と
    必ず併用する。is-criticalはさらに点滅で目立たせる(prefers-reduced-motion
@@ -415,12 +461,37 @@
   font-weight: 700;
   color: var(--color-text-sub);
 }
+/* UI改善: 国名の長さに応じてjs/findcountry.js側がクラスを付け替える。
+   既定(クラス無し)は短い国名向けの最大サイズ・1行表示。
+   is-name-size-md/smは長い国名向けの段階的な縮小、is-name-wrapは
+   2行折り返しを許可する(折り返し位置は「・」直後の<wbr>のみに限定し、
+   不自然な空白や文字の挿入は行わない。word-break: keep-allで
+   「・」以外の位置での折り返しを防ぎ、万一収まらない場合のみ
+   overflow-wrap: break-wordが最終手段として働く) */
 .findcountry-quiz-country-name {
   margin: 0;
-  font-size: 1.5rem;
+  display: block;
+  width: 100%;
+  font-size: clamp(1.5rem, 6.5vw, 1.9rem);
   font-weight: 800;
   color: var(--color-text);
-  overflow-wrap: anywhere;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.findcountry-quiz-country-name.is-name-size-md {
+  font-size: clamp(1.15rem, 5vw, 1.5rem);
+}
+.findcountry-quiz-country-name.is-name-size-sm {
+  font-size: clamp(0.95rem, 4.2vw, 1.25rem);
+}
+.findcountry-quiz-country-name.is-name-wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 /* 正誤判定の結果表示。色だけに頼らず「✅ 正解！」「❌ 残念！不正解」のように
    必ず文字・記号でも示す(色弱・白黒印刷等でも区別できるようにするため) */
@@ -623,6 +694,13 @@
   }
   .findcountry-quiz-country-name {
     font-size: 1.15rem;
+  }
+  .findcountry-quiz-timer-wrap {
+    margin: 2px 0 4px;
+  }
+  .findcountry-quiz-timer {
+    font-size: 1.1rem;
+    padding: 2px 14px;
   }
   .findcountry-quiz-result-text {
     margin-top: 3px;
