@@ -343,15 +343,22 @@
         <span id="findcountry-quiz-difficulty" class="findcountry-quiz-difficulty"></span>
         <span id="findcountry-quiz-progress" class="findcountry-quiz-progress"></span>
       </div>
+      <!-- UI改善: ライフ表示は一時停止ボタンと同じ行(高さ)に配置する。
+           タイマーはこのヘッダーから出題文エリアへ移動した(下記参照) -->
       <div id="findcountry-quiz-status" class="findcountry-quiz-status">
         <span id="findcountry-quiz-lives" class="findcountry-quiz-lives" aria-label="残りライフ"></span>
-        <span id="findcountry-quiz-timer" class="findcountry-quiz-timer" aria-label="残り時間"></span>
       </div>
       <button id="findcountry-quiz-pause" class="findcountry-quiz-pause-btn" type="button" aria-label="一時停止">⏸</button>
     </div>
     <div id="findcountry-quiz-prompt" class="findcountry-quiz-prompt hidden">
       <p id="findcountry-quiz-question-label" class="findcountry-quiz-question-label">この国・地域はどこ？</p>
       <p id="findcountry-quiz-country-name" class="findcountry-quiz-country-name"></p>
+      <!-- UI改善: タイマーを国名の直下・地球儀の上に移動し、カプセル型で表示する。
+           残り時間の計算・警告しきい値(is-warning/is-critical)・一時停止処理は
+           js/findcountry.js側で一切変更していない(表示位置とデザインのみの変更) -->
+      <div class="findcountry-quiz-timer-wrap">
+        <span id="findcountry-quiz-timer" class="findcountry-quiz-timer" aria-label="残り時間"></span>
+      </div>
       <p id="findcountry-quiz-result-text" class="findcountry-quiz-result-text hidden" role="status" aria-live="polite"></p>
       <span id="findcountry-quiz-new-badge" class="findcountry-quiz-new-badge hidden">🆕 コレクションに追加！</span>
     </div>

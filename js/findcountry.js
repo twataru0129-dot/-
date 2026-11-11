@@ -552,6 +552,59 @@ const FindCountryModule = (() => {
     $("findcountry-quiz-lives").textContent = filled + empty;
   }
 
+  // ---------- 出題国名の表示(長さに応じた自動縮小・折り返し) ----------
+  // UI改善: 国名の文字列自体は一切変更しない。短い国名(日本・フランス等)は
+  // そのまま大きく1行で表示し、長い国名(セントビンセント・グレナディーン等)
+  // だけ、まず文字サイズを段階的に縮小し、それでも1行に収まらない場合に
+  // 限って2行に折り返す。折り返しは「・」の直後にのみ<wbr>(改行候補を示す
+  // だけの要素で、文字や空白をテキストに追加するものではない)を挿入して
+  // 許可し、文字の途中や不自然な位置で改行されないようにする
+  // (CSS側のword-break: keep-allと組み合わせて機能する。findcountry.css参照)
+  const NAME_SIZE_STEPS = ["", "is-name-size-md", "is-name-size-sm"];
+  function renderCountryNameNode(el, name) {
+    el.textContent = "";
+    const parts = String(name).split("・");
+    parts.forEach((part, i) => {
+      if (i > 0) el.appendChild(document.createTextNode("・"));
+      el.appendChild(document.createTextNode(part));
+      if (i < parts.length - 1) el.appendChild(document.createElement("wbr"));
+    });
+  }
+  function fitCountryNameDisplay() {
+    const el = $("findcountry-quiz-country-name");
+    if (!el || !el.textContent) return;
+    NAME_SIZE_STEPS.forEach((cls) => { if (cls) el.classList.remove(cls); });
+    el.classList.remove("is-name-wrap");
+    let fitted = false;
+    for (const cls of NAME_SIZE_STEPS) {
+      if (cls) el.classList.add(cls);
+      if (el.scrollWidth <= el.clientWidth + 1) {
+        fitted = true;
+        break;
+      }
+    }
+    if (!fitted) {
+      // 最小サイズでも1行に収まらない場合だけ、「・」の位置を優先して2行に折り返す
+      el.classList.add("is-name-wrap");
+    }
+  }
+  function updateCountryNameDisplay(name) {
+    const el = $("findcountry-quiz-country-name");
+    renderCountryNameNode(el, name);
+    // 折り返し判定にはレイアウト確定後の実際の幅が必要なため、
+    // 描画後の次フレームで計測する
+    requestAnimationFrame(fitCountryNameDisplay);
+  }
+  // 画面の回転(縦⇔横)や端末サイズの変化でも、表示中の国名サイズが
+  // その時点の幅に合わなくなることがないよう再計測する。クイズ画面を
+  // 表示していない間は何もしない(他の画面への影響なし)
+  let nameResizeTimer = null;
+  function handleWindowResizeForName() {
+    if (!$("screen-map").classList.contains("findcountry-mode")) return;
+    if (nameResizeTimer) clearTimeout(nameResizeTimer);
+    nameResizeTimer = setTimeout(fitCountryNameDisplay, 150);
+  }
+
   // ---------- 残り時間表示の更新(色だけでなく数字・記号も変化させる) ----------
   function updateTimerDisplay(secondsLeftFloat) {
     const el = $("findcountry-quiz-timer");
@@ -600,7 +653,7 @@ const FindCountryModule = (() => {
     // 超えない
     const progressNumber = quizState.correctCount + 1;
     $("findcountry-quiz-progress").textContent = `第${progressNumber} / ${quizState.targetCorrectCount}問`;
-    $("findcountry-quiz-country-name").textContent = quizState.currentCountry.name;
+    updateCountryNameDisplay(quizState.currentCountry.name);
     updateLivesDisplay();
 
     const resultText = $("findcountry-quiz-result-text");
@@ -1552,6 +1605,8 @@ const FindCountryModule = (() => {
     $("findcountry-quiz-retry").addEventListener("click", handleRetryClick);
     $("findcountry-quiz-next").addEventListener("click", handleNextClick);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    // UI改善: 画面回転・リサイズ時に国名の自動縮小/折り返し判定を再計算する
+    window.addEventListener("resize", handleWindowResizeForName);
 
     // 追加修正: ランキングTOP5入賞時の名前入力画面
     $("findcountry-name-entry-submit").addEventListener("click", handleNameEntrySubmit);
