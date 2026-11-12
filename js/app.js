@@ -552,6 +552,27 @@ function finishQuiz() {
     isNewTitle = Storage.awardTitleIfNew(titleObj.id, mode);
   }
 
+  // トロフィー刷新 第2段階: 既存のスコア・称号判定がすべて確定した後、
+  // 新トロフィーシステム(js/trophy.js)の判定を呼ぶ。正式な107項目は
+  // まだ1件も確定していないため、現時点では必ず何も獲得されない
+  // (安全な空振り)。例外が起きても既存のクイズ結果には一切影響しないよう必ずtry/catchで囲む
+  try {
+    if (typeof TrophyModule !== "undefined") {
+      TrophyModule.evaluateQuizFinish({
+        mode,
+        total,
+        correct,
+        rate,
+        perfect,
+        wrongIds: Array.from(state.wrongIds),
+        correctIds: state.questions.filter((q) => !state.wrongIds.has(q.id)).map((q) => q.id),
+        questionIds: state.questions.map((q) => q.id),
+      });
+    }
+  } catch (e) {
+    console.warn("トロフィー判定に失敗しました(クイズ結果には影響しません)", e);
+  }
+
   // 完了したクイズの復習対象として、このクイズ中に記録した不正解idの
   // スナップショットを持たせる(配列に変換。以後state.wrongIdsが新しい
   // クイズでリセットされても、この結果画面用のコピーには影響しない)
