@@ -951,7 +951,7 @@ async function handleResetDataClick() {
   try {
     const step1 = await showResetConfirmStep(
       "保存データをすべて削除しますか？",
-      "称号・記録・ランキング・コレクションが削除されます。この操作は取り消せません。",
+      "称号・トロフィー・記録・ランキング・コレクションが削除されます。この操作は取り消せません。",
       "すべて削除する",
       "キャンセル"
     );
