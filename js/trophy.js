@@ -174,6 +174,14 @@
 // (表示用分類)・hiddenを全107件に補完し、一覧画面(js/app.js側)を追加した。
 // hiddenは正式確定した12件(#53・61・62・64・65・67・70・75・86・87・88・89)
 // のみtrue、残り95件はfalse。
+//
+// 追加修正(国旗トリビア29件の国旗クイズ限定化): #71〜100(カテゴリー
+// 「国旗トリビア」)のうち、当初は24件が国旗・首都共通(mode:"common")
+// だったが、カテゴリー名と獲得方法を一致させるため、29件全てを国旗クイズ
+// 限定(mode:"flag_only"+pairCheck(...,{flagOnly:true}))に統一した。
+// 番号・名称・対象国・判定対象以外のロジックは変更していない。
+// カテゴリーの内部id("trivia")・表示ラベル("国旗トリビア")・107件という
+// 総数・#71〜100以外のトロフィーの獲得条件には一切影響しない。
 // ==========================================================
 
 const TrophyModule = (() => {
@@ -383,36 +391,41 @@ const TrophyModule = (() => {
     65: { name: "奇跡の数字", condition: "198問でちょうど100問正解", mode: "common", check: (ctx) => ctx.source === "quiz" && ctx.total === 198 && ctx.correct === 100 },
     67: { name: "世界の反対側", condition: "1プレイで日本・ブラジルを正解", mode: "common", check: pairCheck("jp", "br") },
 
-    // ---- #71〜100: 同一プレイの国ペア判定(既存データのみ) ----
-    71: { name: "太陽と月の出会い", condition: "1プレイで日本・パラオを正解", mode: "common", check: pairCheck("jp", "pw") },
-    72: { name: "そっくりさん発見！", condition: "1プレイでルーマニア・チャドを正解", mode: "common", check: pairCheck("ro", "td") },
-    73: { name: "白と赤の双子", condition: "1プレイでインドネシア・モナコを正解", mode: "common", check: pairCheck("id", "mc") },
-    74: { name: "南十字星のきずな", condition: "1プレイでオーストラリア・ニュージーランドを正解", mode: "common", check: pairCheck("au", "nz") },
+    // ---- #71〜100: 同一プレイの国ペア判定(既存データのみ、全件国旗クイズ限定)。
+    // 当初は#75・86〜89の5件のみ国旗限定(mode:"flag_only")で、残り24件は
+    // 国旗・首都共通(mode:"common")だったが、カテゴリー名「国旗トリビア」と
+    // 獲得方法を一致させるため、29件全てをmode:"flag_only"+
+    // pairCheck(...,{flagOnly:true})に統一した(首都クイズでの正解は対象外。
+    // 国旗・首都の正解履歴を合算しない) ----
+    71: { name: "太陽と月の出会い", condition: "国旗クイズ1プレイで日本・パラオを正解", mode: "flag_only", check: pairCheck("jp", "pw", { flagOnly: true }) },
+    72: { name: "そっくりさん発見！", condition: "国旗クイズ1プレイでルーマニア・チャドを正解", mode: "flag_only", check: pairCheck("ro", "td", { flagOnly: true }) },
+    73: { name: "白と赤の双子", condition: "国旗クイズ1プレイでインドネシア・モナコを正解", mode: "flag_only", check: pairCheck("id", "mc", { flagOnly: true }) },
+    74: { name: "南十字星のきずな", condition: "国旗クイズ1プレイでオーストラリア・ニュージーランドを正解", mode: "flag_only", check: pairCheck("au", "nz", { flagOnly: true }) },
     75: { name: "型破りな国旗たち", condition: "国旗クイズ1プレイでネパール・バチカン市国を正解", mode: "flag_only", check: pairCheck("np", "va", { flagOnly: true }) },
-    76: { name: "島から島へ", condition: "1プレイでアイスランド・マダガスカルを正解", mode: "common", check: pairCheck("is", "mg") },
-    77: { name: "南北のロングラン", condition: "1プレイでカナダ・チリを正解", mode: "common", check: pairCheck("ca", "cl") },
-    78: { name: "ピラミッドの謎", condition: "1プレイでエジプト・メキシコを正解", mode: "common", check: pairCheck("eg", "mx") },
-    79: { name: "火山の国を巡る", condition: "1プレイで日本・イタリアを正解", mode: "common", check: pairCheck("jp", "it") },
-    80: { name: "海を越えた言葉", condition: "1プレイでブラジル・ポルトガルを正解", mode: "common", check: pairCheck("br", "pt") },
-    81: { name: "巨人と小人", condition: "1プレイでロシア・バチカン市国を正解", mode: "common", check: pairCheck("ru", "va") },
-    82: { name: "国の中の国", condition: "1プレイで南アフリカ・レソトを正解", mode: "common", check: pairCheck("za", "ls") },
-    83: { name: "一つの半島、二つの国", condition: "1プレイで韓国・北朝鮮を正解", mode: "common", check: pairCheck("kr", "kp") },
-    84: { name: "色が逆さま！", condition: "1プレイでアイルランド・コートジボワールを正解", mode: "common", check: pairCheck("ie", "ci") },
-    85: { name: "三色旗の秘密", condition: "1プレイでフランス・オランダを正解", mode: "common", check: pairCheck("fr", "nl") },
+    76: { name: "島から島へ", condition: "国旗クイズ1プレイでアイスランド・マダガスカルを正解", mode: "flag_only", check: pairCheck("is", "mg", { flagOnly: true }) },
+    77: { name: "南北のロングラン", condition: "国旗クイズ1プレイでカナダ・チリを正解", mode: "flag_only", check: pairCheck("ca", "cl", { flagOnly: true }) },
+    78: { name: "ピラミッドの謎", condition: "国旗クイズ1プレイでエジプト・メキシコを正解", mode: "flag_only", check: pairCheck("eg", "mx", { flagOnly: true }) },
+    79: { name: "火山の国を巡る", condition: "国旗クイズ1プレイで日本・イタリアを正解", mode: "flag_only", check: pairCheck("jp", "it", { flagOnly: true }) },
+    80: { name: "海を越えた言葉", condition: "国旗クイズ1プレイでブラジル・ポルトガルを正解", mode: "flag_only", check: pairCheck("br", "pt", { flagOnly: true }) },
+    81: { name: "巨人と小人", condition: "国旗クイズ1プレイでロシア・バチカン市国を正解", mode: "flag_only", check: pairCheck("ru", "va", { flagOnly: true }) },
+    82: { name: "国の中の国", condition: "国旗クイズ1プレイで南アフリカ・レソトを正解", mode: "flag_only", check: pairCheck("za", "ls", { flagOnly: true }) },
+    83: { name: "一つの半島、二つの国", condition: "国旗クイズ1プレイで韓国・北朝鮮を正解", mode: "flag_only", check: pairCheck("kr", "kp", { flagOnly: true }) },
+    84: { name: "色が逆さま！", condition: "国旗クイズ1プレイでアイルランド・コートジボワールを正解", mode: "flag_only", check: pairCheck("ie", "ci", { flagOnly: true }) },
+    85: { name: "三色旗の秘密", condition: "国旗クイズ1プレイでフランス・オランダを正解", mode: "flag_only", check: pairCheck("fr", "nl", { flagOnly: true }) },
     86: { name: "国旗の中に武器!?", condition: "国旗クイズ1プレイでモザンビーク・グアテマラを正解", mode: "flag_only", check: pairCheck("mz", "gt", { flagOnly: true }) },
     87: { name: "国旗の動物園", condition: "国旗クイズ1プレイでドミニカ国・ウガンダを正解", mode: "flag_only", check: pairCheck("dm", "ug", { flagOnly: true }) },
     88: { name: "国旗の中の地図", condition: "国旗クイズ1プレイでキプロス・コソボを正解", mode: "flag_only", check: pairCheck("cy", "xk", { flagOnly: true }) },
     89: { name: "国旗が語りかける", condition: "国旗クイズ1プレイでサウジアラビア・ブラジルを正解", mode: "flag_only", check: pairCheck("sa", "br", { flagOnly: true }) },
-    91: { name: "左側通行の仲間", condition: "1プレイで日本・イギリスを正解", mode: "common", check: pairCheck("jp", "gb") },
-    92: { name: "独立を守った国々", condition: "1プレイでエチオピア・リベリアを正解", mode: "common", check: pairCheck("et", "lr") },
-    93: { name: "10億人の世界", condition: "1プレイで中国・インドを正解", mode: "common", check: pairCheck("cn", "in") },
-    94: { name: "同じ言葉、遠い国", condition: "1プレイでスペイン・アルゼンチンを正解", mode: "common", check: pairCheck("es", "ar") },
-    95: { name: "海を越えたフランス語", condition: "1プレイでフランス・カナダを正解", mode: "common", check: pairCheck("fr", "ca") },
-    96: { name: "海まで二つの国", condition: "1プレイでウズベキスタン・リヒテンシュタインを正解", mode: "common", check: pairCheck("uz", "li") },
-    97: { name: "イタリアの中の国", condition: "1プレイでイタリア・サンマリノを正解", mode: "common", check: pairCheck("it", "sm") },
-    98: { name: "二つの大陸をまたぐ国", condition: "1プレイでトルコ・ロシアを正解", mode: "common", check: pairCheck("tr", "ru") },
-    99: { name: "細長い国の秘密", condition: "1プレイでチリ・ノルウェーを正解", mode: "common", check: pairCheck("cl", "no") },
-    100: { name: "太平洋の島々", condition: "1プレイでキリバス・フィジーを正解", mode: "common", check: pairCheck("ki", "fj") },
+    91: { name: "左側通行の仲間", condition: "国旗クイズ1プレイで日本・イギリスを正解", mode: "flag_only", check: pairCheck("jp", "gb", { flagOnly: true }) },
+    92: { name: "独立を守った国々", condition: "国旗クイズ1プレイでエチオピア・リベリアを正解", mode: "flag_only", check: pairCheck("et", "lr", { flagOnly: true }) },
+    93: { name: "10億人の世界", condition: "国旗クイズ1プレイで中国・インドを正解", mode: "flag_only", check: pairCheck("cn", "in", { flagOnly: true }) },
+    94: { name: "同じ言葉、遠い国", condition: "国旗クイズ1プレイでスペイン・アルゼンチンを正解", mode: "flag_only", check: pairCheck("es", "ar", { flagOnly: true }) },
+    95: { name: "海を越えたフランス語", condition: "国旗クイズ1プレイでフランス・カナダを正解", mode: "flag_only", check: pairCheck("fr", "ca", { flagOnly: true }) },
+    96: { name: "海まで二つの国", condition: "国旗クイズ1プレイでウズベキスタン・リヒテンシュタインを正解", mode: "flag_only", check: pairCheck("uz", "li", { flagOnly: true }) },
+    97: { name: "イタリアの中の国", condition: "国旗クイズ1プレイでイタリア・サンマリノを正解", mode: "flag_only", check: pairCheck("it", "sm", { flagOnly: true }) },
+    98: { name: "二つの大陸をまたぐ国", condition: "国旗クイズ1プレイでトルコ・ロシアを正解", mode: "flag_only", check: pairCheck("tr", "ru", { flagOnly: true }) },
+    99: { name: "細長い国の秘密", condition: "国旗クイズ1プレイでチリ・ノルウェーを正解", mode: "flag_only", check: pairCheck("cl", "no", { flagOnly: true }) },
+    100: { name: "太平洋の島々", condition: "国旗クイズ1プレイでキリバス・フィジーを正解", mode: "flag_only", check: pairCheck("ki", "fj", { flagOnly: true }) },
 
     // ---- #101〜112: 既存12称号の参照(Stage Aで実装済み。名称・モードのみ補完) ----
     101: { name: "国旗ビギナー", condition: "10問全問正解", mode: "flag" },
