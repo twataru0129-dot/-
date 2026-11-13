@@ -58,6 +58,7 @@
       </button>
     </div>
     <button id="btn-collection" class="btn btn-secondary">🏅 称号コレクション</button>
+    <button id="btn-trophy-list" class="btn btn-secondary">🏆 トロフィー一覧</button>
 
     <div class="top-footer">
       <button id="btn-sound-toggle" class="btn-sound" aria-pressed="true">
@@ -244,6 +245,7 @@
     <button id="btn-result-review" class="btn btn-gold btn-large result-review-btn hidden" type="button"></button>
     <div class="result-buttons">
       <button id="btn-result-view-title" class="btn btn-gold hidden">🏅 称号を見る</button>
+      <button id="btn-result-view-trophies" class="btn btn-gold hidden">🏆 新しいトロフィー</button>
       <button id="btn-result-retry" class="btn btn-primary">もう一度挑戦</button>
       <button id="btn-result-change-count" class="btn btn-secondary">問題数を変える</button>
       <button id="btn-result-memorial" class="btn btn-gold hidden">🖼 記念画像を作る</button>
@@ -310,6 +312,39 @@
     <h3 class="collection-section-title">🏙️ 首都クイズ</h3>
     <div id="collection-grid-capital" class="collection-grid"></div>
     <div id="record-list-capital" class="record-list"></div>
+  </div>
+</section>
+
+<!-- ============ トロフィー刷新 Stage E: 新トロフィー獲得演出画面(既存の称号獲得画面とは別画面) ============ -->
+<section id="screen-trophy-award" class="screen">
+  <div class="panel award-panel">
+    <div id="trophy-award-confetti-wrap" class="confetti-canvas-wrap"></div>
+    <h2 class="award-heading">🏆 トロフィー獲得！</h2>
+    <p id="trophy-award-secret-banner" class="trophy-award-secret-banner hidden">🔓 隠しトロフィーを発見しました！</p>
+    <p id="trophy-award-count" class="award-title-desc"></p>
+    <div id="trophy-award-list" class="trophy-award-list"></div>
+    <div class="result-buttons">
+      <button id="btn-trophy-award-continue" class="btn btn-secondary">結果画面へ</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ トロフィー刷新 Stage E: トロフィー一覧画面(新規・既存の称号コレクションとは別画面) ============ -->
+<section id="screen-trophy-list" class="screen">
+  <div class="panel trophy-panel">
+    <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
+    <h2 class="screen-title">🏆 トロフィー一覧</h2>
+    <p id="trophy-progress-summary" class="trophy-progress-summary"></p>
+
+    <div id="trophy-category-tabs" class="trophy-category-tabs" role="tablist" aria-label="カテゴリで絞り込み"></div>
+    <div id="trophy-status-filter" class="trophy-status-filter" role="group" aria-label="獲得状況で絞り込み">
+      <button type="button" class="trophy-status-btn" data-status="all">すべて</button>
+      <button type="button" class="trophy-status-btn" data-status="earned">獲得済み</button>
+      <button type="button" class="trophy-status-btn" data-status="locked">未獲得</button>
+    </div>
+
+    <p id="trophy-result-count" class="trophy-result-count"></p>
+    <div id="trophy-grid" class="trophy-grid"></div>
   </div>
 </section>
 

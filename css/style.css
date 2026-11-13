@@ -993,3 +993,247 @@ img { max-width: 100%; }
   outline: 3px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* ==========================================================
+   トロフィー刷新 Stage E: トロフィー一覧画面・新トロフィー獲得演出画面
+   既存の称号コレクション画面(.collection-*)・称号獲得画面(.award-*)とは
+   別のクラスにして、既存画面のスタイルには一切影響しないようにする。
+   配色・カード形状は既存の.collection-card/.medalに揃え、統一感を保つ
+   ========================================================== */
+
+/* ---------- トロフィー一覧画面 ---------- */
+.trophy-panel { max-width: 1100px; }
+
+.trophy-progress-summary {
+  text-align: center;
+  font-weight: 800;
+  color: var(--color-primary-dark);
+  margin: 0 0 16px;
+}
+
+.trophy-category-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  margin-bottom: 10px;
+  scrollbar-width: thin;
+}
+.trophy-tab {
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text-sub);
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.trophy-tab.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.trophy-status-filter {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.trophy-status-btn {
+  flex: 1;
+  padding: 9px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text-sub);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.trophy-status-btn.active {
+  background: var(--color-gold);
+  border-color: var(--color-gold);
+  color: #fff;
+}
+
+.trophy-result-count {
+  font-size: 0.82rem;
+  color: var(--color-text-sub);
+  margin: 0 2px 12px;
+}
+
+.trophy-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 30px;
+}
+@media (min-width: 560px) {
+  .trophy-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 900px) {
+  .trophy-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.trophy-card {
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+}
+.trophy-card.locked { opacity: 0.85; }
+.trophy-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.trophy-number { font-size: 0.78rem; font-weight: 800; color: var(--color-text-sub); }
+.trophy-category-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: var(--color-bg);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.trophy-marks {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin: 6px 0 10px;
+}
+.trophy-mark-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.trophy-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  border: 3px solid rgba(255,255,255,0.6);
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.15);
+}
+.trophy-mark.earned {
+  background: linear-gradient(135deg, #ffe27a, #d4a017);
+}
+.trophy-mark.locked {
+  background: #cbd5e1;
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+.trophy-mark-date {
+  font-size: 0.68rem;
+  color: var(--color-text-sub);
+  margin: 0;
+  text-align: center;
+}
+
+.trophy-name { font-weight: 800; margin: 0 0 4px; text-align: center; }
+.trophy-cond { font-size: 0.85rem; color: var(--color-text-sub); margin: 0; text-align: center; }
+
+/* ---------- 新トロフィー獲得演出画面 ---------- */
+.trophy-award-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  margin: 10px 0 20px;
+  text-align: left;
+}
+.trophy-award-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+.trophy-award-mark {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, #ffe27a, #d4a017);
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.2);
+}
+.trophy-award-info { flex: 1; min-width: 0; }
+.trophy-award-number { font-size: 0.75rem; font-weight: 800; color: var(--color-text-sub); margin: 0; }
+.trophy-award-name { font-weight: 800; margin: 2px 0; }
+.trophy-award-cond { font-size: 0.85rem; color: var(--color-text-sub); margin: 0; }
+.trophy-award-sub { font-size: 0.78rem; color: var(--color-primary-dark); font-weight: 700; margin: 4px 0 0; }
+
+/* ---------- 隠しトロフィー(正式確定12件) ---------- */
+/* 一覧画面: 未発見の隠しトロフィーカード(通常のlockedより少し上品に強調する) */
+.trophy-card-secret {
+  border: 1.5px dashed #a78bfa;
+  background: linear-gradient(180deg, #faf7ff, var(--color-bg-card) 60%);
+}
+
+/* 獲得演出画面: 隠しトロフィー発見時のバナー・アイテム・鍵解除アニメーション */
+.trophy-award-secret-banner {
+  font-weight: 800;
+  color: #7c3aed;
+  background: #f3e8ff;
+  border-radius: 999px;
+  padding: 6px 16px;
+  display: inline-block;
+  margin: 0 0 10px;
+}
+.trophy-award-item-secret {
+  background: linear-gradient(135deg, #faf7ff, #f3e8ff);
+  border: 1px solid #d8b4fe;
+}
+.trophy-award-secret-label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #7c3aed;
+  margin: 0 0 2px;
+}
+.trophy-award-mark-secret {
+  position: relative;
+  background: linear-gradient(135deg, #ffe27a, #d4a017);
+  overflow: visible;
+}
+.trophy-award-mark-lock {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  animation: secretUnlock 1.1s ease forwards;
+}
+.trophy-award-mark-secret .trophy-award-mark-icon {
+  opacity: 0;
+  animation: secretReveal 1.1s ease forwards;
+}
+@keyframes secretUnlock {
+  0% { transform: scale(1) rotate(0deg); opacity: 1; }
+  60% { transform: scale(1.15) rotate(-12deg); opacity: 1; }
+  100% { transform: scale(0.6) rotate(-12deg); opacity: 0; }
+}
+@keyframes secretReveal {
+  0%, 50% { opacity: 0; transform: scale(0.7); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trophy-award-mark-lock, .trophy-award-mark-secret .trophy-award-mark-icon {
+    animation: none;
+  }
+  .trophy-award-mark-lock { display: none; }
+  .trophy-award-mark-secret .trophy-award-mark-icon { opacity: 1; }
+}

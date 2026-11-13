@@ -115,6 +115,35 @@
 //   「世界の国どこかな？」の変更(一切行っていない)
 // - 既存データの削除・初期化
 //
+// Stage E(ユーザー指示のStage E=ドキュメント上のStage G「画面・演出・
+// 全体テスト」に相当)で追加したこと:
+// - 各トロフィーのcategory(表示用の分類ラベル、TROPHY_CATEGORIES・
+//   categoryForNumber())とhidden(当初は全107件false)を補完し、公開APIに
+//   getCategories()を追加した。name/condition/mode/check(獲得条件・判定
+//   ロジック)は一切変更していない
+// - トロフィー一覧画面(js/app.jsのrenderTrophyListScreen()、既存の
+//   「称号コレクション」画面とは別画面)と、複数トロフィー同時獲得に対応した
+//   新しい獲得演出画面(renderTrophyAwardScreen())をjs/app.js側に追加した
+//   (js/trophy.js自体の判定・保存ロジックへの変更はcategory/hidden補完の
+//   みで、評価エンジン(evaluate/evaluateQuizFinish)・判定関数は無変更)
+//
+// Stage E追加検討(隠しトロフィー選定)で追加したこと:
+// - 調査・比較検討の結果、ユーザー指示によりHIDDEN_TROPHY_NUMBERS(12件:
+//   #53・61・62・64・65・67・70・75・86・87・88・89)を正式な隠しトロフィー
+//   として確定した(検討時に挙げた36件案は不採用。docs/trophy-spec-final.md
+//   「7. 隠しトロフィー仕様」参照)。hiddenフィールドをこの12件のみtrueに
+//   変更。名称・条件・mode・check・番号・保存キーは一切変更していない
+// - 表示側(js/app.js)で、hidden:trueかつ未獲得のトロフィーは名称「？？？？？？」・
+//   条件非表示・鍵アイコン・状態「未発見」にする分岐と、新規獲得時の
+//   「隠しトロフィー発見演出」を追加した(既存の獲得演出画面を拡張、保存形式は
+//   無変更)
+//
+// Stage Eでも行っていないこと:
+// - 既存の12称号の獲得履歴・保存形式・コレクション画面・獲得演出の変更
+// - 国旗・首都クイズの出題・採点・ランキング、世界地図・世界図鑑・
+//   「世界の国どこかな？」・PROモードの変更(一切行っていない)
+// - 既存データの削除・初期化(Storage.resetAll()の対象範囲も変更していない)
+//
 // 第2段階で行ったこと:
 // - 各スロットに mode(flag/capital/both/findcountry/null)・check(判定
 //   関数、未確定の間はnull)フィールドを追加(値そのものはまだ推測しない)
@@ -141,8 +170,10 @@
 // 1〜112で、50・55・56・57・90番が欠番(112-5=107件)。名称・獲得条件は
 // docs/trophy-spec-final.mdで107件すべて確定済み。Stage Bで79件分・
 // Stage Dで残り28件分をname/condition/mode/check(confirmed:true)として
-// 反映し、107件全てのconfirmed:true化が完了した(category/hiddenのみ
-// 依然未確定。表示画面はStage Gで実施)。
+// 反映し、107件全てのconfirmed:true化が完了した。Stage Eでcategory
+// (表示用分類)・hiddenを全107件に補完し、一覧画面(js/app.js側)を追加した。
+// hiddenは正式確定した12件(#53・61・62・64・65・67・70・75・86・87・88・89)
+// のみtrue、残り95件はfalse。
 // ==========================================================
 
 const TrophyModule = (() => {
@@ -640,6 +671,35 @@ const TrophyModule = (() => {
     },
   };
 
+  // ========================================================
+  // Stage E: トロフィー一覧画面(新規)向けのカテゴリ分類。
+  // docs/trophy-spec-final.md 2章の照合テーブルが採用している番号区分
+  // (#1〜19・20〜29・30〜39・40〜59・60〜70・71〜100・101〜112)をそのまま
+  // カテゴリ境界として使う(名称・獲得条件・check関数は一切変更しない。
+  // 表示用の分類ラベルを追加するだけ)。
+  // ========================================================
+  const TROPHY_CATEGORIES = [
+    { id: "progress", label: "挑戦の記録", range: "#1〜19" },
+    { id: "speed", label: "スピードチャレンジ", range: "#20〜29" },
+    { id: "region", label: "地域制覇", range: "#30〜39" },
+    { id: "double", label: "国旗・首都制覇", range: "#40〜59" },
+    { id: "special", label: "特別チャレンジ", range: "#60〜70" },
+    { id: "trivia", label: "国旗トリビア", range: "#71〜100" },
+    { id: "legacy", label: "称号コレクション連動", range: "#101〜112" },
+  ];
+  function categoryForNumber(number) {
+    if (number <= 19) return "progress";
+    if (number <= 29) return "speed";
+    if (number <= 39) return "region";
+    if (number <= 59) return "double";
+    if (number <= 70) return "special";
+    if (number <= 100) return "trivia";
+    return "legacy";
+  }
+  function getCategories() {
+    return TROPHY_CATEGORIES.slice();
+  }
+
   // TROPHIESの該当スロットにSTAGE_B_DEFINITIONS/STAGE_D_DEFINITIONS等の
   // 内容を反映する。定義に無い番号はnull/未確定のまま変更しない
   function applyStageBDefinitions(trophies, definitions) {
@@ -689,9 +749,26 @@ const TrophyModule = (() => {
     return list;
   }
 
+  // Stage E追加検討(隠しトロフィー調査)を経て、ユーザー指示により正式確定した
+  // 隠しトロフィー12件(以前検討した36件案は不採用)。名称・条件・modeの値
+  // そのものは一切変更せず、表示用のhiddenフラグのみをここで真にする。
+  // #53奇跡の一問・#61ラストワンの魔法・#62虹の架け橋・#64真夜中の探検家・
+  // #65奇跡の数字・#67世界の反対側・#70早朝の探検家・#75型破りな国旗たち・
+  // #86国旗の中に武器!?・#87国旗の動物園・#88国旗の中の地図・
+  // #89国旗が語りかける(docs/trophy-spec-final.md「7. 隠しトロフィー仕様」参照)
+  const HIDDEN_TROPHY_NUMBERS = new Set([53, 61, 62, 64, 65, 67, 70, 75, 86, 87, 88, 89]);
+
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_D_DEFINITIONS);
+  // category/hiddenのみをここで補完する(name/condition/mode/checkは
+  // applyStageBDefinitions()が設定した値から一切変更しない)。
+  // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
+  // - hidden: 上記HIDDEN_TROPHY_NUMBERSの12件のみtrue、残り95件はfalse
+  TROPHIES.forEach((t) => {
+    t.category = categoryForNumber(t.number);
+    t.hidden = HIDDEN_TROPHY_NUMBERS.has(t.number);
+  });
   const TROPHY_BY_ID = new Map(TROPHIES.map((t) => [t.id, t]));
 
   // ---------- 自己検証(既存のjs/app.js冒頭・js/findcountry.jsのvalidatePools()
@@ -740,6 +817,25 @@ const TrophyModule = (() => {
     // Stage A: 統計データの初期値が、自分自身のバリデータを通ることを確認する
     // (生成関数と検証関数の定義ミスによる食い違いを早期に検出するため)
     console.assert(isValidTrophyStats(emptyTrophyStats()), "emptyTrophyStats()の初期値がisValidTrophyStats()を通りません");
+    // Stage E: 107件全てに有効なcategoryが設定されていること、カテゴリの
+    // 合計件数が107件と一致すること(分類漏れ・重複分類が無いことの確認)
+    const categoryIds = new Set(TROPHY_CATEGORIES.map((c) => c.id));
+    console.assert(categoryIds.size === TROPHY_CATEGORIES.length, "TROPHY_CATEGORIESのidに重複があります");
+    console.assert(
+      TROPHIES.every((t) => typeof t.category === "string" && categoryIds.has(t.category)),
+      "カテゴリが未設定、または未知のカテゴリのトロフィーがあります"
+    );
+    const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
+    console.assert(categoryTotal === 107, `カテゴリ別件数の合計が107件になっていません(実際: ${categoryTotal}件)`);
+    // 隠しトロフィーは正式確定した12件のみ(HIDDEN_TROPHY_NUMBERS)。それ以外の
+    // 95件はhidden:falseであること、12件という件数そのものも確認する
+    const hiddenDefs = TROPHIES.filter((t) => t.hidden === true);
+    console.assert(hiddenDefs.length === 12, `隠しトロフィーが12件ではありません(実際: ${hiddenDefs.length}件)`);
+    console.assert(
+      hiddenDefs.every((t) => HIDDEN_TROPHY_NUMBERS.has(t.number)) && TROPHIES.filter((t) => !t.hidden).every((t) => !HIDDEN_TROPHY_NUMBERS.has(t.number)),
+      "hiddenフラグが正式確定した12件(HIDDEN_TROPHY_NUMBERS)と一致していません"
+    );
+    console.assert(TROPHIES.every((t) => typeof t.hidden === "boolean"), "hiddenがboolean以外のトロフィーがあります");
   })();
 
   function isValidTrophyId(id) {
@@ -1198,6 +1294,7 @@ const TrophyModule = (() => {
     getAllDefinitions,
     getDefinition,
     getDefinitionByNumber,
+    getCategories,
     getEarned,
     isEarned,
     awardIfNew,
