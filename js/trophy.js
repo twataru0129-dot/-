@@ -1,5 +1,5 @@
 // ==========================================================
-// トロフィー刷新 第1段階+第2段階+Stage A+Stage B+Stage C: 新トロフィーシステム(107項目)
+// トロフィー刷新 第1段階+第2段階+Stage A+Stage B+Stage C+Stage D: 新トロフィーシステム(107項目)
 //
 // 目的: 既存の称号(js/quiz.jsのTITLES/CAPITAL_TITLES、国旗6件+首都6件=
 // 計12件)には一切手を加えず、それとは完全に独立した新しいトロフィー
@@ -85,6 +85,36 @@
 //   「世界の国どこかな？」の変更(一切行っていない)
 // - 既存データの削除・初期化(resetAll()以外の経路での削除は行っていない)
 //
+// Stage D(docs/trophy-spec-final.md参照)で追加したこと:
+// - 残り28項目(#20〜39・58・60・63・64・66・68〜70)の獲得条件(check関数)を
+//   登録し、confirmed:trueにした(STAGE_D_DEFINITIONS参照)。これにより
+//   107件全てのconfirmed:true化が完了する
+// - js/app.jsのfinishQuiz()は「判定(evaluateQuizFinish) → 統計記録
+//   (recordQuizStats)」の順で呼ぶため、ここのcheck関数は統計を読む時点では
+//   まだそのプレイ自身の結果が反映されていない。#21・26・27・58・60は
+//   「保存済みの前回までの値」+「今回のプレイ分(contextから計算)」を
+//   その場で合算して閾値判定することで、このプレイ自身が条件を満たす瞬間を
+//   取り落とさないようにした。#66は逆に、合算も補完もせず「上書き前の
+//   直前の値」とそのまま比較し、直前の記録が無ければ対象外にした
+// - #63(同モードの誤答からのリベンジ)・#68(国旗の誤答→首都で正解)は、
+//   countryWrongEver(Stage Cで記録済み)をそのまま参照する。評価の時点では
+//   そのプレイ自身の誤答はまだ統計に入っていないため、過去のプレイの誤答
+//   だけを見ることになる(同じプレイ内で同じ国が誤答と正解の両方になる
+//   ことは無いため、自身の結果と衝突する心配もない)
+// - #64・70(開始時刻判定)は、Stage Cで記録したcontext.startedAt(ISO文字列)
+//   を、同じブラウザ内でDateとして再構築し、getHours()等でその場の
+//   ローカルタイムゾーンの時刻を復元して判定する(新しい保存領域は追加しない)
+// - #20〜29の回答時間系は、そのプレイ自身のcontext.answerTimings(永続化
+//   していない生データ)から、単発(#20)・連続(#22・23)・平均(#24・25・
+//   28・29)・最終1問(#69)をそれぞれ算出する。answerTimingsの件数が
+//   出題数と一致しない(欠損がある)場合は、推測で補完せず判定しない
+//
+// Stage Dでも行っていないこと:
+// - トロフィー専用の新しい表示画面(Stage G)
+// - 国旗・首都クイズの出題・採点・タイマー・ランキング、世界地図・世界図鑑・
+//   「世界の国どこかな？」の変更(一切行っていない)
+// - 既存データの削除・初期化
+//
 // 第2段階で行ったこと:
 // - 各スロットに mode(flag/capital/both/findcountry/null)・check(判定
 //   関数、未確定の間はnull)フィールドを追加(値そのものはまだ推測しない)
@@ -109,12 +139,10 @@
 //
 // 企画の確定仕様: 既存12項目+新規95項目の合計107項目。通し番号は
 // 1〜112で、50・55・56・57・90番が欠番(112-5=107件)。名称・獲得条件は
-// docs/trophy-spec-final.mdで107件すべて確定済み。Stage Bで79件分を
-// name/condition/mode/check(confirmed:true)として反映済み。残り28件の
-// うち、Stage Cでは判定(check関数・confirmed:true化)はまだ行わず、
-// 判定に必要な統計・履歴データの収集基盤(wfq_v1_trophy_stats・
-// recordQuizStats()・quizStartedAt/answerTimings)だけを用意した
-// (category/hiddenは全107件とも依然未確定)。
+// docs/trophy-spec-final.mdで107件すべて確定済み。Stage Bで79件分・
+// Stage Dで残り28件分をname/condition/mode/check(confirmed:true)として
+// 反映し、107件全てのconfirmed:true化が完了した(category/hiddenのみ
+// 依然未確定。表示画面はStage Gで実施)。
 // ==========================================================
 
 const TrophyModule = (() => {
@@ -370,8 +398,250 @@ const TrophyModule = (() => {
     112: { name: "首都レジェンド", condition: "198問全問正解(WORLD CAPITAL COMPLETE)", mode: "capital" },
   };
 
-  // TROPHIESの該当スロットにSTAGE_B_DEFINITIONSの内容を反映する。
-  // 定義に無い番号(Stage C以降に回した28項目)はnull/未確定のまま変更しない
+  // ========================================================
+  // Stage D: 残り28項目(#20〜39・58・60・63・64・66・68〜70)の獲得条件
+  // (docs/trophy-spec-final.md 2章)。Stage Cで用意した統計
+  // (wfq_v1_trophy_stats)・そのプレイ自身のcontext(answerTimings・
+  // startedAt等)から判定する。これで107件全てのconfirmed:true化が完了する。
+  //
+  // 重要な設計方針:
+  // - js/app.jsのfinishQuiz()は「判定(evaluateQuizFinish) → 統計記録
+  //   (recordQuizStats)」の順で呼ぶため、ここのcheck関数がloadTrophyStats()
+  //   を読む時点では、そのプレイ自身の結果はまだ統計に反映されていない
+  //   (Stage CのrecordQuizStats()のコメント参照)。したがって「今回の
+  //   プレイで初めて条件を満たす」ケース(#21・26・27・58・60)は、
+  //   読み込んだ統計の値に、そのプレイ自身の分をcontextから計算して
+  //   加算してから閾値判定する(「前回までの統計」+「今回のプレイ分」)。
+  // - #66は逆に、統計を一切加算せず「上書き前の直前の値」とそのまま比較する
+  //   (推測で前回値を作らず、記録が無い場合は対象外にする)。
+  // - #63・68(誤答履歴)は、そのプレイの誤答がまだ統計に入っていない時点で
+  //   読むため、過去のプレイの誤答だけを見ることが自然に保証される
+  //   (同じプレイ内で同じ国が誤答と正解の両方になることは無いため、
+  //   自分自身の誤答と衝突する心配もない)。
+  // - 「過去の記録に存在しない情報を推測で補完しない」ため、answerTimingsの
+  //   件数がtotalと一致しない(欠損がある)場合は平均・最終1問系の判定を
+  //   行わない(null/falseを返す)。
+  // ========================================================
+  const ALL_COUNTRY_IDS = (() => {
+    const list = (typeof COUNTRIES !== "undefined" ? COUNTRIES : []).map((c) => c.id);
+    return list;
+  })();
+
+  // 地域(region) -> その地域に属する国idの一覧(#30〜39用)。
+  // countryRegionById()と同じCOUNTRIESを参照するだけで、データを複製しない
+  let regionCountryIdsCache = null;
+  function countryIdsInRegion(region) {
+    if (!regionCountryIdsCache) {
+      regionCountryIdsCache = new Map();
+      ALL_COUNTRY_IDS.forEach((id) => {
+        const r = countryRegionById(id);
+        if (!regionCountryIdsCache.has(r)) regionCountryIdsCache.set(r, []);
+        regionCountryIdsCache.get(r).push(id);
+      });
+    }
+    return regionCountryIdsCache.get(region) || [];
+  }
+
+  // 指定モードの「生涯正解した国idの集合」に、そのプレイ自身の正解国idを
+  // 加えたもの(#30〜38用。recordQuizStats()で保存される前の値に、今回の
+  // プレイ分を一時的に合算して判定するためのコピー。保存領域そのものは
+  // 変更しない)
+  function countryCorrectEverIncludingThisPlay(mode, context) {
+    const combined = Object.assign({}, loadTrophyStats().countryCorrectEver[mode]);
+    if (Array.isArray(context.correctIds)) {
+      context.correctIds.forEach((id) => { if (isKnownCountryId(id)) combined[id] = true; });
+    }
+    return combined;
+  }
+
+  // 指定モードの「国別の生涯正解回数」に、そのプレイ自身の正解を加えたもの(#39用)
+  function countryCorrectCountIncludingThisPlay(mode, context) {
+    const combined = Object.assign({}, loadTrophyStats().countryCorrectCount[mode]);
+    if (Array.isArray(context.correctIds)) {
+      context.correctIds.forEach((id) => { if (isKnownCountryId(id)) combined[id] = (combined[id] || 0) + 1; });
+    }
+    return combined;
+  }
+
+  function isRegionMastered(region, correctEverSet) {
+    const ids = countryIdsInRegion(region);
+    return ids.length > 0 && ids.every((id) => correctEverSet[id] === true);
+  }
+
+  function areAllCountriesMastered(correctEverSet) {
+    return ALL_QUIZ_REGIONS.every((r) => isRegionMastered(r, correctEverSet));
+  }
+
+  // そのプレイの回答時間配列(context.answerTimings)のうち、正解かつ
+  // 指定秒数以内だった件数(#20〜21・26・27用)
+  function countFastCorrectAnswers(context, thresholdSeconds) {
+    if (!Array.isArray(context.answerTimings)) return 0;
+    return context.answerTimings.filter((t) => t && t.correct === true && Number.isFinite(t.elapsedSeconds) && t.elapsedSeconds <= thresholdSeconds).length;
+  }
+
+  // そのプレイの回答時間配列のうち、正解かつ指定秒数以内だった「連続」の
+  // 最長記録(#22・23用。プレイ順に並んでいるanswerTimingsをそのまま辿る)
+  function longestFastCorrectStreak(context, thresholdSeconds) {
+    if (!Array.isArray(context.answerTimings)) return 0;
+    let longest = 0;
+    let current = 0;
+    context.answerTimings.forEach((t) => {
+      if (t && t.correct === true && Number.isFinite(t.elapsedSeconds) && t.elapsedSeconds <= thresholdSeconds) {
+        current += 1;
+        if (current > longest) longest = current;
+      } else {
+        current = 0;
+      }
+    });
+    return longest;
+  }
+
+  // そのプレイの平均回答時間(#24・25・28・29用)。answerTimingsの件数が
+  // total(出題数)と一致しない(何らかの理由で記録が欠けている)場合は、
+  // 推測で補完せずnullを返して判定を行わない
+  function averageElapsedSeconds(context) {
+    if (!Array.isArray(context.answerTimings) || !Number.isFinite(context.total) || context.answerTimings.length !== context.total) return null;
+    const valid = context.answerTimings.filter((t) => t && Number.isFinite(t.elapsedSeconds));
+    if (valid.length !== context.answerTimings.length) return null;
+    const sum = valid.reduce((acc, t) => acc + t.elapsedSeconds, 0);
+    return sum / valid.length;
+  }
+
+  function isAverageWithin(context, thresholdSeconds) {
+    const avg = averageElapsedSeconds(context);
+    return avg !== null && avg <= thresholdSeconds;
+  }
+
+  // プレイ開始時刻(context.startedAt、ISO文字列)から、現地(ブラウザの
+  // ローカルタイムゾーン)の「その日の中での経過秒数」を求める(#64・70用)。
+  // Date.toISOString()はUTCだが、同じブラウザ内でnew Date(iso)してから
+  // getHours()等を呼ぶと、記録した瞬間と同じローカルタイムゾーンで
+  // 解釈されるため、別途タイムゾーン情報を保存しなくても現地時間が復元できる
+  function secondsOfDayFromIso(iso) {
+    if (typeof iso !== "string") return null;
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+  }
+
+  const STAGE_D_DEFINITIONS = {
+    // ---- #20〜29: 回答時間(共通1個。#21・26・27のみモード別累計カウンタ) ----
+    20: { name: "電光石火", condition: "1問を2秒以内に正解", mode: "common", check: (ctx) => ctx.source === "quiz" && countFastCorrectAnswers(ctx, 2) >= 1 },
+    21: {
+      name: "ロケット回答", condition: "3秒以内正解を累計10回", mode: "both",
+      check: (ctx) => (loadTrophyStats().fastAnswerCounts[ctx.mode].within3s || 0) + countFastCorrectAnswers(ctx, 3) >= 10,
+    },
+    22: { name: "即答マスター", condition: "4秒以内正解が10問連続", mode: "common", check: (ctx) => ctx.source === "quiz" && longestFastCorrectStreak(ctx, 4) >= 10 },
+    23: { name: "疾風の挑戦者", condition: "4秒以内正解が20問連続", mode: "common", check: (ctx) => ctx.source === "quiz" && longestFastCorrectStreak(ctx, 4) >= 20 },
+    24: { name: "スピードキング", condition: "10問コース満点・平均4秒以内", mode: "common", check: (ctx) => ctx.source === "quiz" && ctx.total === 10 && ctx.correct === 10 && isAverageWithin(ctx, 4) },
+    25: { name: "超速トラベラー", condition: "20問コース満点・平均4秒以内", mode: "common", check: (ctx) => ctx.source === "quiz" && ctx.total === 20 && ctx.correct === 20 && isAverageWithin(ctx, 4) },
+    26: {
+      name: "瞬間判断の達人", condition: "2秒以内正解を累計50回", mode: "both",
+      check: (ctx) => (loadTrophyStats().fastAnswerCounts[ctx.mode].within2s || 0) + countFastCorrectAnswers(ctx, 2) >= 50,
+    },
+    27: {
+      name: "反射神経の鬼", condition: "2秒以内正解を累計100回", mode: "both",
+      check: (ctx) => (loadTrophyStats().fastAnswerCounts[ctx.mode].within2s || 0) + countFastCorrectAnswers(ctx, 2) >= 100,
+    },
+    28: { name: "秒速の王者", condition: "50問コース満点・平均4秒以内", mode: "common", check: (ctx) => ctx.source === "quiz" && ctx.total === 50 && ctx.correct === 50 && isAverageWithin(ctx, 4) },
+    29: { name: "光速レジェンド", condition: "100問コース満点・平均4秒以内", mode: "common", check: (ctx) => ctx.source === "quiz" && ctx.total === 100 && ctx.correct === 100 && isAverageWithin(ctx, 4) },
+
+    // ---- #30〜39: 国別生涯正解履歴(デュアル) ----
+    30: { name: "アジアマスター", condition: "アジア全対象国を正解(累計)", mode: "both", check: (ctx) => isRegionMastered("asia", countryCorrectEverIncludingThisPlay(ctx.mode, ctx)) },
+    31: { name: "ヨーロッパマスター", condition: "ヨーロッパ全対象国を正解(累計)", mode: "both", check: (ctx) => isRegionMastered("europe", countryCorrectEverIncludingThisPlay(ctx.mode, ctx)) },
+    32: { name: "アフリカマスター", condition: "アフリカ全対象国を正解(累計)", mode: "both", check: (ctx) => isRegionMastered("africa", countryCorrectEverIncludingThisPlay(ctx.mode, ctx)) },
+    33: { name: "北米マスター", condition: "北米全対象国を正解(累計、中米・カリブ含む)", mode: "both", check: (ctx) => isRegionMastered("namerica", countryCorrectEverIncludingThisPlay(ctx.mode, ctx)) },
+    34: { name: "南米マスター", condition: "南米全対象国を正解(累計)", mode: "both", check: (ctx) => isRegionMastered("samerica", countryCorrectEverIncludingThisPlay(ctx.mode, ctx)) },
+    35: { name: "オセアニアマスター", condition: "オセアニア全対象国を正解(累計)", mode: "both", check: (ctx) => isRegionMastered("oceania", countryCorrectEverIncludingThisPlay(ctx.mode, ctx)) },
+    36: { name: "六大地域制覇", condition: "6地域すべて制覇(累計)", mode: "both", check: (ctx) => areAllCountriesMastered(countryCorrectEverIncludingThisPlay(ctx.mode, ctx)) },
+    37: {
+      name: "地域探検家", condition: "6地域のうち3地域を制覇(累計)", mode: "both",
+      check: (ctx) => { const s = countryCorrectEverIncludingThisPlay(ctx.mode, ctx); return ALL_QUIZ_REGIONS.filter((r) => isRegionMastered(r, s)).length >= 3; },
+    },
+    38: { name: "世界一周達成", condition: "198か国・地域をすべて1回以上正解(累計)", mode: "both", check: (ctx) => areAllCountriesMastered(countryCorrectEverIncludingThisPlay(ctx.mode, ctx)) },
+    39: {
+      name: "地球の知識王", condition: "198か国・地域をそれぞれ3回以上正解(累計)", mode: "both",
+      check: (ctx) => { const counts = countryCorrectCountIncludingThisPlay(ctx.mode, ctx); return ALL_COUNTRY_IDS.every((id) => (counts[id] || 0) >= 3); },
+    },
+
+    // ---- #58・60: 新規カウンタ(今回のプレイ分を加算して判定) ----
+    58: {
+      name: "真の世界王", condition: "国旗198問満点2回以上+首都198問満点2回以上", mode: "common",
+      check: (ctx) => {
+        const stats = loadTrophyStats();
+        const thisFlagPerfect = ctx.source === "quiz" && ctx.mode === "flag" && ctx.total === 198 && ctx.correct === 198;
+        const thisCapitalPerfect = ctx.source === "quiz" && ctx.mode === "capital" && ctx.total === 198 && ctx.correct === 198;
+        const flagCount = stats.perfectCounts.flag + (thisFlagPerfect ? 1 : 0);
+        const capitalCount = stats.perfectCounts.capital + (thisCapitalPerfect ? 1 : 0);
+        return flagCount >= 2 && capitalCount >= 2;
+      },
+    },
+    60: {
+      name: "完璧じゃなくてもいい", condition: "10問で9問正解を国旗・首都合算で3回達成", mode: "common",
+      check: (ctx) => {
+        const stats = loadTrophyStats();
+        const thisPlayQualifies = ctx.source === "quiz" && ctx.total === 10 && ctx.correct === 9;
+        const flagCount = stats.partialStreakCounts.flag + (thisPlayQualifies && ctx.mode === "flag" ? 1 : 0);
+        const capitalCount = stats.partialStreakCounts.capital + (thisPlayQualifies && ctx.mode === "capital" ? 1 : 0);
+        return (flagCount + capitalCount) >= 3;
+      },
+    },
+
+    // ---- #63・64・66・68〜70: そのプレイの結果+既存の統計・履歴 ----
+    63: {
+      name: "運命の再会", condition: "同じモードで過去に誤答した国を後のプレイで正解", mode: "common",
+      check: (ctx) => {
+        if (ctx.source !== "quiz" || !Array.isArray(ctx.correctIds)) return false;
+        const everWrong = loadTrophyStats().countryWrongEver[ctx.mode] || {};
+        return ctx.correctIds.some((id) => everWrong[id] === true);
+      },
+    },
+    64: {
+      name: "真夜中の探検家", condition: "開始時刻0:00〜2:59・そのプレイで満点", mode: "common",
+      check: (ctx) => {
+        if (ctx.source !== "quiz" || !Number.isFinite(ctx.total) || ctx.correct !== ctx.total) return false;
+        const sec = secondsOfDayFromIso(ctx.startedAt);
+        return sec !== null && sec < 3 * 3600;
+      },
+    },
+    66: {
+      name: "リベンジ成功！", condition: "同じモード・同じコースの直前の完了プレイより正解数が増加", mode: "common",
+      check: (ctx) => {
+        if (ctx.source !== "quiz" || !Number.isFinite(ctx.total) || !Number.isFinite(ctx.correct)) return false;
+        const prev = loadTrophyStats().lastCourseResult[ctx.mode][String(ctx.total)];
+        if (!prev || !Number.isFinite(prev.correct)) return false; // 直前の完了プレイが無ければ対象外(推測で前回値を作らない)
+        return ctx.correct > prev.correct;
+      },
+    },
+    68: {
+      name: "逆転の天才", condition: "国旗で誤答した国を後の首都クイズで正解(同日不問)", mode: "common",
+      check: (ctx) => {
+        if (ctx.source !== "quiz" || ctx.mode !== "capital" || !Array.isArray(ctx.correctIds)) return false;
+        const flagEverWrong = loadTrophyStats().countryWrongEver.flag || {};
+        return ctx.correctIds.some((id) => flagEverWrong[id] === true);
+      },
+    },
+    69: {
+      name: "ラストの伝説", condition: "198問満点+最終問を3秒以内に正解", mode: "common",
+      check: (ctx) => {
+        if (ctx.source !== "quiz" || ctx.total !== 198 || ctx.correct !== 198) return false;
+        if (!Array.isArray(ctx.answerTimings) || ctx.answerTimings.length !== 198) return false;
+        const last = ctx.answerTimings[ctx.answerTimings.length - 1];
+        return !!last && last.correct === true && Number.isFinite(last.elapsedSeconds) && last.elapsedSeconds <= 3;
+      },
+    },
+    70: {
+      name: "早朝の探検家", condition: "開始時刻5:00:00以上6:00:00未満", mode: "common",
+      check: (ctx) => {
+        if (ctx.source !== "quiz") return false;
+        const sec = secondsOfDayFromIso(ctx.startedAt);
+        return sec !== null && sec >= 5 * 3600 && sec < 6 * 3600;
+      },
+    },
+  };
+
+  // TROPHIESの該当スロットにSTAGE_B_DEFINITIONS/STAGE_D_DEFINITIONS等の
+  // 内容を反映する。定義に無い番号はnull/未確定のまま変更しない
   function applyStageBDefinitions(trophies, definitions) {
     const byNumber = new Map(trophies.map((t) => [t.number, t]));
     Object.keys(definitions).forEach((key) => {
@@ -421,6 +691,7 @@ const TrophyModule = (() => {
 
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_D_DEFINITIONS);
   const TROPHY_BY_ID = new Map(TROPHIES.map((t) => [t.id, t]));
 
   // ---------- 自己検証(既存のjs/app.js冒頭・js/findcountry.jsのvalidatePools()
@@ -434,12 +705,19 @@ const TrophyModule = (() => {
     SKIPPED_NUMBERS.forEach((n) => {
       console.assert(!numbers.has(n), `欠番(${n})がトロフィー定義に含まれています`);
     });
-    // Stage B: STAGE_B_DEFINITIONSに列挙した件数だけがconfirmed:trueになって
-    // いることを確認する(Stage C以降に回した残り28項目を誤って確定させて
-    // いないか、またSTAGE_B_DEFINITIONSの反映漏れが無いかの自己チェック)
+    // Stage B・Dで列挙した件数の合計だけがconfirmed:trueになっていることを
+    // 確認する(Stage DでSTAGE_B_DEFINITIONS 79件+STAGE_D_DEFINITIONS 28件=
+    // 107件全てが確定するはず。反映漏れ・重複登録が無いかの自己チェック)
     const confirmedCount = TROPHIES.filter((t) => t.confirmed).length;
-    const expectedConfirmedCount = Object.keys(STAGE_B_DEFINITIONS).length;
-    console.assert(confirmedCount === expectedConfirmedCount, `Stage Bで確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    const stageBNumbers = Object.keys(STAGE_B_DEFINITIONS).map(Number);
+    const stageDNumbers = Object.keys(STAGE_D_DEFINITIONS).map(Number);
+    console.assert(
+      stageBNumbers.every((n) => !stageDNumbers.includes(n)),
+      "STAGE_B_DEFINITIONSとSTAGE_D_DEFINITIONSで番号が重複しています"
+    );
+    const expectedConfirmedCount = stageBNumbers.length + stageDNumbers.length;
+    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・Dで確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    console.assert(expectedConfirmedCount === 107, `Stage Dで107件全てが確定するはずが、合計が107件になっていません(実際: ${expectedConfirmedCount}件)`);
     // confirmed:trueのトロフィーは、参照型(#101〜112、checkを持たない)を
     // 除き、必ずcheck関数を持つこと(新規仕様書どおりに実装できていることの確認)
     console.assert(
