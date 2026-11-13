@@ -685,7 +685,7 @@ const TrophyModule = (() => {
     { id: "double", label: "国旗・首都制覇", range: "#40〜59" },
     { id: "special", label: "特別チャレンジ", range: "#60〜70" },
     { id: "trivia", label: "国旗トリビア", range: "#71〜100" },
-    { id: "legacy", label: "称号コレクション連動", range: "#101〜112" },
+    { id: "legacy", label: "称号コレクション", range: "#101〜112" },
   ];
   function categoryForNumber(number) {
     if (number <= 19) return "progress";
