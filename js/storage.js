@@ -466,5 +466,16 @@ const Storage = {
     keysToRemove.forEach((k) => {
       try { localStorage.removeItem(k); } catch (e) { /* noop */ }
     });
+    // トロフィー刷新 Stage A: 新トロフィー(107項目)の獲得記録・統計も、
+    // 既存の称号・記録と同じ「実績・成績」データとしてここで一緒に削除
+    // する。js/trophy.jsはこのファイルの直後に読み込まれるため、
+    // resetAll()が実際に呼ばれる時点(ユーザー操作時)には必ず定義済みに
+    // なっている。万一未定義でも例外でリセット処理全体が止まらないよう
+    // 存在確認とtry/catchの両方で保護する
+    try {
+      if (typeof TrophyModule !== "undefined" && typeof TrophyModule.resetAll === "function") {
+        TrophyModule.resetAll();
+      }
+    } catch (e) { /* noop */ }
   },
 };

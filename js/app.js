@@ -52,6 +52,17 @@ const state = {
   wrongIds: new Set(),
   memorialType: "medal",
   memorialName: "",
+  // トロフィー刷新 Stage C: そのプレイの開始時刻(ISO文字列、#64・70の
+  // 開始時刻判定用データ)と、各問題の回答時間(#20〜29・69の回答時間
+  // 判定用データ)。いずれも永続保存はせず、finishQuiz()でトロフィー用の
+  // contextに渡すためだけのプレイ中限定の記録(startQuiz()でリセットする)
+  quizStartedAt: null,
+  answerTimings: [],
+  // トロフィー刷新 Stage E: トロフィー一覧画面(新規)のカテゴリ・獲得状況の
+  // 絞り込み状態。画面を離れても値は保持し、次に開いたときに同じ絞り込みを
+  // 再現する(永続保存はしない。ページ再読み込みでリセットされてよい表示上の
+  // 状態のため)
+  trophyListFilter: { category: "all", status: "all" },
 };
 
 function modeEmoji(mode) {
@@ -108,6 +119,11 @@ function initTopScreen() {
   $("btn-collection").addEventListener("click", () => {
     renderCollectionScreen();
     showScreen("screen-collection");
+  });
+
+  $("btn-trophy-list").addEventListener("click", () => {
+    renderTrophyListScreen();
+    showScreen("screen-trophy-list");
   });
 
   $("btn-sound-toggle").addEventListener("click", () => {
@@ -173,6 +189,9 @@ function startQuiz(count) {
   state.currentQuestionIndex = 0;
   state.score = 0;
   state.wrongIds = new Set(); // 前回の復習対象をクリアする(第3段階A案)
+  // トロフィー刷新 Stage C: このプレイの開始時刻と回答時間記録をリセットする
+  state.quizStartedAt = new Date().toISOString();
+  state.answerTimings = [];
   showScreen("screen-quiz");
   renderQuestion();
 }
@@ -408,6 +427,19 @@ function handleAnswer(selectedId) {
   const isCapitalMode = state.mode === "capital";
   const correctText = isCapitalMode ? correctCountry.capital : correctCountry.name;
 
+  // トロフィー刷新 Stage C: この問題の回答時間(秒)を記録する(#20〜29・69の
+  // 回答時間判定用データ)。timer.startTime はQuestionTimer.start()が
+  // beginCountdownNow()から呼ばれた時点(画像読み込み完了・回答可能になった
+  // 瞬間)のperformance.now()で、pause()/resume()時にも一時停止分を除いて
+  // 補正されるため、そのまま「出題から回答までの経過時間」として使える。
+  // 時間切れ(isTimeout)の回答も、約8秒(QuizEngine.TOTAL_SECONDS)として
+  // そのまま記録する(不正解として扱われるため、どのみち速さの判定対象には
+  // ならない)。永続保存はせず、このプレイのstate.answerTimingsに積むだけ
+  if (state.timer && Number.isFinite(state.timer.startTime)) {
+    const elapsedSeconds = (performance.now() - state.timer.startTime) / 1000;
+    state.answerTimings.push({ countryId: correctCountry.id, correct: isCorrect, elapsedSeconds });
+  }
+
   buttons.forEach((b) => {
     if (b.dataset.id === correctCountry.id) {
       b.classList.add("is-correct");
@@ -552,16 +584,63 @@ function finishQuiz() {
     isNewTitle = Storage.awardTitleIfNew(titleObj.id, mode);
   }
 
+  // トロフィー刷新 第2段階〜Stage B: 既存のスコア・称号判定がすべて確定した
+  // 後、新トロフィーシステム(js/trophy.js)の判定を呼ぶ。Stage Bで既存
+  // データのみで判定できる79件が確定しているため、条件を満たせばここで
+  // 実際に獲得される。例外が起きても既存のクイズ結果には一切影響しないよう
+  // 必ずtry/catchで囲む
+  const trophyContext = {
+    mode,
+    total,
+    correct,
+    rate,
+    perfect,
+    wrongIds: Array.from(state.wrongIds),
+    correctIds: state.questions.filter((q) => !state.wrongIds.has(q.id)).map((q) => q.id),
+    questionIds: state.questions.map((q) => q.id),
+    // トロフィー刷新 Stage C: 判定エンジン(evaluateQuizFinish)自体は
+    // まだこの2項目を使わない(#64・70・20〜29・69のcheck関数は未登録の
+    // ため)が、統計記録(recordQuizStats)で使うのでここで一度だけ作る
+    startedAt: state.quizStartedAt,
+    answerTimings: state.answerTimings.slice(),
+  };
+  // トロフィー刷新 Stage E: 今回のプレイで新規に獲得したトロフィーidを
+  // 結果画面・獲得演出画面で使うために受け取る。evaluateQuizFinish()は
+  // 既に獲得済みのトロフィーをawardedIdsに含めない(isEarned()チェック済み)
+  // ため、ここで二重表示・再表示の心配をする必要はない
+  let newTrophyIds = [];
+  try {
+    if (typeof TrophyModule !== "undefined") {
+      const trophyResult = TrophyModule.evaluateQuizFinish(trophyContext);
+      if (trophyResult && Array.isArray(trophyResult.awardedIds)) {
+        newTrophyIds = trophyResult.awardedIds;
+      }
+    }
+  } catch (e) {
+    console.warn("トロフィー判定に失敗しました(クイズ結果には影響しません)", e);
+  }
+  // トロフィー刷新 Stage C: 判定(上記)が確定した後、統計・履歴
+  // (wfq_v1_trophy_stats)を記録する。獲得可否の判定は一切行わない。
+  // 判定と記録を別のtry/catchに分けているのは、片方で例外が起きても
+  // もう片方(および既存のクイズ結果)に影響しないようにするため
+  try {
+    if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordQuizStats === "function") {
+      TrophyModule.recordQuizStats(trophyContext);
+    }
+  } catch (e) {
+    console.warn("トロフィー統計の記録に失敗しました(クイズ結果には影響しません)", e);
+  }
+
   // 完了したクイズの復習対象として、このクイズ中に記録した不正解idの
   // スナップショットを持たせる(配列に変換。以後state.wrongIdsが新しい
   // クイズでリセットされても、この結果画面用のコピーには影響しない)
-  state.lastResult = { correct, total, rate, titleObj, isNewTitle, best, mode, wrongIds: Array.from(state.wrongIds) };
+  state.lastResult = { correct, total, rate, titleObj, isNewTitle, best, mode, wrongIds: Array.from(state.wrongIds), newTrophyIds };
   renderResultScreen();
   showScreen("screen-result");
 }
 
 function renderResultScreen() {
-  const { correct, total, rate, titleObj, best, wrongIds } = state.lastResult;
+  const { correct, total, rate, titleObj, best, wrongIds, newTrophyIds } = state.lastResult;
   $("result-score-fraction").textContent = `${total}問中${correct}問正解！`;
   $("result-score-rate").textContent = `正答率 ${rate}％`;
 
@@ -593,6 +672,18 @@ function renderResultScreen() {
   } else {
     reviewBtn.classList.add("hidden");
   }
+
+  // トロフィー刷新 Stage E: 今回新規に獲得したトロフィーがあれば、既存の
+  // 「🏅 称号を見る」ボタン(古い12称号用、挙動は一切変更しない)とは別の
+  // ボタンで新しいトロフィー獲得演出への入口を出す
+  const trophyBtn = $("btn-result-view-trophies");
+  const newTrophyCount = (newTrophyIds && newTrophyIds.length) || 0;
+  if (newTrophyCount > 0) {
+    trophyBtn.textContent = `🏆 新しいトロフィー(${newTrophyCount}件)`;
+    trophyBtn.classList.remove("hidden");
+  } else {
+    trophyBtn.classList.add("hidden");
+  }
 }
 
 function initResultScreen() {
@@ -609,6 +700,10 @@ function initResultScreen() {
   $("btn-result-view-title").addEventListener("click", () => {
     renderTitleAwardScreen();
     showScreen("screen-title-award");
+  });
+  $("btn-result-view-trophies").addEventListener("click", () => {
+    renderTrophyAwardScreen();
+    showScreen("screen-trophy-award");
   });
   $("btn-result-memorial").addEventListener("click", () => {
     openMemorialScreen();
@@ -682,6 +777,246 @@ function runConfetti(container) {
     }
   }
   draw();
+}
+
+// ==========================================================
+// トロフィー刷新 Stage E: 新トロフィー獲得演出画面
+// 既存の「称号獲得画面」(screen-title-award、古い12称号専用)とは完全に
+// 別の画面・別の状態(state.lastResult.newTrophyIds)を使うため、古い画面の
+// 挙動には一切影響しない。1プレイで複数件同時獲得した場合も、ここで全件
+// まとめて表示する(1件ずつの連続表示にはしない。スクロールで全件確認できる)
+// ==========================================================
+function trophyModeIcon(mode) {
+  if (mode === "flag" || mode === "flag_only") return "🌍";
+  if (mode === "capital") return "🏙️";
+  return "🏆";
+}
+
+function renderTrophyAwardScreen() {
+  const { newTrophyIds, mode, total, correct } = state.lastResult;
+  const ids = newTrophyIds || [];
+  const list = $("trophy-award-list");
+  list.innerHTML = "";
+  let hasSecret = false;
+
+  ids.forEach((id) => {
+    const def = TrophyModule.getDefinition(id);
+    if (!def) return; // 不正なid・定義が無いidは安全側に倒して何も表示しない
+    const isSecret = !!def.hidden; // 隠しトロフィーを今回初めて発見したかどうか
+    if (isSecret) hasSecret = true;
+    const item = document.createElement("div");
+    item.className = "trophy-award-item" + (isSecret ? " trophy-award-item-secret" : "");
+    // modeが"both"(デュアル)のトロフィーは、このプレイがどちら側
+    // (国旗/首都)の達成かをcontextのmodeで表す(evaluate()はcontext.modeに
+    // 対応する側しか判定しないため、このプレイで新規獲得できるのは必ず
+    // mode(今回プレイしたモード)側のみ)
+    const markIcon = def.mode === "both" ? trophyModeIcon(mode) : trophyModeIcon(def.mode);
+    const markLabel = def.mode === "both" ? (mode === "capital" ? "首都クイズで達成" : "国旗クイズで達成") : "";
+    // 隠しトロフィーの発見演出: 鍵アイコンが外れて本来のトロフィーアイコンが
+    // 現れるアニメーション(CSS側の@keyframesで表現、過度な点滅・長時間化は避ける)
+    const markHtml = isSecret
+      ? `<div class="trophy-award-mark trophy-award-mark-secret"><span class="trophy-award-mark-lock">🔓</span><span class="trophy-award-mark-icon">${markIcon}</span></div>`
+      : `<div class="trophy-award-mark">${markIcon}</div>`;
+    item.innerHTML = `
+      ${markHtml}
+      <div class="trophy-award-info">
+        ${isSecret ? `<p class="trophy-award-secret-label">🔓 隠しトロフィー発見！</p>` : ""}
+        <p class="trophy-award-number">No.${def.number}</p>
+        <p class="trophy-award-name">${def.name}</p>
+        <p class="trophy-award-cond">${def.condition}</p>
+        ${markLabel ? `<p class="trophy-award-sub">${markLabel}</p>` : ""}
+      </div>`;
+    list.appendChild(item);
+  });
+
+  const secretBanner = $("trophy-award-secret-banner");
+  secretBanner.classList.toggle("hidden", !hasSecret);
+
+  $("trophy-award-count").textContent = ids.length > 0 ? `${ids.length}件のトロフィーを獲得しました！` : "";
+
+  // 198問満点時の特別演出(既存のSoundManager.playFanfare()・runConfetti()を
+  // そのまま再利用する。正式仕様の「198問満点時の特別演出」を、古い称号
+  // 画面と同じ条件(total===198かつ満点)でここにも適用する)
+  const confettiWrap = $("trophy-award-confetti-wrap");
+  confettiWrap.innerHTML = "";
+  if (ids.length > 0 && total === 198 && correct === total) {
+    SoundManager.playFanfare();
+    runConfetti(confettiWrap);
+  }
+}
+
+function initTrophyAwardScreen() {
+  $("btn-trophy-award-continue").addEventListener("click", () => showScreen("screen-result"));
+}
+
+// ==========================================================
+// トロフィー刷新 Stage E: トロフィー一覧画面(新規・既存の「称号コレクション」
+// 画面とは別画面)。107件すべてをカテゴリ別・獲得状況で絞り込んで表示する。
+// 性能のため、カードは画面を開くたびに一度だけ全件分DOM生成し、以降の
+// 絞り込み切り替えはCSSクラスの切り替え(表示/非表示)のみで行う
+// (107件程度ならinnerHTML再構築でも十分軽いが、絞り込み操作のたびに
+// 107枚分のDOMを作り直さない方が明らかに無駄が無いため)
+// ==========================================================
+function trophyEarnedState(def, earnedEntry) {
+  if (def.mode === "both") {
+    return {
+      dual: true,
+      flagEarned: !!(earnedEntry && earnedEntry.flag),
+      capitalEarned: !!(earnedEntry && earnedEntry.capital),
+      flagEarnedAt: earnedEntry && earnedEntry.flag ? earnedEntry.flag.earnedAt : null,
+      capitalEarnedAt: earnedEntry && earnedEntry.capital ? earnedEntry.capital.earnedAt : null,
+    };
+  }
+  return {
+    dual: false,
+    earned: !!(earnedEntry && earnedEntry.earnedAt),
+    earnedAt: earnedEntry ? earnedEntry.earnedAt : null,
+  };
+}
+
+// isSecretLocked: このトロフィー全体が隠し(hidden:true)かつ未獲得の間、
+// マーク自体も鍵アイコン・「未発見」表記にする(名称・条件を伏せるのと揃える)
+function buildTrophyMarkHtml(iconEarned, iconLocked, earned, dateStr, label, isSecretLocked) {
+  const icon = earned ? iconEarned : (isSecretLocked ? "🔒" : iconLocked);
+  const lockedText = isSecretLocked ? "未発見" : "未獲得";
+  return `
+    <div class="trophy-mark ${earned ? "earned" : "locked"}" title="${label}">
+      <span class="trophy-mark-icon">${icon}</span>
+    </div>
+    <p class="trophy-mark-date">${earned ? `${dateStr} 取得` : lockedText}</p>`;
+}
+
+// 隠しトロフィー(def.hidden)の未獲得時は、正式名称・獲得条件を一切DOMに
+// 出さない(HTML属性・ツールチップ等からも条件が漏れないようにする)。
+// 獲得後は通常のトロフィーと全く同じ表示に戻る。番号・カテゴリは隠しでも表示する
+function buildTrophyCardElement(def, earnedEntry) {
+  const st = trophyEarnedState(def, earnedEntry);
+  const card = document.createElement("div");
+  const earnedOverall = st.dual ? (st.flagEarned || st.capitalEarned) : st.earned;
+  const secretLocked = !!def.hidden && !earnedOverall; // 隠しトロフィーでまだ誰も(国旗/首都どちらも)獲得していない状態
+  card.className = "trophy-card" + (earnedOverall ? "" : " locked") + (secretLocked ? " trophy-card-secret" : "");
+  card.dataset.category = def.category;
+  card.dataset.earned = String(earnedOverall);
+  card.dataset.hidden = String(!!def.hidden);
+
+  let marksHtml;
+  if (st.dual) {
+    marksHtml = `
+      <div class="trophy-marks trophy-marks-dual">
+        <div class="trophy-mark-col">
+          ${buildTrophyMarkHtml("🌍", "🌍", st.flagEarned, st.flagEarnedAt ? formatJapaneseDate(new Date(st.flagEarnedAt)) : "", "国旗クイズ", secretLocked)}
+        </div>
+        <div class="trophy-mark-col">
+          ${buildTrophyMarkHtml("🏙️", "🏙️", st.capitalEarned, st.capitalEarnedAt ? formatJapaneseDate(new Date(st.capitalEarnedAt)) : "", "首都クイズ", secretLocked)}
+        </div>
+      </div>`;
+  } else {
+    const icon = trophyModeIcon(def.mode);
+    marksHtml = `
+      <div class="trophy-marks">
+        <div class="trophy-mark-col">
+          ${buildTrophyMarkHtml(icon, icon, st.earned, st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "", secretLocked ? "未発見のトロフィー" : "獲得マーク", secretLocked)}
+        </div>
+      </div>`;
+  }
+
+  const categoryDef = TROPHY_CATEGORY_LABELS[def.category] || "";
+  const nameHtml = secretLocked ? "？？？？？？" : def.name;
+  const condHtml = secretLocked ? "" : `<p class="trophy-cond">${def.condition}</p>`;
+  card.innerHTML = `
+    <div class="trophy-card-top">
+      <span class="trophy-number">No.${def.number}</span>
+      <span class="trophy-category-badge">${categoryDef}</span>
+    </div>
+    ${marksHtml}
+    <p class="trophy-name">${nameHtml}</p>
+    ${condHtml}`;
+  return card;
+}
+
+let TROPHY_CATEGORY_LABELS = {};
+
+function renderTrophyFilterControls() {
+  const categories = TrophyModule.getCategories();
+  TROPHY_CATEGORY_LABELS = {};
+  categories.forEach((c) => { TROPHY_CATEGORY_LABELS[c.id] = c.label; });
+
+  const tabsWrap = $("trophy-category-tabs");
+  tabsWrap.innerHTML = "";
+  const allTab = document.createElement("button");
+  allTab.type = "button";
+  allTab.className = "trophy-tab";
+  allTab.dataset.category = "all";
+  allTab.textContent = "すべて";
+  allTab.addEventListener("click", () => {
+    state.trophyListFilter.category = "all";
+    applyTrophyFilters();
+  });
+  tabsWrap.appendChild(allTab);
+  categories.forEach((c) => {
+    const tab = document.createElement("button");
+    tab.type = "button";
+    tab.className = "trophy-tab";
+    tab.dataset.category = c.id;
+    tab.textContent = c.label;
+    tab.addEventListener("click", () => {
+      state.trophyListFilter.category = c.id;
+      applyTrophyFilters();
+    });
+    tabsWrap.appendChild(tab);
+  });
+
+  document.querySelectorAll("#trophy-status-filter .trophy-status-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.trophyListFilter.status = btn.dataset.status;
+      applyTrophyFilters();
+    });
+  });
+}
+
+function renderTrophyGrid() {
+  const grid = $("trophy-grid");
+  grid.innerHTML = "";
+  const defs = TrophyModule.getAllDefinitions();
+  const earned = TrophyModule.getEarned();
+  defs.forEach((def) => {
+    grid.appendChild(buildTrophyCardElement(def, earned[def.id]));
+  });
+}
+
+function applyTrophyFilters() {
+  const filter = state.trophyListFilter;
+  const cards = document.querySelectorAll("#trophy-grid .trophy-card");
+  let visibleCount = 0;
+  cards.forEach((card) => {
+    const matchCategory = filter.category === "all" || card.dataset.category === filter.category;
+    const earnedOverall = card.dataset.earned === "true";
+    const matchStatus = filter.status === "all"
+      || (filter.status === "earned" && earnedOverall)
+      || (filter.status === "locked" && !earnedOverall);
+    const visible = matchCategory && matchStatus;
+    card.classList.toggle("hidden", !visible);
+    if (visible) visibleCount++;
+  });
+  $("trophy-result-count").textContent = `${visibleCount}件を表示中`;
+
+  document.querySelectorAll("#trophy-category-tabs .trophy-tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.category === filter.category);
+  });
+  document.querySelectorAll("#trophy-status-filter .trophy-status-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.status === filter.status);
+  });
+}
+
+function renderTrophyListScreen() {
+  const summary = TrophyModule.getProgressSummary();
+  $("trophy-progress-summary").textContent = `🏆 ${summary.earnedCount} / ${summary.totalCount} 件 獲得`;
+  renderTrophyGrid();
+  applyTrophyFilters();
+}
+
+function initTrophyListScreen() {
+  renderTrophyFilterControls();
 }
 
 // ==========================================================
@@ -930,7 +1265,7 @@ async function handleResetDataClick() {
   try {
     const step1 = await showResetConfirmStep(
       "保存データをすべて削除しますか？",
-      "称号・記録・ランキング・コレクションが削除されます。この操作は取り消せません。",
+      "称号・トロフィー・記録・ランキング・コレクションが削除されます。この操作は取り消せません。",
       "すべて削除する",
       "キャンセル"
     );
@@ -1112,6 +1447,8 @@ function initApp() {
   initQuizExit();
   initResultScreen();
   initTitleAwardScreen();
+  initTrophyAwardScreen();
+  initTrophyListScreen();
   initMemorialScreen();
   initMapEncyclopediaLink();
   FindCountryModule.initEvents();

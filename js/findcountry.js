@@ -1198,6 +1198,29 @@ const FindCountryModule = (() => {
       isProComplete, isNormalClear, proUnlockJustHappened,
     };
 
+    // トロフィー刷新 第2段階: ランキングTOP5判定・名前入力の有無に関係なく、
+    // このプレイの結果(正解数・連続正解・クリア判定等)が確定した時点で
+    // 必ず1回だけ新トロフィーシステム(js/trophy.js)の判定を呼ぶ。正式な
+    // 107項目はまだ1件も確定していないため、現時点では必ず何も獲得されない
+    // (安全な空振り)。例外が起きても既存の結果画面・ランキング・12コース
+    // クリア記録には一切影響しないよう必ずtry/catchで囲む
+    try {
+      if (typeof TrophyModule !== "undefined") {
+        TrophyModule.evaluateFindCountryResult({
+          difficultyId: quizState.difficultyId,
+          correctCount,
+          answered,
+          maxStreak: quizState.maxStreak,
+          isNormalClear,
+          isProComplete,
+          gameOver: quizState.gameOver,
+          results: quizState.results.slice(),
+        });
+      }
+    } catch (e) {
+      console.warn("世界の国どこかな？: トロフィー判定に失敗しました(結果には影響しません)", e);
+    }
+
     // 追加修正: 名前のためにランキング順位が変わらないよう、保存前の
     // プレビュー(Storage.previewFindCountryRank)で「TOP5に入るか」だけを
     // 先に判定する。入らない場合は何も保存せず(非TOP5の記録はもともと
