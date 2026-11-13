@@ -52,6 +52,12 @@ const state = {
   wrongIds: new Set(),
   memorialType: "medal",
   memorialName: "",
+  // トロフィー刷新 Stage C: そのプレイの開始時刻(ISO文字列、#64・70の
+  // 開始時刻判定用データ)と、各問題の回答時間(#20〜29・69の回答時間
+  // 判定用データ)。いずれも永続保存はせず、finishQuiz()でトロフィー用の
+  // contextに渡すためだけのプレイ中限定の記録(startQuiz()でリセットする)
+  quizStartedAt: null,
+  answerTimings: [],
 };
 
 function modeEmoji(mode) {
@@ -173,6 +179,9 @@ function startQuiz(count) {
   state.currentQuestionIndex = 0;
   state.score = 0;
   state.wrongIds = new Set(); // 前回の復習対象をクリアする(第3段階A案)
+  // トロフィー刷新 Stage C: このプレイの開始時刻と回答時間記録をリセットする
+  state.quizStartedAt = new Date().toISOString();
+  state.answerTimings = [];
   showScreen("screen-quiz");
   renderQuestion();
 }
@@ -408,6 +417,19 @@ function handleAnswer(selectedId) {
   const isCapitalMode = state.mode === "capital";
   const correctText = isCapitalMode ? correctCountry.capital : correctCountry.name;
 
+  // トロフィー刷新 Stage C: この問題の回答時間(秒)を記録する(#20〜29・69の
+  // 回答時間判定用データ)。timer.startTime はQuestionTimer.start()が
+  // beginCountdownNow()から呼ばれた時点(画像読み込み完了・回答可能になった
+  // 瞬間)のperformance.now()で、pause()/resume()時にも一時停止分を除いて
+  // 補正されるため、そのまま「出題から回答までの経過時間」として使える。
+  // 時間切れ(isTimeout)の回答も、約8秒(QuizEngine.TOTAL_SECONDS)として
+  // そのまま記録する(不正解として扱われるため、どのみち速さの判定対象には
+  // ならない)。永続保存はせず、このプレイのstate.answerTimingsに積むだけ
+  if (state.timer && Number.isFinite(state.timer.startTime)) {
+    const elapsedSeconds = (performance.now() - state.timer.startTime) / 1000;
+    state.answerTimings.push({ countryId: correctCountry.id, correct: isCorrect, elapsedSeconds });
+  }
+
   buttons.forEach((b) => {
     if (b.dataset.id === correctCountry.id) {
       b.classList.add("is-correct");
@@ -552,25 +574,43 @@ function finishQuiz() {
     isNewTitle = Storage.awardTitleIfNew(titleObj.id, mode);
   }
 
-  // トロフィー刷新 第2段階: 既存のスコア・称号判定がすべて確定した後、
-  // 新トロフィーシステム(js/trophy.js)の判定を呼ぶ。正式な107項目は
-  // まだ1件も確定していないため、現時点では必ず何も獲得されない
-  // (安全な空振り)。例外が起きても既存のクイズ結果には一切影響しないよう必ずtry/catchで囲む
+  // トロフィー刷新 第2段階〜Stage B: 既存のスコア・称号判定がすべて確定した
+  // 後、新トロフィーシステム(js/trophy.js)の判定を呼ぶ。Stage Bで既存
+  // データのみで判定できる79件が確定しているため、条件を満たせばここで
+  // 実際に獲得される。例外が起きても既存のクイズ結果には一切影響しないよう
+  // 必ずtry/catchで囲む
+  const trophyContext = {
+    mode,
+    total,
+    correct,
+    rate,
+    perfect,
+    wrongIds: Array.from(state.wrongIds),
+    correctIds: state.questions.filter((q) => !state.wrongIds.has(q.id)).map((q) => q.id),
+    questionIds: state.questions.map((q) => q.id),
+    // トロフィー刷新 Stage C: 判定エンジン(evaluateQuizFinish)自体は
+    // まだこの2項目を使わない(#64・70・20〜29・69のcheck関数は未登録の
+    // ため)が、統計記録(recordQuizStats)で使うのでここで一度だけ作る
+    startedAt: state.quizStartedAt,
+    answerTimings: state.answerTimings.slice(),
+  };
   try {
     if (typeof TrophyModule !== "undefined") {
-      TrophyModule.evaluateQuizFinish({
-        mode,
-        total,
-        correct,
-        rate,
-        perfect,
-        wrongIds: Array.from(state.wrongIds),
-        correctIds: state.questions.filter((q) => !state.wrongIds.has(q.id)).map((q) => q.id),
-        questionIds: state.questions.map((q) => q.id),
-      });
+      TrophyModule.evaluateQuizFinish(trophyContext);
     }
   } catch (e) {
     console.warn("トロフィー判定に失敗しました(クイズ結果には影響しません)", e);
+  }
+  // トロフィー刷新 Stage C: 判定(上記)が確定した後、統計・履歴
+  // (wfq_v1_trophy_stats)を記録する。獲得可否の判定は一切行わない。
+  // 判定と記録を別のtry/catchに分けているのは、片方で例外が起きても
+  // もう片方(および既存のクイズ結果)に影響しないようにするため
+  try {
+    if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordQuizStats === "function") {
+      TrophyModule.recordQuizStats(trophyContext);
+    }
+  } catch (e) {
+    console.warn("トロフィー統計の記録に失敗しました(クイズ結果には影響しません)", e);
   }
 
   // 完了したクイズの復習対象として、このクイズ中に記録した不正解idの

@@ -1,5 +1,5 @@
 // ==========================================================
-// トロフィー刷新 第1段階+第2段階+Stage A+Stage B: 新トロフィーシステム(107項目)
+// トロフィー刷新 第1段階+第2段階+Stage A+Stage B+Stage C: 新トロフィーシステム(107項目)
 //
 // 目的: 既存の称号(js/quiz.jsのTITLES/CAPITAL_TITLES、国旗6件+首都6件=
 // 計12件)には一切手を加えず、それとは完全に独立した新しいトロフィー
@@ -46,6 +46,45 @@
 // - 国旗・首都クイズの出題・採点・ランキング、世界地図・世界図鑑・
 //   「世界の国どこかな？」の既存の保存・判定ロジックの変更(一切行っていない)
 //
+// Stage C(docs/trophy-spec-final.md参照)で追加したこと:
+// - 新関数 recordQuizStats(context): wfq_v1_trophy_statsへの「統計の記録」
+//   専用の入口。既存のevaluate()/evaluateQuizFinish()(判定・獲得エンジン)
+//   とは完全に別の関数にすることで、Stage Cでは獲得判定に一切手を加えない
+//   (#58・60・63・64・66・68の獲得可否は依然判定しない)
+// - js/app.jsのfinishQuiz()から、evaluateQuizFinish()の直後(判定が確定した
+//   後)に1回だけrecordQuizStats()を呼ぶように接続。完了していないプレイ
+//   (「終了する」ボタンでの中断)ではfinishQuiz()自体が呼ばれないため、
+//   統計も従来の「プレイ回数は完了時のみ加算」という原則と自動的に揃う
+// - 記録する内容(すべてモード別。#60のみ合算して使う想定で分離保存):
+//   - perfectCounts: 198問コースでの満点回数(#58)
+//   - fastAnswerCounts: 正解かつ2秒/3秒以内だった回答の累計回数(#21・26・27)
+//   - partialStreakCounts: 10問コースで9問正解だった回数(#60)
+//   - countryCorrectEver/countryCorrectCount: 国別の生涯正解有無・回数(#30〜39)
+//   - countryWrongEver: 国別の誤答履歴(#63は同モード、#68は国旗側の履歴を
+//     首都プレイ側の判定が参照する想定のため、モードをまたいで読み取れる
+//     ようあえて混ぜずモード別に保持する)
+//   - lastCourseResult: 同一モード・同一コースの直前の完了プレイの結果(#66。
+//     将来の判定ロジックはrecordQuizStats()が上書きする前の値を読む必要が
+//     あるため、呼び出し順は必ず「判定(evaluateQuizFinish) → 統計記録
+//     (recordQuizStats)」を守る、という前提で設計している)
+// - js/app.jsのstartQuiz()でそのプレイの開始時刻(quizStartedAt)と、各問題の
+//   回答時間配列(answerTimings)を記録し、finishQuiz()でトロフィー用の
+//   contextに含めるようにした(#64・70の開始時刻判定、#20〜29・69の回答時間
+//   判定に必要な「データ」のみを用意する。これらの番号のcheck関数・
+//   confirmed:trueへの変更自体はまだ行わない)
+// - isValidTrophyStats()を、各フィールドの中身(モード別の数値・国idごとの
+//   真偽値/回数等)まで検証するように強化した(Stage Aでは骨組みのみで
+//   実際に書き込まれることが無かったため簡易な検証で十分だったが、Stage C
+//   で実際に書き込みが始まるため、壊れたデータを安全側に倒す検証を厚くした)
+//
+// Stage Cでも行っていないこと:
+// - #20〜39・58・60・63・64・66・68〜70の獲得判定・check関数の登録
+//   (いずれもStage D〜Fで実施)
+// - トロフィー専用の新しい表示画面(Stage G)
+// - 国旗・首都クイズの出題・採点・タイマー・ランキング、世界地図・世界図鑑・
+//   「世界の国どこかな？」の変更(一切行っていない)
+// - 既存データの削除・初期化(resetAll()以外の経路での削除は行っていない)
+//
 // 第2段階で行ったこと:
 // - 各スロットに mode(flag/capital/both/findcountry/null)・check(判定
 //   関数、未確定の間はnull)フィールドを追加(値そのものはまだ推測しない)
@@ -71,8 +110,11 @@
 // 企画の確定仕様: 既存12項目+新規95項目の合計107項目。通し番号は
 // 1〜112で、50・55・56・57・90番が欠番(112-5=107件)。名称・獲得条件は
 // docs/trophy-spec-final.mdで107件すべて確定済み。Stage Bで79件分を
-// name/condition/mode/check(confirmed:true)として反映し、残り28件は
-// Stage C〜Fで段階的に反映する(category/hiddenは全107件とも依然未確定)。
+// name/condition/mode/check(confirmed:true)として反映済み。残り28件の
+// うち、Stage Cでは判定(check関数・confirmed:true化)はまだ行わず、
+// 判定に必要な統計・履歴データの収集基盤(wfq_v1_trophy_stats・
+// recordQuizStats()・quizStartedAt/answerTimings)だけを用意した
+// (category/hiddenは全107件とも依然未確定)。
 // ==========================================================
 
 const TrophyModule = (() => {
@@ -476,20 +518,70 @@ const TrophyModule = (() => {
     return !!v && typeof v === "object" && !Array.isArray(v);
   }
 
+  function isNonNegativeInteger(v) {
+    return Number.isInteger(v) && v >= 0;
+  }
+
+  // 国idがjs/countries.jsのCOUNTRIES(198件)に実在するかどうか。
+  // countryRegionById()が既に持つキャッシュをそのまま再利用し(#62用に
+  // Stage Bで追加済み)、同じ探索をもう一つ作らない
+  function isKnownCountryId(id) {
+    return typeof id === "string" && countryRegionById(id) !== null;
+  }
+
+  // {flag: n, capital: n} の形(nは0以上の整数)かどうか(#58・60用)
+  function isValidModeCountPair(v) {
+    return isPlainObject(v) && isNonNegativeInteger(v.flag) && isNonNegativeInteger(v.capital);
+  }
+
+  // {countryId: true, ...} の形かどうか(未知のidや値がtrue以外のものは
+  // 許容しない。#30〜38・63・68用)
+  function isBooleanTrueMap(v) {
+    if (!isPlainObject(v)) return false;
+    return Object.keys(v).every((id) => isKnownCountryId(id) && v[id] === true);
+  }
+
+  // {countryId: n, ...} の形かどうか(nは0以上の整数。#39用)
+  function isCountMap(v) {
+    if (!isPlainObject(v)) return false;
+    return Object.keys(v).every((id) => isKnownCountryId(id) && isNonNegativeInteger(v[id]));
+  }
+
+  // fastAnswerCountsのモード別バケット({within2s?, within3s?}。#21・26・27用)
+  function isFastAnswerModeBucket(v) {
+    if (!isPlainObject(v)) return false;
+    return Object.keys(v).every((k) => (k === "within2s" || k === "within3s") && isNonNegativeInteger(v[k]));
+  }
+
+  // lastCourseResultのモード別マップ({"10":{correct,total}, ...}。#66用。
+  // コースのキーは既存6コース(ALL_COURSE_COUNTS)のいずれかの文字列のみ許容する
+  function isCourseResultMap(v) {
+    if (!isPlainObject(v)) return false;
+    const validKeys = ALL_COURSE_COUNTS.map(String);
+    return Object.keys(v).every((k) => {
+      if (!validKeys.includes(k)) return false;
+      const rec = v[k];
+      return isPlainObject(rec) && isNonNegativeInteger(rec.correct) && isNonNegativeInteger(rec.total) && rec.correct <= rec.total;
+    });
+  }
+
   // バージョン不一致・壊れたデータ・旧形式のいずれでも安全側に倒し、
   // 空の初期データとして扱う(既存のloadTrophyData()と同じ考え方)。
-  // 各フィールドの形まで確認し、1つでも想定と違えば丸ごと初期化する
+  // Stage Aでは骨組みのみで実際に書き込まれることが無かったため、各
+  // フィールドの最上位がplain objectであることだけを確認していたが、
+  // Stage Cから実際にrecordQuizStats()が書き込むようになったため、国idごとの
+  // 値・モード別の数値まで形を確認し、1つでも想定と違えば丸ごと初期化する
   // (部分的に壊れたデータを中途半端に信用しない)
   function isValidTrophyStats(data) {
     return isPlainObject(data)
       && data.version === TROPHY_STATS_VERSION
-      && isPlainObject(data.perfectCounts)
-      && isPlainObject(data.fastAnswerCounts)
-      && isPlainObject(data.partialStreakCounts)
-      && isPlainObject(data.countryCorrectEver)
-      && isPlainObject(data.countryCorrectCount)
-      && isPlainObject(data.countryWrongEver)
-      && isPlainObject(data.lastCourseResult);
+      && isValidModeCountPair(data.perfectCounts)
+      && isPlainObject(data.fastAnswerCounts) && isFastAnswerModeBucket(data.fastAnswerCounts.flag) && isFastAnswerModeBucket(data.fastAnswerCounts.capital)
+      && isValidModeCountPair(data.partialStreakCounts)
+      && isPlainObject(data.countryCorrectEver) && isBooleanTrueMap(data.countryCorrectEver.flag) && isBooleanTrueMap(data.countryCorrectEver.capital)
+      && isPlainObject(data.countryCorrectCount) && isCountMap(data.countryCorrectCount.flag) && isCountMap(data.countryCorrectCount.capital)
+      && isPlainObject(data.countryWrongEver) && isBooleanTrueMap(data.countryWrongEver.flag) && isBooleanTrueMap(data.countryWrongEver.capital)
+      && isPlainObject(data.lastCourseResult) && isCourseResultMap(data.lastCourseResult.flag) && isCourseResultMap(data.lastCourseResult.capital);
   }
 
   function loadTrophyStats() {
@@ -510,10 +602,86 @@ const TrophyModule = (() => {
   }
 
   // 読み取り専用のコピーを返す(呼び出し元が直接書き換えても内部状態や
-  // localStorageには影響しない)。Stage C以降、実際に統計を書き込む
-  // 判定ロジックが追加されるまでは、常に空の初期値が返る
+  // localStorageには影響しない)。
   function getStats() {
     return JSON.parse(JSON.stringify(loadTrophyStats()));
+  }
+
+  // ========================================================
+  // Stage C: 統計・履歴の記録(判定は一切行わない)。
+  // js/app.jsのfinishQuiz()から、evaluateQuizFinish()(判定エンジン)の直後に
+  // 1回だけ呼ばれる想定。完了していないプレイ(「終了する」での中断)では
+  // finishQuiz()自体が呼ばれないため、ここに到達することもなく、既存の
+  // 「プレイ回数は完了時のみ加算」という原則と自動的に揃う。
+  //
+  // context: evaluateQuizFinish()と同じ形に、Stage Cで追加した
+  // startedAt(プレイ開始時刻のISO文字列)・answerTimings(各問題の
+  // { countryId, correct, elapsedSeconds } 配列)を加えたもの。
+  //
+  // 重要: lastCourseResult(#66用)はこの関数が「直前の値を上書きする」。
+  // 将来Stage C以降で#66の判定ロジックを実装する際は、そのロジックを
+  // 必ずrecordQuizStats()より前(evaluateQuizFinish()の中、またはそれより
+  // 前)に置き、上書き前の値を読むこと。呼び出し順を変えると「直前の
+  // プレイ」の比較対象が自分自身になってしまう。
+  // ========================================================
+  function recordQuizStats(context) {
+    try {
+      if (!context || (context.mode !== "flag" && context.mode !== "capital")) return false;
+      const mode = context.mode;
+      const total = context.total;
+      const correct = context.correct;
+      if (!Number.isFinite(total) || !Number.isFinite(correct)) return false;
+      const stats = loadTrophyStats();
+
+      // #58用: 198問コースでの満点回数(モード別)
+      if (total === 198 && correct === total) {
+        stats.perfectCounts[mode] = stats.perfectCounts[mode] + 1;
+      }
+
+      // #60用: 10問コースで9問正解だった回数(モード別。判定時に合算する想定)
+      if (total === 10 && correct === 9) {
+        stats.partialStreakCounts[mode] = stats.partialStreakCounts[mode] + 1;
+      }
+
+      // #21・26・27用: 正解かつ2秒/3秒以内だった回答の累計回数(モード別)。
+      // 2秒以内の正解は3秒以内の条件も満たすため、両方のカウンタに加算する
+      if (Array.isArray(context.answerTimings)) {
+        context.answerTimings.forEach((t) => {
+          if (!t || !t.correct || !Number.isFinite(t.elapsedSeconds)) return;
+          if (t.elapsedSeconds <= 3) stats.fastAnswerCounts[mode].within3s = (stats.fastAnswerCounts[mode].within3s || 0) + 1;
+          if (t.elapsedSeconds <= 2) stats.fastAnswerCounts[mode].within2s = (stats.fastAnswerCounts[mode].within2s || 0) + 1;
+        });
+      }
+
+      // #30〜39用: 国別の生涯正解履歴(真偽値+回数、モード別)
+      if (Array.isArray(context.correctIds)) {
+        context.correctIds.forEach((id) => {
+          if (!isKnownCountryId(id)) return;
+          stats.countryCorrectEver[mode][id] = true;
+          stats.countryCorrectCount[mode][id] = (stats.countryCorrectCount[mode][id] || 0) + 1;
+        });
+      }
+
+      // #63・68用: 国別の誤答履歴(モード別、真偽値のみ)。#63は同じモードの
+      // 履歴を、#68は国旗側の履歴を首都プレイ側の判定が参照する想定のため、
+      // モードをまたいで混ぜずそれぞれ別に保持する
+      if (Array.isArray(context.wrongIds)) {
+        context.wrongIds.forEach((id) => {
+          if (!isKnownCountryId(id)) return;
+          stats.countryWrongEver[mode][id] = true;
+        });
+      }
+
+      // #66用: 同一モード・同一コースの「直前の完了プレイ」の結果を、
+      // 今回の結果で上書きする(関数コメント参照。将来の判定はこの行より
+      // 前で旧い値を読む必要がある)
+      stats.lastCourseResult[mode][String(total)] = { correct, total };
+
+      return saveTrophyStats(stats);
+    } catch (e) {
+      console.warn("トロフィー統計の記録に失敗しました", e);
+      return false;
+    }
   }
 
   // ---------- 公開API ----------
@@ -757,6 +925,7 @@ const TrophyModule = (() => {
     awardIfNew,
     getProgressSummary,
     getStats,
+    recordQuizStats,
     resetAll,
     isModeTitlePerfectEarned,
     isBothModesTitlePerfectEarned,
