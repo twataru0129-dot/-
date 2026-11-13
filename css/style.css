@@ -196,7 +196,14 @@ img { max-width: 100%; }
   font-size: 1rem;
 }
 
-#btn-collection { margin-bottom: auto; }
+/* 画面下部の余白(footerまでの可変スペース)を吸収するmargin-bottom:autoは、
+   元々#btn-collectionに付いていたが、その位置のままだと縦に長い画面
+   (iPad・PC等)で#btn-collectionと#btn-trophy-listの間に余白のほとんどが
+   入ってしまい、間隔が一定にならない。#btn-trophy-list側に付け替えることで、
+   2つのボタンの間隔は常に一定(margin-top:18px)に保ち、可変の余白は
+   #btn-trophy-listの下(top-footerとの間)に入るようにする。両ボタンの
+   大きさ・横幅・色・枠線・角丸・アイコン・リンク先には触れていない */
+#btn-trophy-list { margin-top: 18px; margin-bottom: auto; }
 
 /* トップ画面のモード選択カード(国旗クイズ/首都クイズ/世界地図/世界図鑑)。
    4枚になってもスマホで窮屈にならないよう、1列ではなく2列×2行を基本にする */
