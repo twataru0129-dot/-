@@ -217,7 +217,7 @@ const TrophyModule = (() => {
   // さらに特別な隠しトロフィー#142「都の神話」(首都トリビア29種類を
   // すべて獲得した時点で自動獲得)の追加により、上限が141から142に
   // 拡張された(136+1=137件)
-  const MAX_TROPHY_NUMBER = 142;
+  const MAX_TROPHY_NUMBER = 158;
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
   // 参照する「参照型」スロット。新規にwfq_v1_trophy_earnedへ書き込むことは
@@ -506,6 +506,19 @@ const TrophyModule = (() => {
       });
     }
     return regionCountryIdsCache.get(region) || [];
+  }
+
+  // 世界図鑑トロフィー(No.148〜153、地域制覇)用: 指定地域に属する国
+  // (countryIdsInRegion()、COUNTRIESのregionフィールドから動的に算出、
+  // 対象数をハードコードしない)を、Storage.getEncyclopediaVisited()が
+  // 1件残らず含んでいるかどうか。該当地域が1件も無い("antarctica"等、
+  // COUNTRIESに実在しない地域名を渡した場合)は安全側に倒してfalseを返す
+  function isEncyclopediaRegionComplete(region) {
+    if (typeof Storage === "undefined") return false;
+    const ids = countryIdsInRegion(region);
+    if (ids.length === 0) return false;
+    const visited = Storage.getEncyclopediaVisited();
+    return ids.every((id) => visited[id] === true);
   }
 
   // 指定モードの「生涯正解した国idの集合」に、そのプレイ自身の正解国idを
@@ -923,6 +936,165 @@ const TrophyModule = (() => {
     },
   };
 
+  // ==========================================================
+  // 世界図鑑トロフィー(第5段階、No.143〜158、計16件)。
+  // 対象はCOUNTRIES(198件)のみで、MAP_ONLY_REGIONS(18件、地図専用地域)は
+  // 対象外にする。閲覧・地図確認・復習の「事実」はjs/storage.jsの専用キー
+  // (wfq_v1_encyclopedia_visited等)に記録済みのものを読むだけで、ここでは
+  // 新しい保存領域を一切追加しない(判定条件だけを定義する)。
+  // No.143〜147(閲覧数)・No.154〜155(地図連携)・No.156〜157(復習)は
+  // 単純な件数しきい値。No.148〜153(地域制覇)はisEncyclopediaRegionComplete()
+  // (countryIdsInRegion()を再利用し、対象数をハードコードしない)で判定する。
+  // No.158「世界の叡智」は特別な隠しトロフィーで、(1)COUNTRIES 198件全ての
+  // 閲覧、(2)No.148〜153の地域制覇トロフィー6件全ての獲得、の両方を
+  // 明示的に確認する。COUNTRIESの6地域(asia 48+europe 46+africa 54+
+  // namerica 24+samerica 12+oceania 14=198)の合計が198件そのものと
+  // 一致するため、198件目を閲覧した瞬間は数学的に必ず6地域とも制覇済みに
+  // なるが、要求仕様どおり(1)(2)を両方実際に確認する。evaluate()は
+  // TROPHIESをnumber昇順でforEachするため、同じevaluate()呼び出し内で
+  // No.148〜153(とNo.147)がNo.158より先に判定・保存され、
+  // 「198件目を開いた直後にNo.147とNo.158を同時獲得する」場合も
+  // 判定順序だけで正しく処理できる(追加の同期処理は不要)。
+  // いずれのcheckもcontext.source==="encyclopedia"の場合のみ判定する
+  // (クイズ終了時の既存のevaluate()呼び出しに、図鑑専用の判定を
+  // 無理に混ぜない)
+  // ==========================================================
+  const STAGE_ENCYCLOPEDIA_DEFINITIONS = {
+    143: {
+      name: "はじめての探検",
+      condition: "世界図鑑で国・地域を1件閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaVisitedCount() >= 1,
+      description: null,
+      countries: null,
+    },
+    144: {
+      name: "世界への第一歩",
+      condition: "世界図鑑で異なる国・地域を10件閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaVisitedCount() >= 10,
+      description: null,
+      countries: null,
+    },
+    145: {
+      name: "知識の探求者",
+      condition: "世界図鑑で異なる国・地域を50件閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaVisitedCount() >= 50,
+      description: null,
+      countries: null,
+    },
+    146: {
+      name: "世界を知る者",
+      condition: "世界図鑑で異なる国・地域を100件閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaVisitedCount() >= 100,
+      description: null,
+      countries: null,
+    },
+    147: {
+      name: "世界図鑑マスター",
+      condition: "世界図鑑でCOUNTRIES全198件を閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaVisitedCount() >= 198,
+      description: null,
+      countries: null,
+    },
+    148: {
+      name: "アジアの研究者",
+      condition: "世界図鑑でアジア地域の国を全て閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && isEncyclopediaRegionComplete("asia"),
+      description: null,
+      countries: null,
+    },
+    149: {
+      name: "ヨーロッパの研究者",
+      condition: "世界図鑑でヨーロッパ地域の国を全て閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && isEncyclopediaRegionComplete("europe"),
+      description: null,
+      countries: null,
+    },
+    150: {
+      name: "アフリカの研究者",
+      condition: "世界図鑑でアフリカ地域の国を全て閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && isEncyclopediaRegionComplete("africa"),
+      description: null,
+      countries: null,
+    },
+    151: {
+      name: "北米の研究者",
+      condition: "世界図鑑で北米地域(中央アメリカ・カリブ海地域を含む)の国を全て閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && isEncyclopediaRegionComplete("namerica"),
+      description: null,
+      countries: null,
+    },
+    152: {
+      name: "南米の研究者",
+      condition: "世界図鑑で南米地域の国を全て閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && isEncyclopediaRegionComplete("samerica"),
+      description: null,
+      countries: null,
+    },
+    153: {
+      name: "オセアニアの研究者",
+      condition: "世界図鑑でオセアニア地域の国を全て閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && isEncyclopediaRegionComplete("oceania"),
+      description: null,
+      countries: null,
+    },
+    154: {
+      name: "未知への好奇心",
+      condition: "世界図鑑の詳細画面から「地図で場所を見る」を初めて利用",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaMapCheckedCount() >= 1,
+      description: null,
+      countries: null,
+    },
+    155: {
+      name: "世界をつなぐ旅人",
+      condition: "世界図鑑の詳細画面から「地図で場所を見る」で異なる国を50件確認",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaMapCheckedCount() >= 50,
+      description: null,
+      countries: null,
+    },
+    156: {
+      name: "知識を力に",
+      condition: "復習画面から世界図鑑の詳細を開いて、異なる国を10件復習",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaReviewedCount() >= 10,
+      description: null,
+      countries: null,
+    },
+    157: {
+      name: "学び直しの達人",
+      condition: "復習画面から世界図鑑の詳細を開いて、異なる国を50件復習",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaReviewedCount() >= 50,
+      description: null,
+      countries: null,
+    },
+    158: {
+      name: "世界の叡智",
+      condition: "世界図鑑でCOUNTRIES全198件を閲覧し、No.148〜153の地域制覇トロフィーを全て獲得",
+      mode: "encyclopedia",
+      check: (ctx) => {
+        if (!ctx || ctx.source !== "encyclopedia") return false;
+        if (Storage.getEncyclopediaVisitedCount() < 198) return false;
+        return [148, 149, 150, 151, 152, 153].every((n) => isEarned(`trophy_${n}`));
+      },
+      description:
+        "世界に広がる198の国と地域。そのすべてに目を向け、六つの地域を探究し尽くした者に贈られる究極の証。あなたが開いた一つひとつのページが、世界を知る力となった。今ここに、世界の叡智が輝く。",
+      countries: null,
+    },
+  };
+
   // ========================================================
   // Stage E: トロフィー一覧画面(新規)向けのカテゴリ分類。
   // docs/trophy-spec-final.md 2章の照合テーブルが採用している番号区分
@@ -939,11 +1111,16 @@ const TrophyModule = (() => {
     { id: "speed", label: "スピードチャレンジ", range: "#20〜29" },
     { id: "region", label: "地域制覇", range: "#30〜39" },
     { id: "double", label: "国旗・首都制覇", range: "#40〜59" },
-    { id: "special", label: "特別チャレンジ", range: "#60〜70,142" },
+    { id: "special", label: "特別チャレンジ", range: "#60〜70,142,158" },
     { id: "trivia", label: "国旗トリビア", range: "#71〜100" },
     { id: "legacy", label: "称号コレクション", range: "#101〜112" },
     { id: "capital_trivia", label: "首都トリビア", range: "#113〜141" },
+    { id: "encyclopedia", label: "世界図鑑", range: "#143〜157" },
   ];
+  // #142「都の神話」・#158「世界の叡智」は、既存の番号区分(#60〜70の
+  // 特別チャレンジ、#143〜157の世界図鑑)とは別に、両方とも「特別チャレンジ」
+  // カテゴリへ明示的に振り分ける例外として扱う(#113〜141の首都トリビア・
+  // #143〜157の世界図鑑カテゴリ本体には一切影響しない)
   function categoryForNumber(number) {
     if (number <= 19) return "progress";
     if (number <= 29) return "speed";
@@ -952,8 +1129,10 @@ const TrophyModule = (() => {
     if (number <= 70) return "special";
     if (number <= 100) return "trivia";
     if (number <= 112) return "legacy";
+    if (number <= 141) return "capital_trivia";
     if (number === 142) return "special"; // #142「都の神話」のみ例外的にspecialへ
-    return "capital_trivia";
+    if (number <= 157) return "encyclopedia";
+    return "special"; // #158「世界の叡智」のみ例外的にspecialへ
   }
   function getCategories() {
     return TROPHY_CATEGORIES.slice();
@@ -1041,13 +1220,18 @@ const TrophyModule = (() => {
   // 同じ表示仕様(未獲得時は名称・条件・解説文を伏せ「？？？？？？」と表示)を
   // 再利用するため、ここに追加した(表示処理自体はjs/app.js側の既存の
   // secretLocked分岐をそのまま使う。新しい表示コードは追加していない)
-  const HIDDEN_TROPHY_NUMBERS = new Set([53, 61, 62, 64, 65, 67, 70, 75, 86, 87, 88, 89, 142]);
+  // #158「世界の叡智」も、既存の隠しトロフィー13件(#142含む)と同じ表示仕様
+  // (未獲得時は名称・条件・解説文を伏せ「？？？？？？」と表示)を再利用するため
+  // ここに追加した(表示処理自体はjs/app.js側の既存のsecretLocked分岐を
+  // そのまま使う。新しい表示コードは追加していない)
+  const HIDDEN_TROPHY_NUMBERS = new Set([53, 61, 62, 64, 65, 67, 70, 75, 86, 87, 88, 89, 142, 158]);
 
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_D_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_CAPITAL_TRIVIA_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_LEGEND_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_ENCYCLOPEDIA_DEFINITIONS);
   // category/hiddenのみをここで補完する(name/condition/mode/checkは
   // applyStageBDefinitions()が設定した値から一切変更しない)。
   // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
@@ -1061,7 +1245,7 @@ const TrophyModule = (() => {
   // ---------- 自己検証(既存のjs/app.js冒頭・js/findcountry.jsのvalidatePools()
   // と同じ、console.assertベースの開発時チェック。問題が無ければ何も出力しない) ----------
   (function validateTrophyDefinitions() {
-    console.assert(TROPHIES.length === 137, `トロフィー定義が137件ではありません(実際: ${TROPHIES.length}件)`);
+    console.assert(TROPHIES.length === 153, `トロフィー定義が153件ではありません(実際: ${TROPHIES.length}件)`);
     const numbers = new Set(TROPHIES.map((t) => t.number));
     console.assert(numbers.size === TROPHIES.length, "トロフィー定義のnumberに重複があります");
     const ids = new Set(TROPHIES.map((t) => t.id));
@@ -1069,18 +1253,18 @@ const TrophyModule = (() => {
     SKIPPED_NUMBERS.forEach((n) => {
       console.assert(!numbers.has(n), `欠番(${n})がトロフィー定義に含まれています`);
     });
-    // Stage B・D・首都トリビア・#142「都の神話」で列挙した件数の合計だけが
-    // confirmed:trueになっていることを確認する(STAGE_B_DEFINITIONS 79件+
-    // STAGE_D_DEFINITIONS 28件+STAGE_CAPITAL_TRIVIA_DEFINITIONS 29件+
-    // STAGE_LEGEND_DEFINITIONS 1件=137件全てが確定するはず。反映漏れ・
-    // 重複登録が無いかの自己チェック。既存107件分の内訳(79件+28件=107件)・
-    // 首都トリビア29件は従来どおりの条件として残し、#142とは別に区別して
-    // 検証できるようにしている)
+    // Stage B・D・首都トリビア・#142「都の神話」・世界図鑑(#143〜158)で
+    // 列挙した件数の合計だけがconfirmed:trueになっていることを確認する
+    // (STAGE_B_DEFINITIONS 79件+STAGE_D_DEFINITIONS 28件+
+    // STAGE_CAPITAL_TRIVIA_DEFINITIONS 29件+STAGE_LEGEND_DEFINITIONS 1件+
+    // STAGE_ENCYCLOPEDIA_DEFINITIONS 16件=153件全てが確定するはず。反映漏れ・
+    // 重複登録が無いかの自己チェック)
     const confirmedCount = TROPHIES.filter((t) => t.confirmed).length;
     const stageBNumbers = Object.keys(STAGE_B_DEFINITIONS).map(Number);
     const stageDNumbers = Object.keys(STAGE_D_DEFINITIONS).map(Number);
     const capitalTriviaNumbers = Object.keys(STAGE_CAPITAL_TRIVIA_DEFINITIONS).map(Number);
     const legendNumbers = Object.keys(STAGE_LEGEND_DEFINITIONS).map(Number);
+    const encyclopediaNumbers = Object.keys(STAGE_ENCYCLOPEDIA_DEFINITIONS).map(Number);
     console.assert(
       stageBNumbers.every((n) => !stageDNumbers.includes(n)),
       "STAGE_B_DEFINITIONSとSTAGE_D_DEFINITIONSで番号が重複しています"
@@ -1093,13 +1277,18 @@ const TrophyModule = (() => {
       legendNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n)),
       "STAGE_LEGEND_DEFINITIONSが既存の定義(Stage B/D/首都トリビア)と番号が重複しています"
     );
+    console.assert(
+      encyclopediaNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n)),
+      "STAGE_ENCYCLOPEDIA_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142)と番号が重複しています"
+    );
     const existingConfirmedCount = stageBNumbers.length + stageDNumbers.length;
     console.assert(existingConfirmedCount === 107, `既存のStage B・Dで107件全てが確定するはずが、合計が107件になっていません(実際: ${existingConfirmedCount}件)`);
     console.assert(capitalTriviaNumbers.length === 29, `首都トリビアの定義が29件ではありません(実際: ${capitalTriviaNumbers.length}件)`);
     console.assert(legendNumbers.length === 1, `#142「都の神話」の定義が1件ではありません(実際: ${legendNumbers.length}件)`);
-    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length;
-    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
-    console.assert(expectedConfirmedCount === 137, `137件全てが確定するはずが、合計が137件になっていません(実際: ${expectedConfirmedCount}件)`);
+    console.assert(encyclopediaNumbers.length === 16, `世界図鑑トロフィー(#143〜158)の定義が16件ではありません(実際: ${encyclopediaNumbers.length}件)`);
+    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length;
+    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    console.assert(expectedConfirmedCount === 153, `153件全てが確定するはずが、合計が153件になっていません(実際: ${expectedConfirmedCount}件)`);
     // #142は首都トリビア29件を集計するだけの判定のため、自分自身を条件判定に
     // 含めないこと(CAPITAL_TRIVIA_NUMBERSに142が含まれないこと)を確認する
     console.assert(!CAPITAL_TRIVIA_NUMBERS.includes(142), "CAPITAL_TRIVIA_NUMBERSに#142自身が含まれています");
@@ -1126,8 +1315,8 @@ const TrophyModule = (() => {
     // Stage A: 統計データの初期値が、自分自身のバリデータを通ることを確認する
     // (生成関数と検証関数の定義ミスによる食い違いを早期に検出するため)
     console.assert(isValidTrophyStats(emptyTrophyStats()), "emptyTrophyStats()の初期値がisValidTrophyStats()を通りません");
-    // Stage E+首都トリビア追加+#142追加: 137件全てに有効なcategoryが
-    // 設定されていること、カテゴリの合計件数が137件と一致すること
+    // Stage E+首都トリビア追加+#142追加+世界図鑑追加: 153件全てに有効な
+    // categoryが設定されていること、カテゴリの合計件数が153件と一致すること
     // (分類漏れ・重複分類が無いことの確認)
     const categoryIds = new Set(TROPHY_CATEGORIES.map((c) => c.id));
     console.assert(categoryIds.size === TROPHY_CATEGORIES.length, "TROPHY_CATEGORIESのidに重複があります");
@@ -1136,22 +1325,33 @@ const TrophyModule = (() => {
       "カテゴリが未設定、または未知のカテゴリのトロフィーがあります"
     );
     const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
-    console.assert(categoryTotal === 137, `カテゴリ別件数の合計が137件になっていません(実際: ${categoryTotal}件)`);
+    console.assert(categoryTotal === 153, `カテゴリ別件数の合計が153件になっていません(実際: ${categoryTotal}件)`);
     const capitalTriviaCategoryCount = TROPHIES.filter((t) => t.category === "capital_trivia").length;
     console.assert(capitalTriviaCategoryCount === 29, `首都トリビアカテゴリの件数が29件ではありません(実際: ${capitalTriviaCategoryCount}件)`);
+    const encyclopediaCategoryCount = TROPHIES.filter((t) => t.category === "encyclopedia").length;
+    console.assert(encyclopediaCategoryCount === 15, `世界図鑑カテゴリの件数が15件(#143〜157)ではありません(実際: ${encyclopediaCategoryCount}件)`);
     const specialCategoryCount = TROPHIES.filter((t) => t.category === "special").length;
-    console.assert(specialCategoryCount === 12, `特別チャレンジカテゴリの件数が12件(既存11件+#142)ではありません(実際: ${specialCategoryCount}件)`);
+    console.assert(specialCategoryCount === 13, `特別チャレンジカテゴリの件数が13件(既存11件+#142+#158)ではありません(実際: ${specialCategoryCount}件)`);
     const legendDef = TROPHIES.find((t) => t.number === 142);
     console.assert(!!legendDef && legendDef.category === "special", "#142「都の神話」のカテゴリがspecialになっていません");
-    // 隠しトロフィーは正式確定した13件のみ(HIDDEN_TROPHY_NUMBERS、既存12件+#142)。
-    // それ以外の124件はhidden:falseであること、13件という件数そのものも確認する
+    const greatLegendDef = TROPHIES.find((t) => t.number === 158);
+    console.assert(!!greatLegendDef && greatLegendDef.category === "special", "#158「世界の叡智」のカテゴリがspecialになっていません");
+    // 隠しトロフィーは正式確定した14件のみ(HIDDEN_TROPHY_NUMBERS、既存12件+#142+#158)。
+    // それ以外の139件はhidden:falseであること、14件という件数そのものも確認する
     const hiddenDefs = TROPHIES.filter((t) => t.hidden === true);
-    console.assert(hiddenDefs.length === 13, `隠しトロフィーが13件ではありません(実際: ${hiddenDefs.length}件)`);
+    console.assert(hiddenDefs.length === 14, `隠しトロフィーが14件ではありません(実際: ${hiddenDefs.length}件)`);
     console.assert(
       hiddenDefs.every((t) => HIDDEN_TROPHY_NUMBERS.has(t.number)) && TROPHIES.filter((t) => !t.hidden).every((t) => !HIDDEN_TROPHY_NUMBERS.has(t.number)),
-      "hiddenフラグが正式確定した13件(HIDDEN_TROPHY_NUMBERS)と一致していません"
+      "hiddenフラグが正式確定した14件(HIDDEN_TROPHY_NUMBERS)と一致していません"
     );
     console.assert(TROPHIES.every((t) => typeof t.hidden === "boolean"), "hiddenがboolean以外のトロフィーがあります");
+    // 世界図鑑の地域制覇6件(#148〜153)の対象国数合計が、COUNTRIES全件数と
+    // 一致すること(ハードコードした想定件数ではなく、countryIdsInRegion()が
+    // 実際に返す値で確認する。198件目の閲覧で6地域とも同時に制覇済みになる
+    // という#158の前提が、データの変化によって崩れていないかの確認)
+    const regionTotal = ["asia", "europe", "africa", "namerica", "samerica", "oceania"]
+      .reduce((sum, r) => sum + countryIdsInRegion(r).length, 0);
+    console.assert(regionTotal === ALL_COUNTRY_IDS.length, `世界図鑑の地域別対象国数の合計(${regionTotal})がCOUNTRIES件数(${ALL_COUNTRY_IDS.length})と一致していません`);
   })();
 
   // ==========================================================
@@ -1620,6 +1820,15 @@ const TrophyModule = (() => {
     return evaluate(Object.assign({ source: "findcountry" }, context));
   }
 
+  // 世界図鑑(js/encyclopedia.js)からの呼び出し専用。クイズのような
+  // state.lastResult相当の結果情報を一切前提にしない(context自体は
+  // 使わず、常にStorageの現在の集計値を見て判定する)。詳細ページを開いた
+  // 瞬間・地図連携から確認した瞬間・復習画面から開いた瞬間など、図鑑に
+  // 関する新しい事実がjs/storage.jsに記録された直後に呼ぶ想定
+  function evaluateEncyclopediaVisit(context) {
+    return evaluate(Object.assign({ source: "encyclopedia" }, context));
+  }
+
   // Stage A: 「全データリセット」から呼ばれる。新トロフィーの獲得記録
   // (wfq_v1_trophy_earned)・統計(wfq_v1_trophy_stats)の両方を削除する。
   // #101〜112は参照型のためこのキーには元々含まれておらず、既存の称号
@@ -1650,5 +1859,6 @@ const TrophyModule = (() => {
     evaluate,
     evaluateQuizFinish,
     evaluateFindCountryResult,
+    evaluateEncyclopediaVisit,
   };
 })();

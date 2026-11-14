@@ -27,6 +27,13 @@ const EncyclopediaModule = (() => {
   // 古い遷移元を指し続けることはない
   let detailBackLabel = "← 図鑑一覧に戻る";
   let detailOnBack = null; // nullなら既定(図鑑一覧)に戻る
+  // 世界図鑑トロフィー(No.156・157「復習」)用: 現在開いている詳細画面(前へ/
+  // 次への移動を含む)が、復習画面(js/review.js)から開かれたセッションかどうか。
+  // openDetail()・openDetailById()(通常の一覧・地図からの直接表示)では常に
+  // falseにリセットし、openDetailWithList()にoptions.reviewSessionが
+  // 渡された場合のみtrueにする。goAdjacent()はこの変数を一切変更しないため、
+  // 復習画面から開いた国を「前へ/次へ」で移動する間はtrueのまま保持される
+  let currentSessionIsReview = false;
 
   const collator = new Intl.Collator("ja");
 
@@ -89,6 +96,12 @@ const EncyclopediaModule = (() => {
   }
 
   // ---------- 一覧画面 ----------
+  // entry.id が閲覧済み(Storage.hasEncyclopediaVisited())かどうかを見て、
+  // カードの右上にチェックマークを重ねる。MAP_ONLY_REGIONS(地図専用地域)の
+  // idはStorage側(COUNTRIES専用の確定id集合)で常にfalseになるため、
+  // category==="region"のカードには結果的に一切表示されない(ここでの
+  // 分岐は不要)。チェックマークはカードの通常レイアウトに追加するだけで、
+  // 既存の国旗画像・国名・クリック領域(ボタン全体)には一切手を加えない
   function buildCard(entry) {
     const { label, value } = resolveCapitalDisplay(entry);
     const card = document.createElement("button");
@@ -96,13 +109,54 @@ const EncyclopediaModule = (() => {
     card.className = "ency-card";
     card.dataset.id = entry.id;
     const alt = entry.isFlagImage === false ? `${entry.name}のアイコン` : `${entry.name}の国旗`;
+    const visited = typeof Storage !== "undefined" && Storage.hasEncyclopediaVisited(entry.id);
     card.innerHTML = `
       <img class="ency-card-flag" src="${entry.flag}" alt="${alt}" loading="lazy">
+      ${visited ? `<span class="ency-card-visited" aria-label="閲覧済み" title="閲覧済み">✓</span>` : ""}
       <span class="ency-card-name">${entry.name}</span>
       <span class="ency-card-capital">${label}：${value}</span>
     `;
     card.addEventListener("click", () => openDetail(entry.id));
     return card;
+  }
+
+  // 世界図鑑トロフィー(No.143〜158)用: 一覧画面の進捗表示
+  // (「世界図鑑の探索記録 n / 198」+進捗バー、地域フィルター選択時は
+  // その地域の進捗も併記)。対象はCOUNTRIES(198件)のみのため、
+  // category==="region"(MAP_ONLY_REGIONS、18件)のタブでは非表示にする
+  // (地図専用地域は198件の進捗に含まれないことを明確にするため)。
+  // 対応するHTML要素が無い場合(将来の変更・テスト環境等)でも例外を
+  // 出さずに安全に何もしない
+  function renderProgressSummary() {
+    const wrap = $("ency-progress-summary");
+    if (!wrap) return;
+    if (category !== "country" || typeof Storage === "undefined") {
+      wrap.classList.add("hidden");
+      return;
+    }
+    wrap.classList.remove("hidden");
+    const visited = Storage.getEncyclopediaVisited();
+    const visitedCount = Object.keys(visited).length;
+    const total = COUNTRIES.length;
+    const pct = total > 0 ? Math.round((visitedCount / total) * 100) : 0;
+    $("ency-progress-text").textContent = `世界図鑑の探索記録　${visitedCount} / ${total}`;
+    const barFill = $("ency-progress-bar-fill");
+    barFill.style.width = `${pct}%`;
+    const barTrack = $("ency-progress-bar");
+    if (barTrack) barTrack.setAttribute("aria-valuenow", String(pct));
+
+    const regionWrap = $("ency-progress-region");
+    if (!regionWrap) return;
+    if (regionFilter === "all") {
+      regionWrap.classList.add("hidden");
+      regionWrap.textContent = "";
+      return;
+    }
+    const idsInRegion = COUNTRIES.filter((c) => c.region === regionFilter).map((c) => c.id);
+    const regionVisitedCount = idsInRegion.filter((id) => visited[id] === true).length;
+    const regionLabel = (REGION_LABELS[regionFilter] || regionFilter).replace(/^[^\s]+\s*/, "");
+    regionWrap.textContent = `${regionLabel}　閲覧済み ${regionVisitedCount} / ${idsInRegion.length}`;
+    regionWrap.classList.remove("hidden");
   }
 
   function renderList() {
@@ -120,6 +174,8 @@ const EncyclopediaModule = (() => {
     $("ency-result-count").textContent = searchQuery || regionFilter !== "all"
       ? `${list.length}件 / 全${total}件`
       : `全${total}件`;
+
+    renderProgressSummary();
   }
 
   function setCategory(cat) {
@@ -213,11 +269,51 @@ const EncyclopediaModule = (() => {
     if ($("ency-region-list").classList.contains("hidden")) openRegionList(); else closeRegionList();
   }
 
+  // 世界図鑑トロフィー(No.143〜158)用: 詳細ページが実際に表示される
+  // (=呼び出し元のrenderDetail()でentryが実在すると確定した)瞬間だけを
+  // 「閲覧した」と記録する唯一の入口。MAP_ONLY_REGIONS(地図専用地域、
+  // 18件)のidはStorage側(COUNTRIES専用の確定id集合)で記録されず常に
+  // falseが返るため、ここでカテゴリー判定をする必要はない。
+  // currentSessionIsReviewがtrueの間(復習画面から開いた国、前へ/次へでの
+  // 移動も含む)は復習記録も同時に行う。新しく記録された事実が1件も無い
+  // (単なる再訪問・既に全て記録済み)場合は、無駄な判定を一切走らせない。
+  // 判定で新規にトロフィーが獲得された場合の通知は、showDetailScreen()の
+  // 直後のshowScreen("screen-encyclopedia-detail")呼び出しが先に完了して
+  // 画面が確定した後に出す必要があるため、setTimeoutで1tick遅らせて
+  // dispatchする(即時dispatchすると、通知画面に切り替わった直後に
+  // showDetailScreen()の残りの処理が詳細画面へ戻してしまい、通知が一瞬で
+  // 消えてしまう)
+  function recordEncyclopediaVisitFacts(id) {
+    if (typeof Storage === "undefined") return;
+    let changed = false;
+    try {
+      if (Storage.recordEncyclopediaVisit(id)) changed = true;
+      if (currentSessionIsReview && Storage.recordEncyclopediaReview(id)) changed = true;
+    } catch (e) {
+      console.warn("世界図鑑の閲覧記録に失敗しました", e);
+      return;
+    }
+    if (!changed) return;
+    try {
+      if (typeof TrophyModule === "undefined" || typeof TrophyModule.evaluateEncyclopediaVisit !== "function") return;
+      const result = TrophyModule.evaluateEncyclopediaVisit();
+      if (result && Array.isArray(result.awardedIds) && result.awardedIds.length) {
+        const awardedIds = result.awardedIds;
+        setTimeout(() => {
+          document.dispatchEvent(new CustomEvent("trophymodule:non-quiz-award", { detail: { ids: awardedIds } }));
+        }, 0);
+      }
+    } catch (e) {
+      console.warn("世界図鑑トロフィーの判定に失敗しました", e);
+    }
+  }
+
   // ---------- 詳細画面 ----------
   function renderDetail(id) {
     const entry = entriesFor(category).find((e) => e.id === id) || COUNTRIES.find((e) => e.id === id) || MAP_ONLY_REGIONS.find((e) => e.id === id);
     if (!entry) return;
     currentDetailId = id;
+    recordEncyclopediaVisitFacts(id);
 
     const flagImg = $("ency-detail-flag");
     flagImg.src = entry.flag;
@@ -286,14 +382,21 @@ const EncyclopediaModule = (() => {
     detailListIds = currentListIds;
     detailBackLabel = "← 図鑑一覧に戻る";
     detailOnBack = null;
+    currentSessionIsReview = false; // 通常の一覧からの表示は常に復習扱いしない
     $("btn-ency-detail-back").textContent = detailBackLabel;
     showDetailScreen(id);
   }
 
   function defaultDetailOnBack() {
+    // 世界図鑑トロフィー(No.143〜158)用: 詳細画面での閲覧(・地図連携・復習)
+    // によって閲覧済みチェックマーク・進捗表示が変わっている可能性がある
+    // ため、一覧に戻る際は再描画する。検索文字・カテゴリー・地域フィルターは
+    // モジュール内の変数のまま(renderList()はそれらをそのまま使って再計算
+    // するだけ)なので、一覧の内容・順序自体は変わらない
+    renderList();
     showScreen("screen-encyclopedia-list");
-    // 一覧側の検索文字・カテゴリー・地域フィルターはモジュール内の変数の
-    // ままなので再描画は不要。スクロール位置だけ復元する
+    // スクロール位置は再描画後に復元する(再描画でスクロールがリセットされる
+    // ため、スクロール位置の復元はこの後で行う必要がある)
     requestAnimationFrame(() => {
       if (document.scrollingElement) document.scrollingElement.scrollTop = listScrollTop;
     });
@@ -329,7 +432,10 @@ const EncyclopediaModule = (() => {
     if (!list.some((e) => e.id === id)) {
       list = computeList({ category: cat, regionFilter: "all", searchQuery: "" });
     }
-    openDetailWithList(id, list.map((e) => e.id), options);
+    // 地図上で直接選んだ国は、復習対象かどうかに関わらず常に通常の図鑑の
+    // 範囲で開く(呼び出し元から渡されたoptionsにreviewSessionが混ざって
+    // いても、ここで明示的にfalseに上書きして無視する)
+    openDetailWithList(id, list.map((e) => e.id), Object.assign({}, options, { reviewSession: false }));
   }
 
   // id(前へ/次への移動対象)の集まりを明示して詳細画面を開く低レベル処理。
@@ -343,6 +449,10 @@ const EncyclopediaModule = (() => {
     const opts = options || {};
     detailBackLabel = opts.backLabel || "← 図鑑一覧に戻る";
     detailOnBack = opts.onBack || null;
+    // 世界図鑑トロフィー(No.156・157「復習」)用: 復習画面(js/review.js)から
+    // 開かれた場合のみopts.reviewSessionがtrueになる。それ以外(地図からの
+    // 再表示等)はfalsyのため、!!で確実にbooleanへ正規化する
+    currentSessionIsReview = !!opts.reviewSession;
     $("btn-ency-detail-back").textContent = detailBackLabel;
     showDetailScreen(id);
   }
@@ -397,7 +507,9 @@ const EncyclopediaModule = (() => {
       // ときに、この詳細画面がどの範囲(通常の図鑑一覧、または復習リスト
       // などの一部)で前へ/次へを行っていたかを正しく引き継ぐため
       document.dispatchEvent(
-        new CustomEvent("encyclopediamodule:view-on-map", { detail: { id: currentDetailId, listIds: detailListIds.slice() } })
+        new CustomEvent("encyclopediamodule:view-on-map", {
+          detail: { id: currentDetailId, listIds: detailListIds.slice(), isReview: currentSessionIsReview },
+        })
       );
     });
 
