@@ -868,27 +868,73 @@ let lastTrophyAwardIds = [];
 // 設定する、「閉じた後に戻る画面」を表すコールバック。nullなら既定
 // (クイズ経由、結果画面へ戻る)の挙動を使う
 let trophyAwardOnContinue = null;
-// 図鑑経由の通知を表示中かどうか(多重表示防止用)。クイズ経由の表示は
-// そもそも新規獲得idがプレイ1回に対して重複して渡ることが無いため対象外
+
+// 図鑑経由の通知のキュー管理。短時間に複数の獲得イベント(例: 詳細ページを
+// 開いた直後に地図連携も成立した等)が発生しても、古い通知を破棄せず
+// 1件ずつ順番に表示するためのもの。
+// - nonQuizAwardQueue: まだ表示していないバッチ(1回のnotifyNonQuizTrophyAward
+//   呼び出し=1バッチ、複数idを含むことがある)の配列
+// - nonQuizAwardShownIds: 今回のキュー処理(最初の1件を表示し始めてから、
+//   キューが完全に空になるまで)で表示済み・表示予定のid集合。同じidが
+//   複数のイベントから二重に届いても、ここで重複を検出して無視する
+//   (awardIfNew()の仕組み上、同じidが2回新規獲得として届くことは本来
+//   無いはずだが、念のための安全策)
+// - nonQuizAwardReturnScreenId: このキュー処理が始まる直前(=何も表示・
+//   待機していない状態)にいた画面。キュー内の全バッチを表示し終えたら
+//   最後にこの画面へ戻る
+// - nonQuizTrophyAwardShowing: 現在screen-trophy-award(または専用演出の
+//   screen-trophy-legend)を表示中かどうか
+let nonQuizAwardQueue = [];
+let nonQuizAwardShownIds = new Set();
+let nonQuizAwardReturnScreenId = null;
 let nonQuizTrophyAwardShowing = false;
 
 // 世界図鑑(js/encyclopedia.js)の詳細ページ表示・地図連携・復習画面からの
 // 表示など、クイズの結果画面を経由しないトロフィー獲得をここで通知する。
 // state.lastResultには一切触れない(クイズ専用の情報を前提にしない)ため、
 // 図鑑側のコードが「クイズの結果情報が存在する」という誤った前提で
-// エラーになることはない。通知を表示している間に再度呼ばれても
-// (nonQuizTrophyAwardShowing)無視し、表示が重複・消失しないようにする
+// エラーになることはない。表示中に新たな獲得が発生した場合は破棄せず
+// キューに積み、現在の通知(・専用演出)を閉じた後に順番に表示する
 function notifyNonQuizTrophyAward(ids) {
   if (!Array.isArray(ids) || ids.length === 0) return;
-  if (nonQuizTrophyAwardShowing) return;
-  const activeScreen = document.querySelector(".screen.active");
-  const returnScreenId = activeScreen ? activeScreen.id : "screen-encyclopedia-list";
-  nonQuizTrophyAwardShowing = true;
-  trophyAwardOnContinue = () => {
+  // このキュー処理中に既に表示済み・表示予定のidは除外する(重複通知防止)
+  const newIds = ids.filter((id) => !nonQuizAwardShownIds.has(id));
+  if (newIds.length === 0) return;
+  newIds.forEach((id) => nonQuizAwardShownIds.add(id));
+
+  if (!nonQuizTrophyAwardShowing && nonQuizAwardQueue.length === 0) {
+    // 何も表示中・待機中でもない状態からの最初のバッチの場合のみ、
+    // 戻り先の画面をここで確定する(2件目以降の呼び出し時点では、
+    // 既にscreen-trophy-awardが表示されているため、ここで戻り先を
+    // 取り直すと戻り先を取り違えてしまう)
+    const activeScreen = document.querySelector(".screen.active");
+    nonQuizAwardReturnScreenId = activeScreen ? activeScreen.id : "screen-encyclopedia-list";
+  }
+  nonQuizAwardQueue.push(newIds);
+  if (!nonQuizTrophyAwardShowing) {
+    showNextNonQuizTrophyAward();
+  }
+}
+
+// キューの先頭を1件表示する。キューが空になったら、このキュー処理が
+// 始まる前にいた画面へ戻り、状態を次回の呼び出しのためにリセットする
+function showNextNonQuizTrophyAward() {
+  if (nonQuizAwardQueue.length === 0) {
     nonQuizTrophyAwardShowing = false;
+    const returnScreenId = nonQuizAwardReturnScreenId || "screen-encyclopedia-list";
+    nonQuizAwardReturnScreenId = null;
+    nonQuizAwardShownIds = new Set();
+    // このキュー処理自体が終わったら必ずnullに戻す。そのままにすると、
+    // この後に別途(クイズ経由で)結果画面から通知画面を開いた際、
+    // trophyAwardOnContinueが残っていることが原因で「結果画面へ」の
+    // 代わりに誤って図鑑側の戻り先へ遷移してしまう
     trophyAwardOnContinue = null;
     showScreen(returnScreenId);
-  };
+    return;
+  }
+  nonQuizTrophyAwardShowing = true;
+  const ids = nonQuizAwardQueue.shift();
+  trophyAwardOnContinue = showNextNonQuizTrophyAward;
   renderTrophyAwardScreen({ newTrophyIds: ids, mode: null, total: null, correct: null });
   showScreen("screen-trophy-award");
 }
