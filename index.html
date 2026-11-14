@@ -362,8 +362,13 @@
 <!-- ============ トロフィー刷新 Stage E: トロフィー一覧画面(新規・既存の称号コレクションとは別画面) ============ -->
 <section id="screen-trophy-list" class="screen">
   <div class="panel trophy-panel">
-    <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
-    <h2 class="screen-title">🏆 トロフィー一覧</h2>
+    <!-- 153件のカードを縦スクロールしても「戻る」まで迷わないよう、
+         戻るボタン+タイトルだけをposition: stickyで画面上部に固定する
+         (トロフィーカード部分は従来どおりページ全体のスクロールに追従する) -->
+    <div class="trophy-list-header">
+      <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
+      <h2 class="screen-title">🏆 トロフィー一覧</h2>
+    </div>
     <p id="trophy-progress-summary" class="trophy-progress-summary"></p>
 
     <div id="trophy-category-tabs" class="trophy-category-tabs" role="tablist" aria-label="カテゴリで絞り込み"></div>
