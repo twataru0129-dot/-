@@ -213,8 +213,11 @@ const TrophyModule = (() => {
   // 企画の確定仕様どおりの欠番(50・55・56・57・90)
   const SKIPPED_NUMBERS = [50, 55, 56, 57, 90];
   // 首都トリビア29件(#113〜141)の追加により、通し番号の上限が112から141に
-  // 拡張された(欠番は追加されていない。112-5+29=136件)
-  const MAX_TROPHY_NUMBER = 141;
+  // 拡張された(欠番は追加されていない。112-5+29=136件)。
+  // さらに特別な隠しトロフィー#142「都の神話」(首都トリビア29種類を
+  // すべて獲得した時点で自動獲得)の追加により、上限が141から142に
+  // 拡張された(136+1=137件)
+  const MAX_TROPHY_NUMBER = 142;
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
   // 参照する「参照型」スロット。新規にwfq_v1_trophy_earnedへ書き込むことは
@@ -895,19 +898,48 @@ const TrophyModule = (() => {
     },
   };
 
+  // ==========================================================
+  // 特別な隠しトロフィー#142「都の神話」。
+  // 首都トリビア(#113〜141)29種類すべてを獲得した時点で自動獲得する、
+  // 単一(非デュアル)の特別な隠しトロフィー。複数回のプレイで集めてよく、
+  // 国旗トリビア(#71〜100)の獲得状態には左右されない。判定は
+  // allCapitalTriviaEarned()(29件のisEarned()を確認するだけの純粋関数)を
+  // 呼ぶのみで、新しい保存領域・新しい判定の仕組みは追加しない。
+  // evaluate()はTROPHIESをnumber昇順(1→142)でforEachするため、同じ
+  // evaluate()呼び出し内で29種類目の首都トリビアがawardIfNew()され
+  // 保存された直後に、この#142のcheckが(同じパス内で)その保存結果を
+  // 読むことになり、「29種類目を獲得した直後にNo.142も獲得する」という
+  // 要求を判定順序だけで満たせる(追加の同期処理は不要)。
+  // ==========================================================
+  const STAGE_LEGEND_DEFINITIONS = {
+    142: {
+      name: "都の神話",
+      condition: "首都トリビアNo.113〜141の全29種類を獲得",
+      mode: "legend",
+      check: () => allCapitalTriviaEarned(),
+      description:
+        "世界の首都を巡り、29の絆を解き明かした者に贈られる究極の証。その知識は国境を越え、世界中の都をつなぐ。今ここに、都の神話が誕生した。",
+      countries: null,
+    },
+  };
+
   // ========================================================
   // Stage E: トロフィー一覧画面(新規)向けのカテゴリ分類。
   // docs/trophy-spec-final.md 2章の照合テーブルが採用している番号区分
   // (#1〜19・20〜29・30〜39・40〜59・60〜70・71〜100・101〜112)をそのまま
   // カテゴリ境界として使う(名称・獲得条件・check関数は一切変更しない。
-  // 表示用の分類ラベルを追加するだけ)。
+  // 表示用の分類ラベルを追加するだけ)。#142「都の神話」は首都トリビアの
+  // 完全制覇という「特別チャレンジ」寄りのメタ達成のため、既存の
+  // category境界(#60〜70)を変更せず、番号142だけを明示的にspecialへ
+  // 振り分ける例外を追加した(#113〜141のcapital_trivia範囲や他の境界には
+  // 一切影響しない)。
   // ========================================================
   const TROPHY_CATEGORIES = [
     { id: "progress", label: "挑戦の記録", range: "#1〜19" },
     { id: "speed", label: "スピードチャレンジ", range: "#20〜29" },
     { id: "region", label: "地域制覇", range: "#30〜39" },
     { id: "double", label: "国旗・首都制覇", range: "#40〜59" },
-    { id: "special", label: "特別チャレンジ", range: "#60〜70" },
+    { id: "special", label: "特別チャレンジ", range: "#60〜70,142" },
     { id: "trivia", label: "国旗トリビア", range: "#71〜100" },
     { id: "legacy", label: "称号コレクション", range: "#101〜112" },
     { id: "capital_trivia", label: "首都トリビア", range: "#113〜141" },
@@ -920,6 +952,7 @@ const TrophyModule = (() => {
     if (number <= 70) return "special";
     if (number <= 100) return "trivia";
     if (number <= 112) return "legacy";
+    if (number === 142) return "special"; // #142「都の神話」のみ例外的にspecialへ
     return "capital_trivia";
   }
   function getCategories() {
@@ -985,23 +1018,40 @@ const TrophyModule = (() => {
     return list;
   }
 
+  // #142「都の神話」用: 首都トリビア(#113〜141)29件すべてがisEarned()かどうかを
+  // 確認するだけの純粋関数。このプレイの結果(context)には一切依存せず、常に
+  // 保存済みの獲得状態だけを見るため、evaluate()がどの呼び出し元(クイズ/
+  // 「世界の国どこかな？」/起動時の救済処理)から呼ばれても安全に同じ結果を返す。
+  // (下の自己検証・過去データ救済処理の両方が参照するため、それらより前の
+  // ここで定義する。isEarned()自体はfunction宣言のためホイスティングされ、
+  // このファイル後方で定義されていても問題なく呼び出せる)
+  const CAPITAL_TRIVIA_NUMBERS = Array.from({ length: 29 }, (_, i) => 113 + i);
+  function allCapitalTriviaEarned() {
+    return CAPITAL_TRIVIA_NUMBERS.every((n) => isEarned(`trophy_${n}`));
+  }
+
   // Stage E追加検討(隠しトロフィー調査)を経て、ユーザー指示により正式確定した
   // 隠しトロフィー12件(以前検討した36件案は不採用)。名称・条件・modeの値
   // そのものは一切変更せず、表示用のhiddenフラグのみをここで真にする。
   // #53奇跡の一問・#61ラストワンの魔法・#62虹の架け橋・#64真夜中の探検家・
   // #65奇跡の数字・#67世界の反対側・#70早朝の探検家・#75型破りな国旗たち・
   // #86国旗の中に武器!?・#87国旗の動物園・#88国旗の中の地図・
-  // #89国旗が語りかける(docs/trophy-spec-final.md「7. 隠しトロフィー仕様」参照)
-  const HIDDEN_TROPHY_NUMBERS = new Set([53, 61, 62, 64, 65, 67, 70, 75, 86, 87, 88, 89]);
+  // #89国旗が語りかける(docs/trophy-spec-final.md「7. 隠しトロフィー仕様」参照)。
+  // #142「都の神話」は後続のユーザー指示により、既存の隠しトロフィー12件と
+  // 同じ表示仕様(未獲得時は名称・条件・解説文を伏せ「？？？？？？」と表示)を
+  // 再利用するため、ここに追加した(表示処理自体はjs/app.js側の既存の
+  // secretLocked分岐をそのまま使う。新しい表示コードは追加していない)
+  const HIDDEN_TROPHY_NUMBERS = new Set([53, 61, 62, 64, 65, 67, 70, 75, 86, 87, 88, 89, 142]);
 
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_D_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_CAPITAL_TRIVIA_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_LEGEND_DEFINITIONS);
   // category/hiddenのみをここで補完する(name/condition/mode/checkは
   // applyStageBDefinitions()が設定した値から一切変更しない)。
   // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
-  // - hidden: 上記HIDDEN_TROPHY_NUMBERSの12件のみtrue、残り95件はfalse
+  // - hidden: 上記HIDDEN_TROPHY_NUMBERSの13件のみtrue、残り124件はfalse
   TROPHIES.forEach((t) => {
     t.category = categoryForNumber(t.number);
     t.hidden = HIDDEN_TROPHY_NUMBERS.has(t.number);
@@ -1011,7 +1061,7 @@ const TrophyModule = (() => {
   // ---------- 自己検証(既存のjs/app.js冒頭・js/findcountry.jsのvalidatePools()
   // と同じ、console.assertベースの開発時チェック。問題が無ければ何も出力しない) ----------
   (function validateTrophyDefinitions() {
-    console.assert(TROPHIES.length === 136, `トロフィー定義が136件ではありません(実際: ${TROPHIES.length}件)`);
+    console.assert(TROPHIES.length === 137, `トロフィー定義が137件ではありません(実際: ${TROPHIES.length}件)`);
     const numbers = new Set(TROPHIES.map((t) => t.number));
     console.assert(numbers.size === TROPHIES.length, "トロフィー定義のnumberに重複があります");
     const ids = new Set(TROPHIES.map((t) => t.id));
@@ -1019,16 +1069,18 @@ const TrophyModule = (() => {
     SKIPPED_NUMBERS.forEach((n) => {
       console.assert(!numbers.has(n), `欠番(${n})がトロフィー定義に含まれています`);
     });
-    // Stage B・D・首都トリビアで列挙した件数の合計だけがconfirmed:trueに
-    // なっていることを確認する(STAGE_B_DEFINITIONS 79件+STAGE_D_DEFINITIONS
-    // 28件+STAGE_CAPITAL_TRIVIA_DEFINITIONS 29件=136件全てが確定するはず。
-    // 反映漏れ・重複登録が無いかの自己チェック。既存107件分の内訳
-    // (79件+28件=107件)は従来どおりの条件として残し、新規29件とは別に
-    // 区別して検証できるようにしている)
+    // Stage B・D・首都トリビア・#142「都の神話」で列挙した件数の合計だけが
+    // confirmed:trueになっていることを確認する(STAGE_B_DEFINITIONS 79件+
+    // STAGE_D_DEFINITIONS 28件+STAGE_CAPITAL_TRIVIA_DEFINITIONS 29件+
+    // STAGE_LEGEND_DEFINITIONS 1件=137件全てが確定するはず。反映漏れ・
+    // 重複登録が無いかの自己チェック。既存107件分の内訳(79件+28件=107件)・
+    // 首都トリビア29件は従来どおりの条件として残し、#142とは別に区別して
+    // 検証できるようにしている)
     const confirmedCount = TROPHIES.filter((t) => t.confirmed).length;
     const stageBNumbers = Object.keys(STAGE_B_DEFINITIONS).map(Number);
     const stageDNumbers = Object.keys(STAGE_D_DEFINITIONS).map(Number);
     const capitalTriviaNumbers = Object.keys(STAGE_CAPITAL_TRIVIA_DEFINITIONS).map(Number);
+    const legendNumbers = Object.keys(STAGE_LEGEND_DEFINITIONS).map(Number);
     console.assert(
       stageBNumbers.every((n) => !stageDNumbers.includes(n)),
       "STAGE_B_DEFINITIONSとSTAGE_D_DEFINITIONSで番号が重複しています"
@@ -1037,12 +1089,21 @@ const TrophyModule = (() => {
       capitalTriviaNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n)),
       "STAGE_CAPITAL_TRIVIA_DEFINITIONSが既存のSTAGE_B_DEFINITIONS/STAGE_D_DEFINITIONSと番号が重複しています"
     );
+    console.assert(
+      legendNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n)),
+      "STAGE_LEGEND_DEFINITIONSが既存の定義(Stage B/D/首都トリビア)と番号が重複しています"
+    );
     const existingConfirmedCount = stageBNumbers.length + stageDNumbers.length;
     console.assert(existingConfirmedCount === 107, `既存のStage B・Dで107件全てが確定するはずが、合計が107件になっていません(実際: ${existingConfirmedCount}件)`);
     console.assert(capitalTriviaNumbers.length === 29, `首都トリビアの定義が29件ではありません(実際: ${capitalTriviaNumbers.length}件)`);
-    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length;
-    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビアで確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
-    console.assert(expectedConfirmedCount === 136, `136件全てが確定するはずが、合計が136件になっていません(実際: ${expectedConfirmedCount}件)`);
+    console.assert(legendNumbers.length === 1, `#142「都の神話」の定義が1件ではありません(実際: ${legendNumbers.length}件)`);
+    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length;
+    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    console.assert(expectedConfirmedCount === 137, `137件全てが確定するはずが、合計が137件になっていません(実際: ${expectedConfirmedCount}件)`);
+    // #142は首都トリビア29件を集計するだけの判定のため、自分自身を条件判定に
+    // 含めないこと(CAPITAL_TRIVIA_NUMBERSに142が含まれないこと)を確認する
+    console.assert(!CAPITAL_TRIVIA_NUMBERS.includes(142), "CAPITAL_TRIVIA_NUMBERSに#142自身が含まれています");
+    console.assert(CAPITAL_TRIVIA_NUMBERS.length === 29, `CAPITAL_TRIVIA_NUMBERSが29件ではありません(実際: ${CAPITAL_TRIVIA_NUMBERS.length}件)`);
     // confirmed:trueのトロフィーは、参照型(#101〜112、checkを持たない)を
     // 除き、必ずcheck関数を持つこと(新規仕様書どおりに実装できていることの確認)
     console.assert(
@@ -1065,8 +1126,9 @@ const TrophyModule = (() => {
     // Stage A: 統計データの初期値が、自分自身のバリデータを通ることを確認する
     // (生成関数と検証関数の定義ミスによる食い違いを早期に検出するため)
     console.assert(isValidTrophyStats(emptyTrophyStats()), "emptyTrophyStats()の初期値がisValidTrophyStats()を通りません");
-    // Stage E+首都トリビア追加: 136件全てに有効なcategoryが設定されていること、
-    // カテゴリの合計件数が136件と一致すること(分類漏れ・重複分類が無いことの確認)
+    // Stage E+首都トリビア追加+#142追加: 137件全てに有効なcategoryが
+    // 設定されていること、カテゴリの合計件数が137件と一致すること
+    // (分類漏れ・重複分類が無いことの確認)
     const categoryIds = new Set(TROPHY_CATEGORIES.map((c) => c.id));
     console.assert(categoryIds.size === TROPHY_CATEGORIES.length, "TROPHY_CATEGORIESのidに重複があります");
     console.assert(
@@ -1074,18 +1136,47 @@ const TrophyModule = (() => {
       "カテゴリが未設定、または未知のカテゴリのトロフィーがあります"
     );
     const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
-    console.assert(categoryTotal === 136, `カテゴリ別件数の合計が136件になっていません(実際: ${categoryTotal}件)`);
+    console.assert(categoryTotal === 137, `カテゴリ別件数の合計が137件になっていません(実際: ${categoryTotal}件)`);
     const capitalTriviaCategoryCount = TROPHIES.filter((t) => t.category === "capital_trivia").length;
     console.assert(capitalTriviaCategoryCount === 29, `首都トリビアカテゴリの件数が29件ではありません(実際: ${capitalTriviaCategoryCount}件)`);
-    // 隠しトロフィーは正式確定した12件のみ(HIDDEN_TROPHY_NUMBERS)。それ以外の
-    // 95件はhidden:falseであること、12件という件数そのものも確認する
+    const specialCategoryCount = TROPHIES.filter((t) => t.category === "special").length;
+    console.assert(specialCategoryCount === 12, `特別チャレンジカテゴリの件数が12件(既存11件+#142)ではありません(実際: ${specialCategoryCount}件)`);
+    const legendDef = TROPHIES.find((t) => t.number === 142);
+    console.assert(!!legendDef && legendDef.category === "special", "#142「都の神話」のカテゴリがspecialになっていません");
+    // 隠しトロフィーは正式確定した13件のみ(HIDDEN_TROPHY_NUMBERS、既存12件+#142)。
+    // それ以外の124件はhidden:falseであること、13件という件数そのものも確認する
     const hiddenDefs = TROPHIES.filter((t) => t.hidden === true);
-    console.assert(hiddenDefs.length === 12, `隠しトロフィーが12件ではありません(実際: ${hiddenDefs.length}件)`);
+    console.assert(hiddenDefs.length === 13, `隠しトロフィーが13件ではありません(実際: ${hiddenDefs.length}件)`);
     console.assert(
       hiddenDefs.every((t) => HIDDEN_TROPHY_NUMBERS.has(t.number)) && TROPHIES.filter((t) => !t.hidden).every((t) => !HIDDEN_TROPHY_NUMBERS.has(t.number)),
-      "hiddenフラグが正式確定した12件(HIDDEN_TROPHY_NUMBERS)と一致していません"
+      "hiddenフラグが正式確定した13件(HIDDEN_TROPHY_NUMBERS)と一致していません"
     );
     console.assert(TROPHIES.every((t) => typeof t.hidden === "boolean"), "hiddenがboolean以外のトロフィーがあります");
+  })();
+
+  // ==========================================================
+  // #142「都の神話」過去データ救済処理。
+  // アップデート前に既に首都トリビア29種類すべてを獲得していたプレイヤーにも
+  // 対応するため、このモジュールの読み込み時(=アプリ起動時・トロフィー
+  // 情報の初期化時)に1度だけ、「29種類すべて獲得済みだが#142はまだ未獲得」
+  // という状態を確認し、該当する場合はここでawardIfNew()するだけで静かに
+  // 登録する。evaluate()を経由しないため、この登録はstate.lastResult.
+  // newTrophyIdsには一切含まれず、js/app.js側の獲得通知・専用演出画面は
+  // 呼ばれない(アプリ起動のたびに演出を繰り返さないための設計)。
+  // すでに登録済みなら即座にreturnするだけの安価な処理のため、毎回の
+  // ページ読み込みで実行しても問題ない。保存データの削除・初期化は一切
+  // 行わず、既存トロフィーのearnedAtにも触れない。新規登録される場合の
+  // #142のearnedAtは、実際にこの処理が実行された時刻になる
+  // (awardIfNew()が内部でnew Date().toISOString()を使うのを再利用するだけ)
+  // ==========================================================
+  (function reconcileLegendTrophy() {
+    try {
+      if (isEarned("trophy_142")) return; // 既に獲得済みなら何もしない(再獲得・再登録はしない)
+      if (!allCapitalTriviaEarned()) return; // 首都トリビア29種類に未獲得が残っていれば対象外
+      awardIfNew("trophy_142");
+    } catch (e) {
+      console.warn("「都の神話」の過去データ救済処理に失敗しました", e);
+    }
   })();
 
   function isValidTrophyId(id) {
@@ -1309,7 +1400,7 @@ const TrophyModule = (() => {
   }
 
   // ---------- 公開API ----------
-  // 136件すべての定義を返す(読み取り専用の用途を想定。一覧画面・
+  // 137件すべての定義を返す(読み取り専用の用途を想定。一覧画面・
   // 判定処理の両方がここを参照する)
   function getAllDefinitions() {
     return TROPHIES.slice();

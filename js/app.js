@@ -786,6 +786,30 @@ function runConfetti(container) {
 // 挙動には一切影響しない。1プレイで複数件同時獲得した場合も、ここで全件
 // まとめて表示する(1件ずつの連続表示にはしない。スクロールで全件確認できる)
 // ==========================================================
+
+// 特別な隠しトロフィー#142「都の神話」専用アイコン(金色の王冠+地球儀)。
+// 外部画像・追加アセットを使わず、インラインSVGのみで表現する(viewBoxで
+// 拡縮するため、一覧カードの小さい丸アイコン・獲得演出画面の大きいアイコンの
+// どちらにも同じマークアップを使い回せる)
+const LEGEND_TROPHY_NUMBER = 142;
+const LEGEND_ICON_SVG = `<svg viewBox="0 0 100 100" class="legend-svg" aria-hidden="true" focusable="false">
+  <circle cx="50" cy="58" r="32" class="legend-globe-outline"></circle>
+  <ellipse cx="50" cy="58" rx="32" ry="13" class="legend-globe-outline"></ellipse>
+  <ellipse cx="50" cy="58" rx="13" ry="32" class="legend-globe-outline"></ellipse>
+  <line x1="18" y1="58" x2="82" y2="58" class="legend-globe-outline"></line>
+  <path d="M27 32 L33 15 L41 28 L50 12 L59 28 L67 15 L73 32 Z" class="legend-crown"></path>
+  <circle cx="33" cy="15" r="2.6" class="legend-crown-jewel"></circle>
+  <circle cx="50" cy="12" r="2.8" class="legend-crown-jewel"></circle>
+  <circle cx="67" cy="15" r="2.6" class="legend-crown-jewel"></circle>
+</svg>`;
+
+function isLegendTrophyId(id) {
+  return id === `trophy_${LEGEND_TROPHY_NUMBER}`;
+}
+function isLegendTrophyNumber(number) {
+  return number === LEGEND_TROPHY_NUMBER;
+}
+
 function trophyModeIcon(mode) {
   if (mode === "flag" || mode === "flag_only") return "🌍";
   if (mode === "capital" || mode === "capital_only") return "🏙️";
@@ -818,31 +842,33 @@ function renderTrophyAwardScreen() {
     if (!def) return; // 不正なid・定義が無いidは安全側に倒して何も表示しない
     const isSecret = !!def.hidden; // 隠しトロフィーを今回初めて発見したかどうか
     if (isSecret) hasSecret = true;
+    const isLegend = isLegendTrophyId(id); // #142「都の神話」のみ最高級デザインを追加で重ねる
     const item = document.createElement("div");
-    item.className = "trophy-award-item" + (isSecret ? " trophy-award-item-secret" : "");
+    item.className = "trophy-award-item" + (isSecret ? " trophy-award-item-secret" : "") + (isLegend ? " trophy-award-item-legend" : "");
     // modeが"both"(デュアル)のトロフィーは、このプレイがどちら側
     // (国旗/首都)の達成かをcontextのmodeで表す(evaluate()はcontext.modeに
     // 対応する側しか判定しないため、このプレイで新規獲得できるのは必ず
     // mode(今回プレイしたモード)側のみ)
-    const markIcon = def.mode === "both" ? trophyModeIcon(mode) : trophyModeIcon(def.mode);
+    const markIcon = isLegend ? LEGEND_ICON_SVG : (def.mode === "both" ? trophyModeIcon(mode) : trophyModeIcon(def.mode));
     const markLabel = def.mode === "both" ? (mode === "capital" ? "首都クイズで達成" : "国旗クイズで達成") : "";
     // 隠しトロフィーの発見演出: 鍵アイコンが外れて本来のトロフィーアイコンが
     // 現れるアニメーション(CSS側の@keyframesで表現、過度な点滅・長時間化は避ける)
     const markHtml = isSecret
-      ? `<div class="trophy-award-mark trophy-award-mark-secret"><span class="trophy-award-mark-lock">🔓</span><span class="trophy-award-mark-icon">${markIcon}</span></div>`
+      ? `<div class="trophy-award-mark trophy-award-mark-secret${isLegend ? " trophy-award-mark-legend" : ""}"><span class="trophy-award-mark-lock">🔓</span><span class="trophy-award-mark-icon">${markIcon}</span></div>`
       : `<div class="trophy-award-mark">${markIcon}</div>`;
-    // 首都トリビア(#113〜141)のみ、対象2か国+首都・正式解説文を追加表示する
-    // (def.descriptionが無い既存107件には一切影響しない)
+    // 首都トリビア(#113〜141)・#142「都の神話」のみ、対象2か国+首都または
+    // 正式解説文を追加表示する(def.descriptionが無い他のトロフィーには
+    // 一切影響しない)
     const pairLabel = trophyCountryPairLabel(def.countries);
     const descHtml = def.description
       ? `
         ${pairLabel ? `<p class="trophy-award-pair">${pairLabel}</p>` : ""}
-        <p class="trophy-award-description">${def.description}</p>`
+        <p class="trophy-award-description${isLegend ? " trophy-award-description-legend" : ""}">${def.description}</p>`
       : "";
     item.innerHTML = `
       ${markHtml}
       <div class="trophy-award-info">
-        ${isSecret ? `<p class="trophy-award-secret-label">🔓 隠しトロフィー発見！</p>` : ""}
+        ${isSecret ? `<p class="trophy-award-secret-label">${isLegend ? "👑 特別な隠しトロフィー発見！" : "🔓 隠しトロフィー発見！"}</p>` : ""}
         <p class="trophy-award-number">No.${def.number}</p>
         <p class="trophy-award-name">${def.name}</p>
         <p class="trophy-award-cond">${def.condition}</p>
@@ -869,7 +895,39 @@ function renderTrophyAwardScreen() {
 }
 
 function initTrophyAwardScreen() {
-  $("btn-trophy-award-continue").addEventListener("click", () => showScreen("screen-result"));
+  // #142「都の神話」が今回新規に含まれていた場合のみ、結果画面へ戻る前に
+  // 専用の達成演出画面(screen-trophy-legend)を1度だけ経由する。既存の
+  // 獲得通知(このトロフィー一覧そのもの)・結果画面遷移は変更しない
+  // (間に専用演出を挟むだけ)。newTrophyIdsに含まれるのは1プレイに1回限り
+  // (awardIfNew()の重複防止により#142は二度と新規獲得されない)ため、
+  // 演出の多重起動は構造的に発生しない
+  $("btn-trophy-award-continue").addEventListener("click", () => {
+    const ids = (state.lastResult && state.lastResult.newTrophyIds) || [];
+    if (ids.some((id) => isLegendTrophyId(id))) {
+      renderLegendAwardScreen();
+      showScreen("screen-trophy-legend");
+    } else {
+      showScreen("screen-result");
+    }
+  });
+}
+
+// #142「都の神話」専用の達成演出画面。トロフィー獲得通知(screen-trophy-award)
+// の「結果画面へ」から、#142を新規獲得した場合のみ遷移する(過去データの
+// 救済処理(js/trophy.js側、起動時に静かに獲得登録)はevaluate()を経由しない
+// ため、ここには一切出てこない=アプリ起動のたびに演出を繰り返さない)
+function renderLegendAwardScreen() {
+  const def = TrophyModule.getDefinition(`trophy_${LEGEND_TROPHY_NUMBER}`);
+  $("trophy-legend-description").textContent = def ? def.description : "";
+  // 既存の紙吹雪・ファンファーレをそのまま再利用する(新しい音声・画像アセットは追加しない)
+  const confettiWrap = $("trophy-legend-confetti-wrap");
+  confettiWrap.innerHTML = "";
+  SoundManager.playFanfare();
+  runConfetti(confettiWrap);
+}
+
+function initLegendAwardScreen() {
+  $("btn-trophy-legend-continue").addEventListener("click", () => showScreen("screen-result"));
 }
 
 // ==========================================================
@@ -917,13 +975,28 @@ function buildTrophyCardElement(def, earnedEntry) {
   const card = document.createElement("div");
   const earnedOverall = st.dual ? (st.flagEarned || st.capitalEarned) : st.earned;
   const secretLocked = !!def.hidden && !earnedOverall; // 隠しトロフィーでまだ誰も(国旗/首都どちらも)獲得していない状態
-  card.className = "trophy-card" + (earnedOverall ? "" : " locked") + (secretLocked ? " trophy-card-secret" : "");
+  const isLegend = isLegendTrophyNumber(def.number); // #142「都の神話」のみ最高級デザインを追加で重ねる
+  card.className = "trophy-card" + (earnedOverall ? "" : " locked") + (secretLocked ? " trophy-card-secret" : "") + (isLegend && earnedOverall ? " trophy-card-legend" : "");
   card.dataset.category = def.category;
   card.dataset.earned = String(earnedOverall);
   card.dataset.hidden = String(!!def.hidden);
 
   let marksHtml;
-  if (st.dual) {
+  if (isLegend) {
+    // #142は既存の隠しトロフィー表示(secretLocked時は🔒・「未発見」)を
+    // そのまま再利用しつつ、獲得後のアイコンだけ専用の王冠+地球儀SVGに置き換える
+    const dateStr = st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "";
+    const icon = st.earned ? LEGEND_ICON_SVG : "🔒";
+    marksHtml = `
+      <div class="trophy-marks">
+        <div class="trophy-mark-col">
+          <div class="trophy-mark ${st.earned ? "earned trophy-mark-legend" : "locked"}" title="${secretLocked ? "未発見のトロフィー" : "獲得マーク"}">
+            <span class="trophy-mark-icon">${icon}</span>
+          </div>
+          <p class="trophy-mark-date">${st.earned ? `${dateStr} 取得` : "未発見"}</p>
+        </div>
+      </div>`;
+  } else if (st.dual) {
     marksHtml = `
       <div class="trophy-marks trophy-marks-dual">
         <div class="trophy-mark-col">
@@ -946,13 +1019,14 @@ function buildTrophyCardElement(def, earnedEntry) {
   const categoryDef = TROPHY_CATEGORY_LABELS[def.category] || "";
   const nameHtml = secretLocked ? "？？？？？？" : def.name;
   const condHtml = secretLocked ? "" : `<p class="trophy-cond">${def.condition}</p>`;
-  // 首都トリビア(#113〜141)の正式解説文は、獲得済みの場合のみ読めるようにする
-  // (未獲得時は既存の公開ルール通り、名称・条件のみ表示して解説文は出さない)
+  // 首都トリビア(#113〜141)・#142「都の神話」の正式解説文は、獲得済みの
+  // 場合のみ読めるようにする(未獲得時は既存の公開ルール通り、名称・条件
+  // のみ表示して解説文は出さない)
   const pairLabel = earnedOverall && !secretLocked ? trophyCountryPairLabel(def.countries) : null;
   const descHtml = earnedOverall && !secretLocked && def.description
     ? `
       ${pairLabel ? `<p class="trophy-pair">${pairLabel}</p>` : ""}
-      <p class="trophy-description">${def.description}</p>`
+      <p class="trophy-description${isLegend ? " trophy-description-legend" : ""}">${def.description}</p>`
     : "";
   card.innerHTML = `
     <div class="trophy-card-top">
@@ -1480,6 +1554,7 @@ function initApp() {
   initResultScreen();
   initTitleAwardScreen();
   initTrophyAwardScreen();
+  initLegendAwardScreen();
   initTrophyListScreen();
   initMemorialScreen();
   initMapEncyclopediaLink();
