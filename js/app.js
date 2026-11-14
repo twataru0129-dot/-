@@ -788,8 +788,22 @@ function runConfetti(container) {
 // ==========================================================
 function trophyModeIcon(mode) {
   if (mode === "flag" || mode === "flag_only") return "🌍";
-  if (mode === "capital") return "🏙️";
+  if (mode === "capital" || mode === "capital_only") return "🏙️";
   return "🏆";
+}
+
+// 首都トリビア(#113〜141)用: def.countries(国idの配列)から
+// 「国名(首都名)・国名(首都名)」形式の表示文字列を作る。COUNTRIESに
+// 存在しないidが混ざっていた場合は安全側に倒してnullを返す(推測で
+// 補わない)
+function trophyCountryPairLabel(countryIds) {
+  if (!Array.isArray(countryIds) || countryIds.length === 0) return null;
+  const labels = countryIds.map((id) => {
+    const c = COUNTRIES.find((entry) => entry.id === id);
+    return c ? `${c.name}(${c.capital})` : null;
+  });
+  if (labels.some((l) => !l)) return null;
+  return labels.join("・");
 }
 
 function renderTrophyAwardScreen() {
@@ -817,6 +831,14 @@ function renderTrophyAwardScreen() {
     const markHtml = isSecret
       ? `<div class="trophy-award-mark trophy-award-mark-secret"><span class="trophy-award-mark-lock">🔓</span><span class="trophy-award-mark-icon">${markIcon}</span></div>`
       : `<div class="trophy-award-mark">${markIcon}</div>`;
+    // 首都トリビア(#113〜141)のみ、対象2か国+首都・正式解説文を追加表示する
+    // (def.descriptionが無い既存107件には一切影響しない)
+    const pairLabel = trophyCountryPairLabel(def.countries);
+    const descHtml = def.description
+      ? `
+        ${pairLabel ? `<p class="trophy-award-pair">${pairLabel}</p>` : ""}
+        <p class="trophy-award-description">${def.description}</p>`
+      : "";
     item.innerHTML = `
       ${markHtml}
       <div class="trophy-award-info">
@@ -825,6 +847,7 @@ function renderTrophyAwardScreen() {
         <p class="trophy-award-name">${def.name}</p>
         <p class="trophy-award-cond">${def.condition}</p>
         ${markLabel ? `<p class="trophy-award-sub">${markLabel}</p>` : ""}
+        ${descHtml}
       </div>`;
     list.appendChild(item);
   });
@@ -923,6 +946,14 @@ function buildTrophyCardElement(def, earnedEntry) {
   const categoryDef = TROPHY_CATEGORY_LABELS[def.category] || "";
   const nameHtml = secretLocked ? "？？？？？？" : def.name;
   const condHtml = secretLocked ? "" : `<p class="trophy-cond">${def.condition}</p>`;
+  // 首都トリビア(#113〜141)の正式解説文は、獲得済みの場合のみ読めるようにする
+  // (未獲得時は既存の公開ルール通り、名称・条件のみ表示して解説文は出さない)
+  const pairLabel = earnedOverall && !secretLocked ? trophyCountryPairLabel(def.countries) : null;
+  const descHtml = earnedOverall && !secretLocked && def.description
+    ? `
+      ${pairLabel ? `<p class="trophy-pair">${pairLabel}</p>` : ""}
+      <p class="trophy-description">${def.description}</p>`
+    : "";
   card.innerHTML = `
     <div class="trophy-card-top">
       <span class="trophy-number">No.${def.number}</span>
@@ -930,7 +961,8 @@ function buildTrophyCardElement(def, earnedEntry) {
     </div>
     ${marksHtml}
     <p class="trophy-name">${nameHtml}</p>
-    ${condHtml}`;
+    ${condHtml}
+    ${descHtml}`;
   return card;
 }
 

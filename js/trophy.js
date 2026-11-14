@@ -182,6 +182,17 @@
 // 番号・名称・対象国・判定対象以外のロジックは変更していない。
 // カテゴリーの内部id("trivia")・表示ラベル("国旗トリビア")・107件という
 // 総数・#71〜100以外のトロフィーの獲得条件には一切影響しない。
+//
+// 首都トリビア追加(#113〜141、新規29件): 既存107件はそのまま維持し、
+// 新カテゴリー「首都トリビア」として29件を追加、総数が136件になった。
+// 獲得条件はmode:"capital_only"+pairCheck(...,{capitalOnly:true})
+// (国旗トリビアのflag_only/flagOnlyと対になる、首都クイズ限定の判定)で、
+// 既存のpairCheck()/arePairCorrect()をそのまま再利用し新しい判定コードは
+// 追加していない。各トロフィーにdescription(正式解説文)・countries
+// (対象2か国のid配列)を追加フィールドとして持たせ、一覧画面・獲得通知画面の
+// 表示に用いる(#1〜112にはこれらのフィールドは設定されずnullのまま)。
+// 既存107件の名称・獲得条件・mode・check・保存形式・称号コレクション
+// (#101〜112参照型)には一切影響しない。
 // ==========================================================
 
 const TrophyModule = (() => {
@@ -201,6 +212,9 @@ const TrophyModule = (() => {
 
   // 企画の確定仕様どおりの欠番(50・55・56・57・90)
   const SKIPPED_NUMBERS = [50, 55, 56, 57, 90];
+  // 首都トリビア29件(#113〜141)の追加により、通し番号の上限が112から141に
+  // 拡張された(欠番は追加されていない。112-5+29=136件)
+  const MAX_TROPHY_NUMBER = 141;
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
   // 参照する「参照型」スロット。新規にwfq_v1_trophy_earnedへ書き込むことは
@@ -267,18 +281,23 @@ const TrophyModule = (() => {
     return countryRegionByIdCache.get(id) || null;
   }
 
-  // 「同じクイズプレイで指定した2か国が両方正解」判定(#71〜100用)の
-  // check関数を作る。flagOnly指定時は国旗クイズのプレイのみを対象にする
-  // (#75・86〜89「国旗限定」)。国旗/首都のどちらのクイズでも、質問の
-  // idは共通してjs/countries.jsの国idのため、モードを区別せず同じロジックで
-  // 判定できる(js/quiz.jsのbuildQuestionSet()参照)。「世界の国どこかな？」
-  // からの呼び出し(context.source==="findcountry")は対象外にする
-  // (条件が「同じ国旗・首都クイズのプレイ」を前提にしているため)
+  // 「同じクイズプレイで指定した2か国が両方正解」判定(#71〜100・#113〜141用)の
+  // check関数を作る。flagOnly指定時は国旗クイズのプレイのみ(#71〜100、2026年の
+  // 追加修正で29件全て国旗限定に統一)、capitalOnly指定時は首都クイズの
+  // プレイのみ(#113〜141「首都トリビア」)を対象にする。国旗/首都のどちらの
+  // クイズでも、質問のidは共通してjs/countries.jsの国idのため、モードを
+  // 区別せず同じロジックで判定できる(js/quiz.jsのbuildQuestionSet()参照)。
+  // 「世界の国どこかな？」からの呼び出し(context.source==="findcountry")は
+  // 対象外にする(条件が「同じ国旗・首都クイズのプレイ」を前提にしているため)。
+  // 正解の配列(context.correctIds)の順序は見ないため、正解順序は問わない。
+  // 別プレイのcorrectIdsを合算することもない(その都度のcontextだけを見るため)
   function pairCheck(idA, idB, options) {
     const flagOnly = !!(options && options.flagOnly);
+    const capitalOnly = !!(options && options.capitalOnly);
     return function (context) {
       if (!context || context.source !== "quiz") return false;
       if (flagOnly && context.mode !== "flag") return false;
+      if (capitalOnly && context.mode !== "capital") return false;
       if (!Array.isArray(context.correctIds)) return false;
       return arePairCorrect(idA, idB, new Set(context.correctIds));
     };
@@ -684,6 +703,198 @@ const TrophyModule = (() => {
     },
   };
 
+  // ==========================================================
+  // 首都トリビア追加: 新規29件(#113〜141)。
+  //
+  // 既存のmode:"flag_only"+pairCheck(...,{flagOnly:true})(#71〜100)と
+  // 対になる、mode:"capital_only"+pairCheck(...,{capitalOnly:true})として
+  // 実装する。判定ロジックはpairCheck()/arePairCorrect()をそのまま再利用し、
+  // 新しい判定コードは一切書かない(首都クイズの同一プレイ中に対象2か国を
+  // 両方正解した場合のみ獲得。順序不問、国旗クイズ・「世界の国どこかな？」
+  // では獲得不可、プレイをまたいだ合算もしない。これらはpairCheck()の
+  // 既存ガード節がそのまま満たす)。
+  //
+  // description/countriesは、トロフィー一覧画面・獲得通知画面で
+  // 「対象2か国+首都+正式解説文」を表示するための追加データ(#1〜112には
+  // 設定しない。buildTrophyDefinitions()のデフォルト値nullのまま)。
+  // ==========================================================
+  const STAGE_CAPITAL_TRIVIA_DEFINITIONS = {
+    113: {
+      name: "選ばれし都", condition: "首都クイズ1プレイでオーストラリア・カナダを正解", mode: "capital_only",
+      check: pairCheck("au", "ca", { capitalOnly: true }),
+      description: "キャンベラとオタワは、どちらも国の最大都市ではありません。オーストラリアではシドニー、カナダではトロントが最大都市ですが、首都には別の都市が選ばれています。",
+      countries: ["au", "ca"],
+    },
+    114: {
+      name: "双都の謎", condition: "首都クイズ1プレイでボリビア・南アフリカを正解", mode: "capital_only",
+      check: pairCheck("bo", "za", { capitalOnly: true }),
+      description: "ボリビアではスクレが憲法上の首都で、ラパスに政府機関があります。南アフリカではプレトリア、ケープタウン、ブルームフォンテーンに主要な国家機能が分かれています。",
+      countries: ["bo", "za"],
+    },
+    115: {
+      name: "国家の名を継ぐ都", condition: "首都クイズ1プレイでシンガポール・ルクセンブルクを正解", mode: "capital_only",
+      check: pairCheck("sg", "lu", { capitalOnly: true }),
+      description: "シンガポールとルクセンブルクは、国名と首都名が同じです。国の名前をそのまま冠した都市が、政治の中心となっています。",
+      countries: ["sg", "lu"],
+    },
+    116: {
+      name: "新天地への遷都", condition: "首都クイズ1プレイでブラジル・ナイジェリアを正解", mode: "capital_only",
+      check: pairCheck("br", "ng", { capitalOnly: true }),
+      description: "ブラジルはリオデジャネイロからブラジリアへ、ナイジェリアはラゴスからアブジャへ首都を移しました。どちらも新しい首都の建設を進めた国です。",
+      countries: ["br", "ng"],
+    },
+    117: {
+      name: "設計された未来都市", condition: "首都クイズ1プレイでオーストラリア・ブラジルを正解", mode: "capital_only",
+      check: pairCheck("au", "br", { capitalOnly: true }),
+      description: "キャンベラとブラジリアは、首都として計画的に整備された都市です。道路や公共施設の配置にも、都市計画の考え方が反映されています。",
+      countries: ["au", "br"],
+    },
+    118: {
+      name: "天空の王座", condition: "首都クイズ1プレイでボリビア・エクアドルを正解", mode: "capital_only",
+      check: pairCheck("bo", "ec", { capitalOnly: true }),
+      description: "スクレとキトは、どちらもアンデス山脈の高地に位置する首都です。山々に囲まれた標高の高い場所に、国の政治の中心があります。",
+      countries: ["bo", "ec"],
+    },
+    119: {
+      name: "国境の守護都市", condition: "首都クイズ1プレイでスロバキア・コンゴ共和国を正解", mode: "capital_only",
+      check: pairCheck("sk", "cg", { capitalOnly: true }),
+      description: "ブラチスラバはオーストリアやハンガリーとの国境近くにあります。ブラザビルはコンゴ川を挟んで、コンゴ民主共和国の首都キンシャサと向かい合っています。",
+      countries: ["sk", "cg"],
+    },
+    120: {
+      name: "古代文明の継承者", condition: "首都クイズ1プレイでギリシャ・エジプトを正解", mode: "capital_only",
+      check: pairCheck("gr", "eg", { capitalOnly: true }),
+      description: "アテネのあるギリシャと、カイロのあるエジプトには、古代から続く豊かな歴史があります。二つの首都は、それぞれの国の歴史や文化を知るための重要な都市です。",
+      countries: ["gr", "eg"],
+    },
+    121: {
+      name: "帝国の記憶", condition: "首都クイズ1プレイでイタリア・トルコを正解", mode: "capital_only",
+      check: pairCheck("it", "tr", { capitalOnly: true }),
+      description: "ローマは古代ローマ帝国の中心地でした。一方、トルコにはオスマン帝国の歴史があります。現在の首都はアンカラですが、帝国時代の首都とは異なります。",
+      countries: ["it", "tr"],
+    },
+    122: {
+      name: "王冠の都", condition: "首都クイズ1プレイでイギリス・スペインを正解", mode: "capital_only",
+      check: pairCheck("gb", "es", { capitalOnly: true }),
+      description: "ロンドンとマドリードは、どちらも国王を元首とする国の首都です。王室に関わる歴史的な建物や文化が残っています。",
+      countries: ["gb", "es"],
+    },
+    123: {
+      name: "革命の炎", condition: "首都クイズ1プレイでフランス・アメリカを正解", mode: "capital_only",
+      check: pairCheck("fr", "us", { capitalOnly: true }),
+      description: "フランスとアメリカは、18世紀の革命を通じて国家のあり方を大きく変えました。パリとワシントンD.C.は、現在それぞれの国の政治の中心となっています。",
+      countries: ["fr", "us"],
+    },
+    124: {
+      name: "東西文明の交差点", condition: "首都クイズ1プレイでトルコ・ギリシャを正解", mode: "capital_only",
+      check: pairCheck("tr", "gr", { capitalOnly: true }),
+      description: "トルコとギリシャは、エーゲ海を挟んで向かい合う国々です。アンカラとアテネを首都とする両国には、長い歴史の中で文化が交流してきたつながりがあります。",
+      countries: ["tr", "gr"],
+    },
+    125: {
+      name: "新時代の首都", condition: "首都クイズ1プレイでパキスタン・ベリーズを正解", mode: "capital_only",
+      check: pairCheck("pk", "bz", { capitalOnly: true }),
+      description: "イスラマバードとベルモパンは、どちらも20世紀に新しい首都として整備された都市です。それぞれカラチ、ベリーズシティに代わって政治の中心となりました。",
+      countries: ["pk", "bz"],
+    },
+    126: {
+      name: "千年の都の系譜", condition: "首都クイズ1プレイで中国・日本を正解", mode: "capital_only",
+      check: pairCheck("cn", "jp", { capitalOnly: true }),
+      description: "北京と東京は、東アジアを代表する首都です。中国と日本は、長い歴史の中で政治や文化の中心地を築き、現在の首都へとつながっています。",
+      countries: ["cn", "jp"],
+    },
+    127: {
+      name: "ドナウの双璧", condition: "首都クイズ1プレイでオーストリア・ハンガリーを正解", mode: "capital_only",
+      check: pairCheck("at", "hu", { capitalOnly: true }),
+      description: "ウィーンとブダペストは、どちらもドナウ川沿いにある首都です。ヨーロッパを流れる大河が、二つの歴史ある都を結んでいます。",
+      countries: ["at", "hu"],
+    },
+    128: {
+      name: "大河の支配者", condition: "首都クイズ1プレイでエジプト・イラクを正解", mode: "capital_only",
+      check: pairCheck("eg", "iq", { capitalOnly: true }),
+      description: "カイロはナイル川沿い、バグダッドはチグリス川沿いにある首都です。どちらも大きな川と深い関わりを持ちながら発展してきました。",
+      countries: ["eg", "iq"],
+    },
+    129: {
+      name: "赤道の番人", condition: "首都クイズ1プレイでエクアドル・ウガンダを正解", mode: "capital_only",
+      check: pairCheck("ec", "ug", { capitalOnly: true }),
+      description: "キトとカンパラは、どちらも赤道に近い地域にある首都です。南米とアフリカという離れた大陸にありながら、赤道という共通点で結ばれています。",
+      countries: ["ec", "ug"],
+    },
+    130: {
+      name: "北極への扉", condition: "首都クイズ1プレイでアイスランド・フィンランドを正解", mode: "capital_only",
+      check: pairCheck("is", "fi", { capitalOnly: true }),
+      description: "レイキャビクとヘルシンキは、どちらもヨーロッパ北部に位置する首都です。北の地域ならではの長い夏の日照時間や、冬の日の短さが特徴です。",
+      countries: ["is", "fi"],
+    },
+    131: {
+      name: "太平洋の秘宝", condition: "首都クイズ1プレイでフィジー・サモアを正解", mode: "capital_only",
+      check: pairCheck("fj", "ws", { capitalOnly: true }),
+      description: "スバとアピアは、どちらも南太平洋の島国の首都です。海に囲まれた島々で、独自の文化や暮らしが育まれてきました。",
+      countries: ["fj", "ws"],
+    },
+    132: {
+      name: "大洋の孤島", condition: "首都クイズ1プレイでモルディブ・セーシェルを正解", mode: "capital_only",
+      check: pairCheck("mv", "sc", { capitalOnly: true }),
+      description: "マレとビクトリアは、どちらもインド洋の島国にある首都です。美しい海と島々に囲まれた国の政治の中心となっています。",
+      countries: ["mv", "sc"],
+    },
+    133: {
+      name: "カリブの覇者", condition: "首都クイズ1プレイでキューバ・ジャマイカを正解", mode: "capital_only",
+      check: pairCheck("cu", "jm", { capitalOnly: true }),
+      description: "ハバナとキングストンは、どちらもカリブ海地域の島国の首都です。音楽や文化が豊かな地域としても知られています。",
+      countries: ["cu", "jm"],
+    },
+    134: {
+      name: "南米の双星", condition: "首都クイズ1プレイでアルゼンチン・ウルグアイを正解", mode: "capital_only",
+      check: pairCheck("ar", "uy", { capitalOnly: true }),
+      description: "ブエノスアイレスとモンテビデオは、ラプラタ川の広い河口域を挟んで向かい合う首都です。南米の歴史や文化を共有する二つの都市です。",
+      countries: ["ar", "uy"],
+    },
+    135: {
+      name: "ゲルマンの双都", condition: "首都クイズ1プレイでドイツ・オーストリアを正解", mode: "capital_only",
+      check: pairCheck("de", "at", { capitalOnly: true }),
+      description: "ベルリンとウィーンは、どちらもドイツ語を公用語とする国の首都です。言葉だけでなく、音楽や歴史などにも共通する文化が見られます。",
+      countries: ["de", "at"],
+    },
+    136: {
+      name: "イベリアの王冠", condition: "首都クイズ1プレイでスペイン・ポルトガルを正解", mode: "capital_only",
+      check: pairCheck("es", "pt", { capitalOnly: true }),
+      description: "マドリードとリスボンは、イベリア半島にある二つの国の首都です。スペインとポルトガルは隣り合い、長い歴史を持っています。",
+      countries: ["es", "pt"],
+    },
+    137: {
+      name: "北欧の双星", condition: "首都クイズ1プレイでノルウェー・スウェーデンを正解", mode: "capital_only",
+      check: pairCheck("no", "se", { capitalOnly: true }),
+      description: "オスロとストックホルムは、スカンディナビア半島に広がる二つの国の首都です。ノルウェーとスウェーデンは国境を接し、歴史的にも深いつながりがあります。",
+      countries: ["no", "se"],
+    },
+    138: {
+      name: "メコンの絆", condition: "首都クイズ1プレイでラオス・カンボジアを正解", mode: "capital_only",
+      check: pairCheck("la", "kh", { capitalOnly: true }),
+      description: "ビエンチャンとプノンペンは、どちらもメコン川沿いにある首都です。東南アジアを流れる大河が、二つの国の暮らしや文化を支えています。",
+      countries: ["la", "kh"],
+    },
+    139: {
+      name: "砂漠の双璧", condition: "首都クイズ1プレイでカタール・バーレーンを正解", mode: "capital_only",
+      check: pairCheck("qa", "bh", { capitalOnly: true }),
+      description: "ドーハとマナーマは、どちらもペルシャ湾沿岸地域にある首都です。カタールとバーレーンは、アラビア半島周辺に位置する近隣の国々です。",
+      countries: ["qa", "bh"],
+    },
+    140: {
+      name: "中央アジアの覇者", condition: "首都クイズ1プレイでカザフスタン・ウズベキスタンを正解", mode: "capital_only",
+      check: pairCheck("kz", "uz", { capitalOnly: true }),
+      description: "アスタナとタシケントは、どちらも中央アジアにある首都です。カザフスタンとウズベキスタンは隣り合い、シルクロードや地域の歴史と深い関わりがあります。",
+      countries: ["kz", "uz"],
+    },
+    141: {
+      name: "世界の果ての双星", condition: "首都クイズ1プレイでニュージーランド・チリを正解", mode: "capital_only",
+      check: pairCheck("nz", "cl", { capitalOnly: true }),
+      description: "ウェリントンとサンティアゴは、どちらも南半球にある首都です。太平洋を挟んだ遠い地域にありながら、南半球という共通点を持っています。",
+      countries: ["nz", "cl"],
+    },
+  };
+
   // ========================================================
   // Stage E: トロフィー一覧画面(新規)向けのカテゴリ分類。
   // docs/trophy-spec-final.md 2章の照合テーブルが採用している番号区分
@@ -699,6 +910,7 @@ const TrophyModule = (() => {
     { id: "special", label: "特別チャレンジ", range: "#60〜70" },
     { id: "trivia", label: "国旗トリビア", range: "#71〜100" },
     { id: "legacy", label: "称号コレクション", range: "#101〜112" },
+    { id: "capital_trivia", label: "首都トリビア", range: "#113〜141" },
   ];
   function categoryForNumber(number) {
     if (number <= 19) return "progress";
@@ -707,14 +919,17 @@ const TrophyModule = (() => {
     if (number <= 59) return "double";
     if (number <= 70) return "special";
     if (number <= 100) return "trivia";
-    return "legacy";
+    if (number <= 112) return "legacy";
+    return "capital_trivia";
   }
   function getCategories() {
     return TROPHY_CATEGORIES.slice();
   }
 
-  // TROPHIESの該当スロットにSTAGE_B_DEFINITIONS/STAGE_D_DEFINITIONS等の
-  // 内容を反映する。定義に無い番号はnull/未確定のまま変更しない
+  // TROPHIESの該当スロットにSTAGE_B_DEFINITIONS/STAGE_D_DEFINITIONS/
+  // STAGE_CAPITAL_TRIVIA_DEFINITIONS等の内容を反映する。定義に無い番号は
+  // null/未確定のまま変更しない。description/countriesは首都トリビア
+  // (#113〜141)用の追加フィールドで、定義に含まれない場合はnullのまま
   function applyStageBDefinitions(trophies, definitions) {
     const byNumber = new Map(trophies.map((t) => [t.number, t]));
     Object.keys(definitions).forEach((key) => {
@@ -726,6 +941,8 @@ const TrophyModule = (() => {
       t.condition = def.condition;
       t.mode = def.mode;
       t.check = typeof def.check === "function" ? def.check : null; // #101〜112は参照型のためcheckを持たない
+      t.description = typeof def.description === "string" ? def.description : null;
+      t.countries = Array.isArray(def.countries) ? def.countries.slice() : null;
       t.confirmed = true;
     });
   }
@@ -737,7 +954,7 @@ const TrophyModule = (() => {
   function buildTrophyDefinitions() {
     const skipped = new Set(SKIPPED_NUMBERS);
     const list = [];
-    for (let number = 1; number <= 112; number++) {
+    for (let number = 1; number <= MAX_TROPHY_NUMBER; number++) {
       if (skipped.has(number)) continue;
       list.push({
         number,
@@ -748,9 +965,15 @@ const TrophyModule = (() => {
         condition: null,
         category: null,
         hidden: null, // 隠しトロフィーかどうかも未確定
+        // 首都トリビア(#113〜141)用: 長文の解説文(獲得後に表示)と、
+        // 対象2か国のid配列(表示時にjs/countries.jsから国名・首都名を
+        // 導出するための参照)。該当しないトロフィーはnullのまま
+        description: null,
+        countries: null,
         // 第2段階で追加: どのモードの記録かを区別するためのフィールド。
         // "flag" | "capital" | "both"(国旗・首都両方の組合せ) |
-        // "findcountry" | null(未確定)。値自体はまだ1件も確定していない
+        // "flag_only" | "capital_only" | null(未確定)。
+        // 値自体はまだ1件も確定していない
         mode: null,
         // 第2段階で追加: 実際の判定関数(confirmed:trueになって初めて
         // 設定される想定)。シグネチャは check(context) => boolean。
@@ -774,6 +997,7 @@ const TrophyModule = (() => {
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_D_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_CAPITAL_TRIVIA_DEFINITIONS);
   // category/hiddenのみをここで補完する(name/condition/mode/checkは
   // applyStageBDefinitions()が設定した値から一切変更しない)。
   // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
@@ -787,7 +1011,7 @@ const TrophyModule = (() => {
   // ---------- 自己検証(既存のjs/app.js冒頭・js/findcountry.jsのvalidatePools()
   // と同じ、console.assertベースの開発時チェック。問題が無ければ何も出力しない) ----------
   (function validateTrophyDefinitions() {
-    console.assert(TROPHIES.length === 107, `トロフィー定義が107件ではありません(実際: ${TROPHIES.length}件)`);
+    console.assert(TROPHIES.length === 136, `トロフィー定義が136件ではありません(実際: ${TROPHIES.length}件)`);
     const numbers = new Set(TROPHIES.map((t) => t.number));
     console.assert(numbers.size === TROPHIES.length, "トロフィー定義のnumberに重複があります");
     const ids = new Set(TROPHIES.map((t) => t.id));
@@ -795,19 +1019,30 @@ const TrophyModule = (() => {
     SKIPPED_NUMBERS.forEach((n) => {
       console.assert(!numbers.has(n), `欠番(${n})がトロフィー定義に含まれています`);
     });
-    // Stage B・Dで列挙した件数の合計だけがconfirmed:trueになっていることを
-    // 確認する(Stage DでSTAGE_B_DEFINITIONS 79件+STAGE_D_DEFINITIONS 28件=
-    // 107件全てが確定するはず。反映漏れ・重複登録が無いかの自己チェック)
+    // Stage B・D・首都トリビアで列挙した件数の合計だけがconfirmed:trueに
+    // なっていることを確認する(STAGE_B_DEFINITIONS 79件+STAGE_D_DEFINITIONS
+    // 28件+STAGE_CAPITAL_TRIVIA_DEFINITIONS 29件=136件全てが確定するはず。
+    // 反映漏れ・重複登録が無いかの自己チェック。既存107件分の内訳
+    // (79件+28件=107件)は従来どおりの条件として残し、新規29件とは別に
+    // 区別して検証できるようにしている)
     const confirmedCount = TROPHIES.filter((t) => t.confirmed).length;
     const stageBNumbers = Object.keys(STAGE_B_DEFINITIONS).map(Number);
     const stageDNumbers = Object.keys(STAGE_D_DEFINITIONS).map(Number);
+    const capitalTriviaNumbers = Object.keys(STAGE_CAPITAL_TRIVIA_DEFINITIONS).map(Number);
     console.assert(
       stageBNumbers.every((n) => !stageDNumbers.includes(n)),
       "STAGE_B_DEFINITIONSとSTAGE_D_DEFINITIONSで番号が重複しています"
     );
-    const expectedConfirmedCount = stageBNumbers.length + stageDNumbers.length;
-    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・Dで確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
-    console.assert(expectedConfirmedCount === 107, `Stage Dで107件全てが確定するはずが、合計が107件になっていません(実際: ${expectedConfirmedCount}件)`);
+    console.assert(
+      capitalTriviaNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n)),
+      "STAGE_CAPITAL_TRIVIA_DEFINITIONSが既存のSTAGE_B_DEFINITIONS/STAGE_D_DEFINITIONSと番号が重複しています"
+    );
+    const existingConfirmedCount = stageBNumbers.length + stageDNumbers.length;
+    console.assert(existingConfirmedCount === 107, `既存のStage B・Dで107件全てが確定するはずが、合計が107件になっていません(実際: ${existingConfirmedCount}件)`);
+    console.assert(capitalTriviaNumbers.length === 29, `首都トリビアの定義が29件ではありません(実際: ${capitalTriviaNumbers.length}件)`);
+    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length;
+    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビアで確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    console.assert(expectedConfirmedCount === 136, `136件全てが確定するはずが、合計が136件になっていません(実際: ${expectedConfirmedCount}件)`);
     // confirmed:trueのトロフィーは、参照型(#101〜112、checkを持たない)を
     // 除き、必ずcheck関数を持つこと(新規仕様書どおりに実装できていることの確認)
     console.assert(
@@ -830,8 +1065,8 @@ const TrophyModule = (() => {
     // Stage A: 統計データの初期値が、自分自身のバリデータを通ることを確認する
     // (生成関数と検証関数の定義ミスによる食い違いを早期に検出するため)
     console.assert(isValidTrophyStats(emptyTrophyStats()), "emptyTrophyStats()の初期値がisValidTrophyStats()を通りません");
-    // Stage E: 107件全てに有効なcategoryが設定されていること、カテゴリの
-    // 合計件数が107件と一致すること(分類漏れ・重複分類が無いことの確認)
+    // Stage E+首都トリビア追加: 136件全てに有効なcategoryが設定されていること、
+    // カテゴリの合計件数が136件と一致すること(分類漏れ・重複分類が無いことの確認)
     const categoryIds = new Set(TROPHY_CATEGORIES.map((c) => c.id));
     console.assert(categoryIds.size === TROPHY_CATEGORIES.length, "TROPHY_CATEGORIESのidに重複があります");
     console.assert(
@@ -839,7 +1074,9 @@ const TrophyModule = (() => {
       "カテゴリが未設定、または未知のカテゴリのトロフィーがあります"
     );
     const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
-    console.assert(categoryTotal === 107, `カテゴリ別件数の合計が107件になっていません(実際: ${categoryTotal}件)`);
+    console.assert(categoryTotal === 136, `カテゴリ別件数の合計が136件になっていません(実際: ${categoryTotal}件)`);
+    const capitalTriviaCategoryCount = TROPHIES.filter((t) => t.category === "capital_trivia").length;
+    console.assert(capitalTriviaCategoryCount === 29, `首都トリビアカテゴリの件数が29件ではありません(実際: ${capitalTriviaCategoryCount}件)`);
     // 隠しトロフィーは正式確定した12件のみ(HIDDEN_TROPHY_NUMBERS)。それ以外の
     // 95件はhidden:falseであること、12件という件数そのものも確認する
     const hiddenDefs = TROPHIES.filter((t) => t.hidden === true);
@@ -1072,8 +1309,8 @@ const TrophyModule = (() => {
   }
 
   // ---------- 公開API ----------
-  // 107件すべての定義を返す(読み取り専用の用途を想定。将来の一覧画面・
-  // 判定処理の両方がここを参照する想定だが、今回はまだどこからも呼ばれない)
+  // 136件すべての定義を返す(読み取り専用の用途を想定。一覧画面・
+  // 判定処理の両方がここを参照する)
   function getAllDefinitions() {
     return TROPHIES.slice();
   }

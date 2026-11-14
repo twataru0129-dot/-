@@ -1149,6 +1149,25 @@ img { max-width: 100%; }
 .trophy-name { font-weight: 800; margin: 0 0 4px; text-align: center; }
 .trophy-cond { font-size: 0.85rem; color: var(--color-text-sub); margin: 0; text-align: center; }
 
+/* ---------- 首都トリビア(#113〜141): 獲得済みのみ読める対象国+正式解説文 ---------- */
+.trophy-pair {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  margin: 8px 0 0;
+  text-align: center;
+  word-break: break-word;
+}
+.trophy-description {
+  font-size: 0.8rem;
+  color: var(--color-text-sub);
+  margin: 4px 0 0;
+  text-align: left;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- 新トロフィー獲得演出画面 ---------- */
 .trophy-award-list {
   max-height: 55vh;
@@ -1182,6 +1201,21 @@ img { max-width: 100%; }
 .trophy-award-name { font-weight: 800; margin: 2px 0; }
 .trophy-award-cond { font-size: 0.85rem; color: var(--color-text-sub); margin: 0; }
 .trophy-award-sub { font-size: 0.78rem; color: var(--color-primary-dark); font-weight: 700; margin: 4px 0 0; }
+.trophy-award-pair {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  margin: 6px 0 0;
+  word-break: break-word;
+}
+.trophy-award-description {
+  font-size: 0.8rem;
+  color: var(--color-text-sub);
+  margin: 4px 0 0;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 
 /* ---------- 隠しトロフィー(正式確定12件) ---------- */
 /* 一覧画面: 未発見の隠しトロフィーカード(通常のlockedより少し上品に強調する) */
