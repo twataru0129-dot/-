@@ -37,6 +37,18 @@ const FINDCOUNTRY_NAME_MAX_LENGTH = 12;
 const FINDCOUNTRY_COLLECTION_KEY = STORAGE_PREFIX + "findcountry_collection";
 const FINDCOUNTRY_COLLECTION_VERSION = 1;
 
+// 世界図鑑トロフィー(第5段階、No.143〜158)用: 図鑑での「閲覧した国・地域」
+// 「地図連携から確認した国」「復習から見た国」の3種類の記録。いずれも
+// COUNTRIES(198件)のみを対象にし、MAP_ONLY_REGIONS(18件、地図専用)は
+// 対象外にする。トロフィー自体の獲得状態は既存のTROPHY_KEY(js/trophy.js)
+// を引き続き使うため、ここは「何を見た・確認したか」という素の記録だけを持つ
+const ENCYCLOPEDIA_VISITED_KEY = STORAGE_PREFIX + "encyclopedia_visited";
+const ENCYCLOPEDIA_VISITED_VERSION = 1;
+const ENCYCLOPEDIA_MAP_CHECKED_KEY = STORAGE_PREFIX + "encyclopedia_map_checked";
+const ENCYCLOPEDIA_MAP_CHECKED_VERSION = 1;
+const ENCYCLOPEDIA_REVIEWED_KEY = STORAGE_PREFIX + "encyclopedia_reviewed";
+const ENCYCLOPEDIA_REVIEWED_VERSION = 1;
+
 function keysForMode(mode) {
   return mode === "capital" ? CapitalStorageKeys : StorageKeys;
 }
@@ -214,6 +226,71 @@ function saveFindCountryProgressData(data) {
 function countClearedProUnlockCourses(clearedCourses) {
   return FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.filter((k) => !!clearedCourses[k]).length;
 }
+
+// ---- 世界図鑑トロフィー(第5段階): 閲覧・地図確認・復習の記録(COUNTRIES 198件のみ対象) ----
+// COUNTRIES専用の確定id集合。findCountryCollectionValidIds()はCOUNTRIES+
+// MAP_ONLY_REGIONS(216件)を対象にしているため図鑑トロフィーには使えず、
+// 別にCOUNTRIESのみ(198件)のキャッシュを持つ
+let encyclopediaValidIdsCache = null;
+function encyclopediaValidIds() {
+  if (!encyclopediaValidIdsCache) {
+    const all = typeof COUNTRIES !== "undefined" ? COUNTRIES : [];
+    encyclopediaValidIdsCache = new Set(all.map((c) => c.id));
+  }
+  return encyclopediaValidIdsCache;
+}
+
+// 閲覧済み・地図確認済み・復習済みの3種類はいずれも「COUNTRIESのidを
+// 重複なく記録するだけ」という同じ形のため、読み書きロジックを1つの生成関数
+// にまとめて3回複製しない。返り値のrecord()は、idが不正/既に記録済み/保存
+// 失敗のいずれかであればfalseを返す(=保存が実際に成功した場合のみtrueになる)
+function makeEncyclopediaIdSetStore(key, version) {
+  function empty() { return { version, ids: {} }; }
+  function load() {
+    const raw = safeGet(key);
+    if (!raw) return empty();
+    try {
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object" || parsed.version !== version
+        || !parsed.ids || typeof parsed.ids !== "object") {
+        return empty();
+      }
+      return parsed;
+    } catch (e) {
+      console.warn("世界図鑑の記録データの読み込みに失敗しました。保存データを初期化します", e);
+      return empty();
+    }
+  }
+  function save(data) { return safeSet(key, JSON.stringify(data)); }
+  return {
+    getAll() {
+      const data = load();
+      const sanitized = {};
+      Object.keys(data.ids).forEach((id) => {
+        if (data.ids[id] === true && encyclopediaValidIds().has(id)) sanitized[id] = true;
+      });
+      return sanitized;
+    },
+    getCount() { return Object.keys(this.getAll()).length; },
+    has(id) { return Object.prototype.hasOwnProperty.call(this.getAll(), id); },
+    record(id) {
+      try {
+        if (typeof id !== "string" || !encyclopediaValidIds().has(id)) return false;
+        const data = load();
+        if (data.ids[id] === true) return false;
+        data.ids[id] = true;
+        return !!save(data);
+      } catch (e) {
+        console.warn("世界図鑑の記録の保存に失敗しました", e);
+        return false;
+      }
+    },
+  };
+}
+
+const encyclopediaVisitedStore = makeEncyclopediaIdSetStore(ENCYCLOPEDIA_VISITED_KEY, ENCYCLOPEDIA_VISITED_VERSION);
+const encyclopediaMapCheckedStore = makeEncyclopediaIdSetStore(ENCYCLOPEDIA_MAP_CHECKED_KEY, ENCYCLOPEDIA_MAP_CHECKED_VERSION);
+const encyclopediaReviewedStore = makeEncyclopediaIdSetStore(ENCYCLOPEDIA_REVIEWED_KEY, ENCYCLOPEDIA_REVIEWED_VERSION);
 
 const Storage = {
   // ---- 効果音設定 ----
@@ -443,6 +520,23 @@ const Storage = {
     }
   },
 
+  // ---- 世界図鑑トロフィー(第5段階、No.143〜158): 閲覧・地図確認・復習の記録 ----
+  // いずれも「実際にその事実が発生した国idの集合」を返す/記録するだけで、
+  // トロフィーの判定自体はjs/trophy.js側(TrophyModule.evaluateEncyclopediaVisit)
+  // が行う。record系はtrueを返した場合のみ「今回新たに記録された」ことを示す
+  getEncyclopediaVisited() { return encyclopediaVisitedStore.getAll(); },
+  getEncyclopediaVisitedCount() { return encyclopediaVisitedStore.getCount(); },
+  hasEncyclopediaVisited(id) { return encyclopediaVisitedStore.has(id); },
+  recordEncyclopediaVisit(id) { return encyclopediaVisitedStore.record(id); },
+
+  getEncyclopediaMapChecked() { return encyclopediaMapCheckedStore.getAll(); },
+  getEncyclopediaMapCheckedCount() { return encyclopediaMapCheckedStore.getCount(); },
+  recordEncyclopediaMapChecked(id) { return encyclopediaMapCheckedStore.record(id); },
+
+  getEncyclopediaReviewed() { return encyclopediaReviewedStore.getAll(); },
+  getEncyclopediaReviewedCount() { return encyclopediaReviewedStore.getCount(); },
+  recordEncyclopediaReview(id) { return encyclopediaReviewedStore.record(id); },
+
   // ---- データリセット(国旗・首都両方の称号・記録だけを消す) ----
   // 効果音設定(StorageKeys.SOUND)は確認画面の文言(「称号・記録をリセット」)
   // に合わせて対象外にする。以前はStorageKeysの全キー(SOUNDを含む)を
@@ -462,6 +556,9 @@ const Storage = {
       FINDCOUNTRY_RANKING_KEY,
       FINDCOUNTRY_COLLECTION_KEY,
       FINDCOUNTRY_PROGRESS_KEY,
+      ENCYCLOPEDIA_VISITED_KEY,
+      ENCYCLOPEDIA_MAP_CHECKED_KEY,
+      ENCYCLOPEDIA_REVIEWED_KEY,
     ];
     keysToRemove.forEach((k) => {
       try { localStorage.removeItem(k); } catch (e) { /* noop */ }

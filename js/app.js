@@ -803,11 +803,39 @@ const LEGEND_ICON_SVG = `<svg viewBox="0 0 100 100" class="legend-svg" aria-hidd
   <circle cx="67" cy="15" r="2.6" class="legend-crown-jewel"></circle>
 </svg>`;
 
+// 世界図鑑トロフィー#158「世界の叡智」専用アイコン(開いた黄金の書物+
+// そこから浮かび上がる世界地図)。#142と同じく外部画像を使わずインライン
+// SVGのみで表現する。#142の演出・判定には一切触れず、新しいアイコンを
+// 追加するだけ
+const GREAT_LEGEND_TROPHY_NUMBER = 158;
+const GREAT_LEGEND_ICON_SVG = `<svg viewBox="0 0 100 100" class="legend-svg legend-svg-great" aria-hidden="true" focusable="false">
+  <path d="M50 32 L50 80 Q31 72 13 78 L13 36 Q31 28 50 32 Z" class="great-legend-page-left"></path>
+  <path d="M50 32 L50 80 Q69 72 87 78 L87 36 Q69 28 50 32 Z" class="great-legend-page-right"></path>
+  <line x1="50" y1="32" x2="50" y2="80" class="great-legend-spine"></line>
+  <circle cx="50" cy="27" r="15" class="great-legend-globe"></circle>
+  <ellipse cx="50" cy="27" rx="15" ry="6" class="great-legend-globe-line"></ellipse>
+  <ellipse cx="50" cy="27" rx="6" ry="15" class="great-legend-globe-line"></ellipse>
+  <line x1="35" y1="27" x2="65" y2="27" class="great-legend-globe-line"></line>
+  <g class="great-legend-sparkle">
+    <circle cx="22" cy="18" r="1.8"></circle>
+    <circle cx="78" cy="20" r="1.4"></circle>
+    <circle cx="68" cy="8" r="1.2"></circle>
+    <circle cx="30" cy="8" r="1.1"></circle>
+  </g>
+</svg>`;
+
+// #142「都の神話」・#158「世界の叡智」はどちらも最高級デザイン(専用
+// アイコン+専用の達成演出画面screen-trophy-legend)を使う特別な隠し
+// トロフィーのため、ここで両方を対象として扱う。#142単体の表示・判定は
+// 一切変更していない(対象をもう1件増やしただけ)
 function isLegendTrophyId(id) {
-  return id === `trophy_${LEGEND_TROPHY_NUMBER}`;
+  return id === `trophy_${LEGEND_TROPHY_NUMBER}` || id === `trophy_${GREAT_LEGEND_TROPHY_NUMBER}`;
 }
 function isLegendTrophyNumber(number) {
-  return number === LEGEND_TROPHY_NUMBER;
+  return number === LEGEND_TROPHY_NUMBER || number === GREAT_LEGEND_TROPHY_NUMBER;
+}
+function legendIconSvgForNumber(number) {
+  return number === GREAT_LEGEND_TROPHY_NUMBER ? GREAT_LEGEND_ICON_SVG : LEGEND_ICON_SVG;
 }
 
 function trophyModeIcon(mode) {
@@ -830,9 +858,96 @@ function trophyCountryPairLabel(countryIds) {
   return labels.join("・");
 }
 
-function renderTrophyAwardScreen() {
-  const { newTrophyIds, mode, total, correct } = state.lastResult;
+// 直近にこの画面へ表示したトロフィーid一覧。クイズ経由(state.lastResult)・
+// 図鑑経由(notifyNonQuizTrophyAward、state.lastResultを持たない)の
+// どちらからでも、この画面を閉じる時に「今回どれを表示したか」を同じ場所
+// から参照できるようにするための保持(state.lastResultが無い図鑑経由の
+// 呼び出しで参照エラーにならないようにする)
+let lastTrophyAwardIds = [];
+// 図鑑(js/encyclopedia.js・地図連携)経由でこの画面を表示した場合のみ
+// 設定する、「閉じた後に戻る画面」を表すコールバック。nullなら既定
+// (クイズ経由、結果画面へ戻る)の挙動を使う
+let trophyAwardOnContinue = null;
+
+// 図鑑経由の通知のキュー管理。短時間に複数の獲得イベント(例: 詳細ページを
+// 開いた直後に地図連携も成立した等)が発生しても、古い通知を破棄せず
+// 1件ずつ順番に表示するためのもの。
+// - nonQuizAwardQueue: まだ表示していないバッチ(1回のnotifyNonQuizTrophyAward
+//   呼び出し=1バッチ、複数idを含むことがある)の配列
+// - nonQuizAwardShownIds: 今回のキュー処理(最初の1件を表示し始めてから、
+//   キューが完全に空になるまで)で表示済み・表示予定のid集合。同じidが
+//   複数のイベントから二重に届いても、ここで重複を検出して無視する
+//   (awardIfNew()の仕組み上、同じidが2回新規獲得として届くことは本来
+//   無いはずだが、念のための安全策)
+// - nonQuizAwardReturnScreenId: このキュー処理が始まる直前(=何も表示・
+//   待機していない状態)にいた画面。キュー内の全バッチを表示し終えたら
+//   最後にこの画面へ戻る
+// - nonQuizTrophyAwardShowing: 現在screen-trophy-award(または専用演出の
+//   screen-trophy-legend)を表示中かどうか
+let nonQuizAwardQueue = [];
+let nonQuizAwardShownIds = new Set();
+let nonQuizAwardReturnScreenId = null;
+let nonQuizTrophyAwardShowing = false;
+
+// 世界図鑑(js/encyclopedia.js)の詳細ページ表示・地図連携・復習画面からの
+// 表示など、クイズの結果画面を経由しないトロフィー獲得をここで通知する。
+// state.lastResultには一切触れない(クイズ専用の情報を前提にしない)ため、
+// 図鑑側のコードが「クイズの結果情報が存在する」という誤った前提で
+// エラーになることはない。表示中に新たな獲得が発生した場合は破棄せず
+// キューに積み、現在の通知(・専用演出)を閉じた後に順番に表示する
+function notifyNonQuizTrophyAward(ids) {
+  if (!Array.isArray(ids) || ids.length === 0) return;
+  // このキュー処理中に既に表示済み・表示予定のidは除外する(重複通知防止)
+  const newIds = ids.filter((id) => !nonQuizAwardShownIds.has(id));
+  if (newIds.length === 0) return;
+  newIds.forEach((id) => nonQuizAwardShownIds.add(id));
+
+  if (!nonQuizTrophyAwardShowing && nonQuizAwardQueue.length === 0) {
+    // 何も表示中・待機中でもない状態からの最初のバッチの場合のみ、
+    // 戻り先の画面をここで確定する(2件目以降の呼び出し時点では、
+    // 既にscreen-trophy-awardが表示されているため、ここで戻り先を
+    // 取り直すと戻り先を取り違えてしまう)
+    const activeScreen = document.querySelector(".screen.active");
+    nonQuizAwardReturnScreenId = activeScreen ? activeScreen.id : "screen-encyclopedia-list";
+  }
+  nonQuizAwardQueue.push(newIds);
+  if (!nonQuizTrophyAwardShowing) {
+    showNextNonQuizTrophyAward();
+  }
+}
+
+// キューの先頭を1件表示する。キューが空になったら、このキュー処理が
+// 始まる前にいた画面へ戻り、状態を次回の呼び出しのためにリセットする
+function showNextNonQuizTrophyAward() {
+  if (nonQuizAwardQueue.length === 0) {
+    nonQuizTrophyAwardShowing = false;
+    const returnScreenId = nonQuizAwardReturnScreenId || "screen-encyclopedia-list";
+    nonQuizAwardReturnScreenId = null;
+    nonQuizAwardShownIds = new Set();
+    // このキュー処理自体が終わったら必ずnullに戻す。そのままにすると、
+    // この後に別途(クイズ経由で)結果画面から通知画面を開いた際、
+    // trophyAwardOnContinueが残っていることが原因で「結果画面へ」の
+    // 代わりに誤って図鑑側の戻り先へ遷移してしまう
+    trophyAwardOnContinue = null;
+    showScreen(returnScreenId);
+    return;
+  }
+  nonQuizTrophyAwardShowing = true;
+  const ids = nonQuizAwardQueue.shift();
+  trophyAwardOnContinue = showNextNonQuizTrophyAward;
+  renderTrophyAwardScreen({ newTrophyIds: ids, mode: null, total: null, correct: null });
+  showScreen("screen-trophy-award");
+}
+
+// overrideDataを渡した場合はそれを使い、省略時はクイズ結果
+// (state.lastResult)を使う。図鑑経由(notifyNonQuizTrophyAward)は
+// mode/total/correctを持たないoverrideDataを渡すため、198問満点演出の
+// 条件(total===198 && correct===total)はnull同士の比較になり安全にfalseに
+// なる(クイズ専用の演出が図鑑経由で誤発火することはない)
+function renderTrophyAwardScreen(overrideData) {
+  const { newTrophyIds, mode, total, correct } = overrideData || state.lastResult;
   const ids = newTrophyIds || [];
+  lastTrophyAwardIds = ids;
   const list = $("trophy-award-list");
   list.innerHTML = "";
   let hasSecret = false;
@@ -849,7 +964,7 @@ function renderTrophyAwardScreen() {
     // (国旗/首都)の達成かをcontextのmodeで表す(evaluate()はcontext.modeに
     // 対応する側しか判定しないため、このプレイで新規獲得できるのは必ず
     // mode(今回プレイしたモード)側のみ)
-    const markIcon = isLegend ? LEGEND_ICON_SVG : (def.mode === "both" ? trophyModeIcon(mode) : trophyModeIcon(def.mode));
+    const markIcon = isLegend ? legendIconSvgForNumber(def.number) : (def.mode === "both" ? trophyModeIcon(mode) : trophyModeIcon(def.mode));
     const markLabel = def.mode === "both" ? (mode === "capital" ? "首都クイズで達成" : "国旗クイズで達成") : "";
     // 隠しトロフィーの発見演出: 鍵アイコンが外れて本来のトロフィーアイコンが
     // 現れるアニメーション(CSS側の@keyframesで表現、過度な点滅・長時間化は避ける)
@@ -882,6 +997,9 @@ function renderTrophyAwardScreen() {
   secretBanner.classList.toggle("hidden", !hasSecret);
 
   $("trophy-award-count").textContent = ids.length > 0 ? `${ids.length}件のトロフィーを獲得しました！` : "";
+  // 図鑑経由(overrideData指定時)は結果画面に戻らないため、ボタンの
+  // 文言もそれに合わせて変える(クイズ経由の見た目・文言は変更しない)
+  $("btn-trophy-award-continue").textContent = overrideData ? "戻る" : "結果画面へ";
 
   // 198問満点時の特別演出(既存のSoundManager.playFanfare()・runConfetti()を
   // そのまま再利用する。正式仕様の「198問満点時の特別演出」を、古い称号
@@ -895,30 +1013,46 @@ function renderTrophyAwardScreen() {
 }
 
 function initTrophyAwardScreen() {
-  // #142「都の神話」が今回新規に含まれていた場合のみ、結果画面へ戻る前に
-  // 専用の達成演出画面(screen-trophy-legend)を1度だけ経由する。既存の
-  // 獲得通知(このトロフィー一覧そのもの)・結果画面遷移は変更しない
-  // (間に専用演出を挟むだけ)。newTrophyIdsに含まれるのは1プレイに1回限り
-  // (awardIfNew()の重複防止により#142は二度と新規獲得されない)ため、
-  // 演出の多重起動は構造的に発生しない
+  // #142「都の神話」・#158「世界の叡智」のいずれかが今回新規に含まれていた
+  // 場合のみ、戻る前に専用の達成演出画面(screen-trophy-legend)を1度だけ
+  // 経由する。既存の獲得通知(このトロフィー一覧そのもの)・遷移先の決定は
+  // 変更しない(間に専用演出を挟むだけ)。newTrophyIdsに含まれるのは1回限り
+  // (awardIfNew()の重複防止により同じトロフィーは二度と新規獲得されない)
+  // ため、演出の多重起動は構造的に発生しない。
+  // 戻り先は、図鑑経由(notifyNonQuizTrophyAward)ならtrophyAwardOnContinueが
+  // 設定されているためそれを使い、クイズ経由(null)なら既定の結果画面に戻る
   $("btn-trophy-award-continue").addEventListener("click", () => {
-    const ids = (state.lastResult && state.lastResult.newTrophyIds) || [];
-    if (ids.some((id) => isLegendTrophyId(id))) {
-      renderLegendAwardScreen();
+    const ids = lastTrophyAwardIds;
+    const legendId = ids.find((id) => isLegendTrophyId(id));
+    if (legendId) {
+      renderLegendAwardScreen(Number(legendId.replace("trophy_", "")));
       showScreen("screen-trophy-legend");
+    } else if (trophyAwardOnContinue) {
+      trophyAwardOnContinue();
     } else {
       showScreen("screen-result");
     }
   });
 }
 
-// #142「都の神話」専用の達成演出画面。トロフィー獲得通知(screen-trophy-award)
-// の「結果画面へ」から、#142を新規獲得した場合のみ遷移する(過去データの
-// 救済処理(js/trophy.js側、起動時に静かに獲得登録)はevaluate()を経由しない
-// ため、ここには一切出てこない=アプリ起動のたびに演出を繰り返さない)
-function renderLegendAwardScreen() {
-  const def = TrophyModule.getDefinition(`trophy_${LEGEND_TROPHY_NUMBER}`);
+// #142「都の神話」・#158「世界の叡智」共通の達成演出画面。トロフィー獲得
+// 通知(screen-trophy-award)の「続ける」から、いずれかを新規獲得した場合
+// のみ遷移する(過去データの救済処理(js/trophy.js側、起動時に静かに獲得
+// 登録)はevaluate()を経由しないため、ここには一切出てこない=アプリ起動
+// のたびに演出を繰り返さない)。numberで対象を切り替えるだけで、#142自身の
+// 見た目・文言・判定には一切手を加えていない
+function renderLegendAwardScreen(number) {
+  const n = number || LEGEND_TROPHY_NUMBER;
+  const isGreat = n === GREAT_LEGEND_TROPHY_NUMBER;
+  const def = TrophyModule.getDefinition(`trophy_${n}`);
   $("trophy-legend-description").textContent = def ? def.description : "";
+  $("trophy-legend-heading").textContent = isGreat ? "世界図鑑 完全制覇！" : "首都トリビア完全制覇！";
+  $("trophy-legend-subheading").innerHTML = isGreat ? "その名は――<strong>世界の叡智</strong>。" : "その名は――<strong>都の神話</strong>。";
+  $("legend-icon-wrap").innerHTML = legendIconSvgForNumber(n);
+  $("screen-trophy-legend").querySelector(".legend-panel").classList.toggle("legend-panel-great", isGreat);
+  // 図鑑経由(trophyAwardOnContinueが設定されている)は結果画面に戻らないため、
+  // ボタンの文言もそれに合わせて変える(クイズ経由=#142の既存文言は変更しない)
+  $("btn-trophy-legend-continue").textContent = trophyAwardOnContinue ? "図鑑に戻る" : "結果画面へ";
   // 既存の紙吹雪・ファンファーレをそのまま再利用する(新しい音声・画像アセットは追加しない)
   const confettiWrap = $("trophy-legend-confetti-wrap");
   confettiWrap.innerHTML = "";
@@ -927,7 +1061,13 @@ function renderLegendAwardScreen() {
 }
 
 function initLegendAwardScreen() {
-  $("btn-trophy-legend-continue").addEventListener("click", () => showScreen("screen-result"));
+  $("btn-trophy-legend-continue").addEventListener("click", () => {
+    if (trophyAwardOnContinue) {
+      trophyAwardOnContinue();
+    } else {
+      showScreen("screen-result");
+    }
+  });
 }
 
 // ==========================================================
@@ -975,7 +1115,7 @@ function buildTrophyCardElement(def, earnedEntry) {
   const card = document.createElement("div");
   const earnedOverall = st.dual ? (st.flagEarned || st.capitalEarned) : st.earned;
   const secretLocked = !!def.hidden && !earnedOverall; // 隠しトロフィーでまだ誰も(国旗/首都どちらも)獲得していない状態
-  const isLegend = isLegendTrophyNumber(def.number); // #142「都の神話」のみ最高級デザインを追加で重ねる
+  const isLegend = isLegendTrophyNumber(def.number); // #142「都の神話」・#158「世界の叡智」のみ最高級デザインを追加で重ねる
   card.className = "trophy-card" + (earnedOverall ? "" : " locked") + (secretLocked ? " trophy-card-secret" : "") + (isLegend && earnedOverall ? " trophy-card-legend" : "");
   card.dataset.category = def.category;
   card.dataset.earned = String(earnedOverall);
@@ -983,10 +1123,11 @@ function buildTrophyCardElement(def, earnedEntry) {
 
   let marksHtml;
   if (isLegend) {
-    // #142は既存の隠しトロフィー表示(secretLocked時は🔒・「未発見」)を
-    // そのまま再利用しつつ、獲得後のアイコンだけ専用の王冠+地球儀SVGに置き換える
+    // #142・#158は既存の隠しトロフィー表示(secretLocked時は🔒・「未発見」)を
+    // そのまま再利用しつつ、獲得後のアイコンだけ専用SVG(王冠+地球儀、
+    // または黄金の書物+世界地図)に置き換える
     const dateStr = st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "";
-    const icon = st.earned ? LEGEND_ICON_SVG : "🔒";
+    const icon = st.earned ? legendIconSvgForNumber(def.number) : "🔒";
     marksHtml = `
       <div class="trophy-marks">
         <div class="trophy-mark-col">
@@ -1371,7 +1512,7 @@ async function handleResetDataClick() {
   try {
     const step1 = await showResetConfirmStep(
       "保存データをすべて削除しますか？",
-      "称号・トロフィー・記録・ランキング・コレクションが削除されます。この操作は取り消せません。",
+      "称号・トロフィー・記録・ランキング・コレクション・世界図鑑の探索記録(閲覧・地図連携・復習)が削除されます。この操作は取り消せません。",
       "すべて削除する",
       "キャンセル"
     );
@@ -1467,7 +1608,12 @@ function mapOpenOptionsFromStack(selectId) {
         // 通常の図鑑から開いた場合もlistIdsは常に渡るが、内容は
         // openDetailByIdの再計算結果と同じになるため挙動は変わらない
         if (top.listIds && top.listIds.length) {
-          EncyclopediaModule.openDetailWithList(top.id, top.listIds, opts);
+          // 世界図鑑トロフィー(No.156・157「復習」)用: 復習画面から地図を
+          // 経由してこの詳細画面に戻ってきた場合も、積んでおいたisReviewを
+          // そのまま引き継いでreviewSessionとして渡す。これにより「復習→
+          // 地図→元の国に戻る」は復習記録のまま、「復習→地図→別の国を開く」
+          // (この分岐を通らずopenDetailByIdの方を通る)は復習扱いしない
+          EncyclopediaModule.openDetailWithList(top.id, top.listIds, Object.assign({}, opts, { reviewSession: !!top.isReview }));
         } else {
           EncyclopediaModule.openDetailById(top.id, opts);
         }
@@ -1524,9 +1670,52 @@ function initMapEncyclopediaLink() {
     // 今表示している図鑑詳細画面(id)と、その前へ/次へ移動範囲
     // (listIds。通常の図鑑一覧の範囲、または復習リストの範囲)を、
     // 地図から戻ってきたときの再表示対象としてスタックに積む
-    pushMapEncyclopediaNav({ screen: "encyclopedia-detail", id, listIds: (e.detail && e.detail.listIds) || null });
+    pushMapEncyclopediaNav({
+      screen: "encyclopedia-detail",
+      id,
+      listIds: (e.detail && e.detail.listIds) || null,
+      // 世界図鑑トロフィー(No.156・157「復習」)用: 復習画面から開いていた
+      // 詳細画面かどうかを、地図との往復をまたいでここに保持しておく
+      isReview: !!(e.detail && e.detail.isReview),
+    });
     showScreen("screen-map");
     MapModule.open(mapOpenOptionsFromStack(id));
+  });
+
+  // 世界図鑑トロフィー(No.154・155「地図連携」)用: 図鑑の詳細画面から
+  // 「🌍 地図で場所を見る」を実際に使って地図上でその国が選択表示された
+  // 瞬間だけ発火する(js/map.jsのselectCountryByIdInternal参照。検索・
+  // ランダム・タップ・クイズでの選択からは発火しない)。idがMAP_ONLY_REGIONS
+  // (地図専用地域)の場合はStorage側で記録自体が行われずchangedがfalseの
+  // ままになるため、ここでカテゴリー判定をする必要はない
+  document.addEventListener("mapmodule:encyclopedia-link-selected", (e) => {
+    const id = e.detail && e.detail.id;
+    if (!id || typeof Storage === "undefined") return;
+    let changed = false;
+    try {
+      changed = Storage.recordEncyclopediaMapChecked(id);
+    } catch (err) {
+      console.warn("世界図鑑の地図連携記録に失敗しました", err);
+    }
+    if (!changed) return;
+    try {
+      if (typeof TrophyModule === "undefined" || typeof TrophyModule.evaluateEncyclopediaVisit !== "function") return;
+      const result = TrophyModule.evaluateEncyclopediaVisit();
+      if (result && Array.isArray(result.awardedIds) && result.awardedIds.length) {
+        notifyNonQuizTrophyAward(result.awardedIds);
+      }
+    } catch (err) {
+      console.warn("世界図鑑トロフィーの判定に失敗しました", err);
+    }
+  });
+
+  // 世界図鑑(js/encyclopedia.js)の詳細ページを開いた瞬間・復習画面から
+  // 開いた瞬間に、図鑑トロフィーが新規に成立した場合はここで通知する
+  // (js/encyclopedia.js側はstate.lastResult等のクイズ専用の状態を一切
+  // 前提にできないため、このイベント経由で通知だけをapp.js側に依頼する)
+  document.addEventListener("trophymodule:non-quiz-award", (e) => {
+    const ids = e.detail && e.detail.ids;
+    if (Array.isArray(ids) && ids.length) notifyNonQuizTrophyAward(ids);
   });
 
   // 地図の情報カード「📖 世界図鑑で見る」→ 図鑑の詳細画面をそのidで開く

@@ -186,7 +186,11 @@ const ReviewModule = (() => {
     // 詳細画面を開く。地図を経由して何度往復しても、このpush/popの
     // 対応関係によって必ず復習リストへ戻れる(PR #39と同じ仕組み)
     pushMapEncyclopediaNav({ screen: "review-list" });
-    EncyclopediaModule.openDetailWithList(id, reviewListIds, encyclopediaBackOptionsFromStack());
+    // 世界図鑑トロフィー(No.156・157「復習」)用: 復習リストから開いたことを
+    // 図鑑側(EncyclopediaModule)に伝える。既存の戻り先options
+    // (encyclopediaBackOptionsFromStack())はそのまま維持し、
+    // reviewSession:trueだけを追加で合成する
+    EncyclopediaModule.openDetailWithList(id, reviewListIds, Object.assign({}, encyclopediaBackOptionsFromStack(), { reviewSession: true }));
   }
 
   function initEvents() {

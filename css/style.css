@@ -1432,3 +1432,44 @@ img { max-width: 100%; }
   .legend-heading { font-size: 1.35rem; }
   .legend-subheading { font-size: 1rem; }
 }
+
+/* ==========================================================
+   特別な隠しトロフィー#158「世界の叡智」専用デザイン
+   (「世界のすべてを調べ尽くした者に贈られる、伝説の黄金の書」:
+   開いた黄金の書物+そこから浮かび上がる世界地図・深い紺色/紫色基調)。
+   #142の演出・判定・CSSは一切変更せず、対象が#158の時だけ
+   js/app.js側がlegend-panel-greatクラス・専用SVGを追加で重ねる。
+   一覧カード(.trophy-card-legend)・獲得演出リスト(.trophy-award-item-legend)
+   は#142と共通の金×紺紫デザインをそのまま再利用し、アイコンだけが
+   js/app.js側のlegendIconSvgForNumber()で王冠から書物に置き換わる
+   ========================================================== */
+.great-legend-page-left,
+.great-legend-page-right {
+  fill: #ffd76a;
+  stroke: #a97c0e;
+  stroke-width: 1;
+  opacity: .95;
+}
+.great-legend-page-right { opacity: .8; }
+.great-legend-spine { stroke: #a97c0e; stroke-width: 1.4; }
+.great-legend-globe { fill: #241b45; stroke: #ffe27a; stroke-width: 1.4; }
+.great-legend-globe-line { fill: none; stroke: #ffe27a; stroke-width: 1; opacity: .9; }
+.great-legend-sparkle circle {
+  fill: #fff6d6;
+  animation: greatLegendTwinkle 1.8s ease-in-out infinite;
+}
+.great-legend-sparkle circle:nth-child(2) { animation-delay: .4s; }
+.great-legend-sparkle circle:nth-child(3) { animation-delay: .8s; }
+.great-legend-sparkle circle:nth-child(4) { animation-delay: 1.2s; }
+@keyframes greatLegendTwinkle {
+  0%, 100% { opacity: .25; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .great-legend-sparkle circle { animation: none !important; opacity: .8 !important; }
+}
+/* #158表示時のみ、アイコンの輝きをやや深い金×紺色に寄せて書物らしさを出す
+   (#142のデフォルト配色自体は変更しない。クラスが付いている間だけの上書き) */
+.legend-panel-great .legend-icon-wrap {
+  background: radial-gradient(circle at 32% 24%, #3a2d66 0%, #201a3f 55%, #120d28 100%);
+}

@@ -577,6 +577,14 @@ const MapModule = (() => {
   // 世界図鑑の詳細画面など、外部から渡された正確なid(あいまい検索ではない)で
   // 国・地域を選択する。countryByIdは198件(COUNTRIES)+18件(MAP_ONLY_REGIONS)の
   // 全216件をカバーするため、どちらのデータセットのidでも正しく解決できる
+  // 世界図鑑トロフィー(No.154・155「地図連携」)用の唯一の発火点。
+  // この関数はapplyPendingSelectionIfCurrent()からしか呼ばれず、それも
+  // 世界図鑑の詳細画面の「🌍 地図で場所を見る」ボタン(MapModule.open({selectId})
+  // 経由)でのみpendingSelectIdが設定されるため、検索・ランダム・タップ・
+  // クイズでの選択(いずれもselectCountry()を直接呼ぶ)からは一切発火しない。
+  // idがMAP_ONLY_REGIONS(地図専用地域、18件)の場合は、js/storage.js側の
+  // 記録関数(COUNTRIES専用の確定id集合で検証する)が記録自体を行わず
+  // 安全に無視するため、ここでカテゴリー判定をする必要はない
   function selectCountryByIdInternal(id) {
     if (!countryById) return;
     const country = countryById.get(id);
@@ -584,6 +592,7 @@ const MapModule = (() => {
       console.warn(`世界図鑑から指定されたID「${id}」が見つかりません`);
       return;
     }
+    document.dispatchEvent(new CustomEvent("mapmodule:encyclopedia-link-selected", { detail: { id } }));
     closeSearchSuggestions();
     closeRegionList();
     // 検索からの選択(renderSearchResults内)と同じく、地域フィルターが

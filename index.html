@@ -329,13 +329,16 @@
   </div>
 </section>
 
-<!-- ============ 特別な隠しトロフィー#142「都の神話」専用の達成演出画面。
-     首都トリビア29種類すべてを獲得した瞬間だけ、通常のトロフィー獲得通知
-     (screen-trophy-award)の後に表示する(既存の獲得通知・結果画面には影響しない) ============ -->
+<!-- ============ 特別な隠しトロフィー専用の達成演出画面(#142「都の神話」・
+     #158「世界の叡智」共通)。首都トリビア29種類制覇、または世界図鑑198件
+     +地域制覇6件の完全制覇を迎えた瞬間だけ、通常のトロフィー獲得通知
+     (screen-trophy-award)の後に表示する(既存の獲得通知・結果画面には
+     影響しない)。見出し・アイコン・配色は対象のトロフィーに応じて
+     js/app.jsのrenderLegendAwardScreen()がその都度書き換える ============ -->
 <section id="screen-trophy-legend" class="screen">
   <div class="panel legend-panel">
     <div id="trophy-legend-confetti-wrap" class="confetti-canvas-wrap"></div>
-    <div class="legend-icon-wrap" aria-hidden="true">
+    <div id="legend-icon-wrap" class="legend-icon-wrap" aria-hidden="true">
       <svg viewBox="0 0 100 100" class="legend-svg" focusable="false">
         <circle cx="50" cy="58" r="32" class="legend-globe-outline"></circle>
         <ellipse cx="50" cy="58" rx="32" ry="13" class="legend-globe-outline"></ellipse>
@@ -347,8 +350,8 @@
         <circle cx="67" cy="15" r="2.6" class="legend-crown-jewel"></circle>
       </svg>
     </div>
-    <h2 class="legend-heading">首都トリビア完全制覇！</h2>
-    <p class="legend-subheading">その名は――<strong>都の神話</strong>。</p>
+    <h2 id="trophy-legend-heading" class="legend-heading">首都トリビア完全制覇！</h2>
+    <p id="trophy-legend-subheading" class="legend-subheading">その名は――<strong>都の神話</strong>。</p>
     <p id="trophy-legend-description" class="legend-description"></p>
     <div class="result-buttons">
       <button id="btn-trophy-legend-continue" class="btn btn-gold btn-large">結果画面へ</button>
@@ -518,6 +521,17 @@
         <span id="ency-region-btn-label">🌍 すべての地域</span> <span class="ency-region-caret">▼</span>
       </button>
       <ul id="ency-region-list" class="ency-region-list hidden" role="listbox"></ul>
+    </div>
+
+    <!-- 世界図鑑トロフィー(No.143〜158)用: 探索の進捗表示。国・地域タブ
+         (COUNTRIES、198件)でのみ表示し、その他の地域タブ(MAP_ONLY_REGIONS、
+         18件、198件の対象外)では非表示にする(js/encyclopedia.js側で切替) -->
+    <div id="ency-progress-summary" class="ency-progress-summary hidden">
+      <p id="ency-progress-text" class="ency-progress-text"></p>
+      <div id="ency-progress-bar" class="ency-progress-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="世界図鑑の探索進捗">
+        <div id="ency-progress-bar-fill" class="ency-progress-bar-fill"></div>
+      </div>
+      <p id="ency-progress-region" class="ency-progress-region hidden"></p>
     </div>
 
     <p id="ency-result-count" class="ency-result-count"></p>
