@@ -116,11 +116,6 @@ function initTopScreen() {
     });
   });
 
-  $("btn-collection").addEventListener("click", () => {
-    renderCollectionScreen();
-    showScreen("screen-collection");
-  });
-
   $("btn-trophy-list").addEventListener("click", () => {
     renderTrophyListScreen();
     showScreen("screen-trophy-list");
@@ -1264,81 +1259,6 @@ function renderTrophyListScreen() {
 
 function initTrophyListScreen() {
   renderTrophyFilterControls();
-}
-
-// ==========================================================
-// 称号コレクション画面
-// ==========================================================
-// 国旗クイズ・首都クイズどちらの称号セクションも同じ描画処理を共有する
-function renderCollectionSection(titles, mode, gridId, recordListId) {
-  const grid = $(gridId);
-  grid.innerHTML = "";
-  const earned = Storage.getEarnedTitles(mode);
-
-  titles.forEach((t) => {
-    const data = earned[t.id];
-    const card = document.createElement("div");
-    card.className = "collection-card" + (data ? "" : " locked");
-    if (data) {
-      const dateStr = formatJapaneseDate(new Date(data.earnedAt));
-      card.innerHTML = `
-        <div class="medal ${t.medalClass}"></div>
-        <div class="collection-info">
-          <p class="collection-name">${t.name}</p>
-          <p class="collection-cond">${t.condition}</p>
-          <p class="collection-date">${dateStr} 取得</p>
-        </div>`;
-    } else {
-      card.innerHTML = `
-        <div class="medal locked"></div>
-        <div class="collection-info">
-          <p class="collection-name">？？？</p>
-          <p class="collection-cond">${t.condition}で解放</p>
-        </div>`;
-    }
-    grid.appendChild(card);
-  });
-
-  const recordList = $(recordListId);
-  const records = Storage.getBestRecords(mode);
-  const attempts = Storage.getAttempts(mode);
-  const bestRate = Storage.getBestRate(mode);
-  let html = `<h3>記録</h3>`;
-  html += `<div class="record-row"><span>挑戦回数</span><span>${attempts} 回</span></div>`;
-  html += `<div class="record-row"><span>最高正答率</span><span>${bestRate}％</span></div>`;
-  QUESTION_COUNTS.forEach((count) => {
-    const r = records[String(count)];
-    html += `<div class="record-row"><span>${count}問モード 最高記録</span><span>${r ? `${r.correct} / ${r.total}` : "-"}</span></div>`;
-  });
-  recordList.innerHTML = html;
-
-  if (DEBUG_MODE) {
-    const debugBox = document.createElement("div");
-    debugBox.style.marginTop = "16px";
-    debugBox.innerHTML = "<p style='font-size:12px;color:#999;'>DEBUG: 称号を強制表示</p>";
-    titles.forEach((t) => {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-plain";
-      btn.style.marginRight = "6px";
-      btn.style.marginBottom = "6px";
-      btn.textContent = `Test: ${t.name}`;
-      btn.addEventListener("click", () => {
-        state.mode = mode;
-        state.lastResult = { correct: t.count, total: t.count, rate: 100, titleObj: t, isNewTitle: true, best: { correct: t.count, total: t.count }, mode };
-        renderTitleAwardScreen();
-        showScreen("screen-title-award");
-      });
-      debugBox.appendChild(btn);
-    });
-    recordList.appendChild(debugBox);
-  }
-}
-
-// 称号コレクション画面: 国旗クイズ・首都クイズを2セクションに分けて表示する
-// (称号・記録は別々のlocalStorageキーで管理されているため混同しない)
-function renderCollectionScreen() {
-  renderCollectionSection(TITLES, "flag", "collection-grid-flag", "record-list-flag");
-  renderCollectionSection(CAPITAL_TITLES, "capital", "collection-grid-capital", "record-list-capital");
 }
 
 // ==========================================================
