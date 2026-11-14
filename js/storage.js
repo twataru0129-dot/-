@@ -227,6 +227,78 @@ function countClearedProUnlockCourses(clearedCourses) {
   return FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.filter((k) => !!clearedCourses[k]).length;
 }
 
+// ---- トロフィーNo.27「地球の支配者」用: 通常12コースの「ノーミスクリア」記録 ----
+// 既存のFINDCOUNTRY_PROGRESS_KEY(通常のクリア記録)とは別の専用キーに保存し、
+// 既存のクリア記録・PRO解放判定には一切手を加えない(「通常クリア記録と
+// ノーミスクリア記録は区別してください」という確定仕様に対応)。
+// courseKeyは既存と同じ形式("beginner_5"等)、対象は同じ12コース
+// (FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYSを再利用し、対象一覧を複製しない)
+const FINDCOUNTRY_NOMISS_KEY = STORAGE_PREFIX + "findcountry_nomiss_progress";
+const FINDCOUNTRY_NOMISS_VERSION = 1;
+
+function emptyFindCountryNoMissData() {
+  return { version: FINDCOUNTRY_NOMISS_VERSION, noMissClearedCourses: {} };
+}
+
+function loadFindCountryNoMissData() {
+  const raw = safeGet(FINDCOUNTRY_NOMISS_KEY);
+  if (!raw) return emptyFindCountryNoMissData();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || parsed.version !== FINDCOUNTRY_NOMISS_VERSION
+      || !parsed.noMissClearedCourses || typeof parsed.noMissClearedCourses !== "object") {
+      return emptyFindCountryNoMissData();
+    }
+    return parsed;
+  } catch (e) {
+    console.warn("findcountryのノーミスクリア記録の読み込みに失敗しました。保存データを初期化します", e);
+    return emptyFindCountryNoMissData();
+  }
+}
+
+function saveFindCountryNoMissData(data) {
+  return safeSet(FINDCOUNTRY_NOMISS_KEY, JSON.stringify(data));
+}
+
+function countClearedNoMissCourses(noMissClearedCourses) {
+  return FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.filter((k) => !!noMissClearedCourses[k]).length;
+}
+
+// ---- トロフィーNo.31「小さな巨人」用: PROモードで正解した5か国の記録 ----
+// 既存のfindcountryコレクション(どの難易度で正解したかを区別しない)とは
+// 完全に別の専用キーに保存する。「通常モードでの正解は対象外」という確定
+// 仕様があるため、既存コレクションを流用すると難易度を区別できず正しく
+// 判定できない(js/findcountry.js側がPROモードの正解時だけ記録を呼ぶ)
+const FINDCOUNTRY_PRO_TINY_KEY = STORAGE_PREFIX + "findcountry_pro_tiny";
+const FINDCOUNTRY_PRO_TINY_VERSION = 1;
+// モナコ・サンマリノ・リヒテンシュタイン・ナウル・ツバル(内部id)。
+// 対象はjs/countries.jsの実在id(mc/sm/li/nr/tv)で、全てPROの216件に含まれる
+const FINDCOUNTRY_PRO_TINY_IDS = ["mc", "sm", "li", "nr", "tv"];
+
+function emptyFindCountryProTinyData() {
+  return { version: FINDCOUNTRY_PRO_TINY_VERSION, ids: {} };
+}
+
+function loadFindCountryProTinyData() {
+  const raw = safeGet(FINDCOUNTRY_PRO_TINY_KEY);
+  if (!raw) return emptyFindCountryProTinyData();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || parsed.version !== FINDCOUNTRY_PRO_TINY_VERSION
+      || !parsed.ids || typeof parsed.ids !== "object") {
+      return emptyFindCountryProTinyData();
+    }
+    return parsed;
+  } catch (e) {
+    console.warn("findcountryのPRO小国記録の読み込みに失敗しました。保存データを初期化します", e);
+    return emptyFindCountryProTinyData();
+  }
+}
+
+function saveFindCountryProTinyData(data) {
+  return safeSet(FINDCOUNTRY_PRO_TINY_KEY, JSON.stringify(data));
+}
+
 // ---- 世界図鑑トロフィー(第5段階): 閲覧・地図確認・復習の記録(COUNTRIES 198件のみ対象) ----
 // COUNTRIES専用の確定id集合。findCountryCollectionValidIds()はCOUNTRIES+
 // MAP_ONLY_REGIONS(216件)を対象にしているため図鑑トロフィーには使えず、
@@ -519,6 +591,62 @@ const Storage = {
       return { justUnlockedPro: false };
     }
   },
+  // 指定コースが既にクリア済みかどうかを読むだけの関数(トロフィーNo.2〜13・
+  // 15〜17用。過去にクリア済みのコースがあれば、新しい判定を追加した
+  // この時点で即座に実績を反映できる)
+  isFindCountryCourseCleared(courseKey) {
+    const data = loadFindCountryProgressData();
+    return !!data.clearedCourses[courseKey];
+  },
+
+  // ---- トロフィーNo.27「地球の支配者」用: 通常12コースのノーミスクリア記録 ----
+  // 既存のmarkFindCountryCourseCleared/getFindCountryProUnlockProgressとは
+  // 完全に独立しており、既存のクリア記録・PRO解放判定には一切影響しない
+  markFindCountryCourseNoMissCleared(courseKey) {
+    try {
+      const data = loadFindCountryNoMissData();
+      if (data.noMissClearedCourses[courseKey]) return false;
+      data.noMissClearedCourses[courseKey] = true;
+      return !!saveFindCountryNoMissData(data);
+    } catch (e) {
+      console.warn("findcountryのノーミスクリア記録の保存に失敗しました", e);
+      return false;
+    }
+  },
+  getFindCountryNoMissClearProgress() {
+    const data = loadFindCountryNoMissData();
+    const clearedCount = countClearedNoMissCourses(data.noMissClearedCourses);
+    return {
+      clearedCount,
+      total: FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.length,
+      allCleared: clearedCount === FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.length,
+    };
+  },
+
+  // ---- トロフィーNo.31「小さな巨人」用: PROモードで正解した5か国の記録 ----
+  // idがFINDCOUNTRY_PRO_TINY_IDSに含まれない場合や、既に記録済みの場合は
+  // 何もせずfalseを返す(同じ国・地域を複数回正解しても1件として数える)
+  recordFindCountryProTinyCapture(id) {
+    try {
+      if (typeof id !== "string" || !FINDCOUNTRY_PRO_TINY_IDS.includes(id)) return false;
+      const data = loadFindCountryProTinyData();
+      if (data.ids[id] === true) return false;
+      data.ids[id] = true;
+      return !!saveFindCountryProTinyData(data);
+    } catch (e) {
+      console.warn("findcountryのPRO小国記録の保存に失敗しました", e);
+      return false;
+    }
+  },
+  getFindCountryProTinyProgress() {
+    const data = loadFindCountryProTinyData();
+    const capturedCount = FINDCOUNTRY_PRO_TINY_IDS.filter((id) => data.ids[id] === true).length;
+    return {
+      capturedCount,
+      total: FINDCOUNTRY_PRO_TINY_IDS.length,
+      allCaptured: capturedCount === FINDCOUNTRY_PRO_TINY_IDS.length,
+    };
+  },
 
   // ---- 世界図鑑トロフィー(第5段階、No.143〜158): 閲覧・地図確認・復習の記録 ----
   // いずれも「実際にその事実が発生した国idの集合」を返す/記録するだけで、
@@ -556,6 +684,8 @@ const Storage = {
       FINDCOUNTRY_RANKING_KEY,
       FINDCOUNTRY_COLLECTION_KEY,
       FINDCOUNTRY_PROGRESS_KEY,
+      FINDCOUNTRY_NOMISS_KEY,
+      FINDCOUNTRY_PRO_TINY_KEY,
       ENCYCLOPEDIA_VISITED_KEY,
       ENCYCLOPEDIA_MAP_CHECKED_KEY,
       ENCYCLOPEDIA_REVIEWED_KEY,

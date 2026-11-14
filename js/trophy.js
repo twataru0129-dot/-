@@ -217,7 +217,9 @@ const TrophyModule = (() => {
   // さらに特別な隠しトロフィー#142「都の神話」(首都トリビア29種類を
   // すべて獲得した時点で自動獲得)の追加により、上限が141から142に
   // 拡張された(136+1=137件)
-  const MAX_TROPHY_NUMBER = 158;
+  // 「世界の国どこかな？」専用トロフィー36種類(#159〜194)の追加により、
+  // 上限が158から194に拡張された(153+36=189件)
+  const MAX_TROPHY_NUMBER = 194;
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
   // 参照する「参照型」スロット。新規にwfq_v1_trophy_earnedへ書き込むことは
@@ -1096,6 +1098,283 @@ const TrophyModule = (() => {
   };
 
   // ========================================================
+  // 「世界の国どこかな？」専用トロフィー36種類(#159〜194)用のヘルパー。
+  // いずれも既存の判定・保存処理を複製せず、既存API(Storage/COUNTRIES/
+  // MAP_ONLY_REGIONS/countryRegionById/FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS)
+  // を読み取るだけの純粋関数にする
+  // ========================================================
+
+  // COUNTRIES(基本198件)だけのid集合。findCountryCollectionValidIds()
+  // (js/storage.js、COUNTRIES+MAP_ONLY_REGIONSの216件)とは別に、基本198件の
+  // 完全制覇(No.24相当)を判定するためだけに使う
+  let findCountryBasicIdsCache = null;
+  function findCountryBasicIds() {
+    if (!findCountryBasicIdsCache) {
+      findCountryBasicIdsCache = new Set((typeof COUNTRIES !== "undefined" ? COUNTRIES : []).map((c) => c.id));
+    }
+    return findCountryBasicIdsCache;
+  }
+
+  // 「世界の国どこかな？」コレクション(Storage.getFindCountryCollection())の
+  // 件数。No.22・23(総数)・24(基本198件のみ)・25(216件全て)が、どれも
+  // この1つの既存コレクションだけから判定できる(ストレージの拡張は不要。
+  // 実装前調査で確認済み: findCountryCollectionValidIds()は元々COUNTRIES+
+  // MAP_ONLY_REGIONSの216件を対象にしている)
+  function findCountryCollectionCounts() {
+    if (typeof Storage === "undefined") return { total: 0, basic: 0 };
+    const ids = Object.keys(Storage.getFindCountryCollection());
+    const basic = ids.filter((id) => findCountryBasicIds().has(id)).length;
+    return { total: ids.length, basic };
+  }
+
+  // resultsの配列(questionNumber昇順)を先頭から順に見て、predicateを満たす
+  // 連続回数がminCount以上になる箇所が1つでもあればtrueを返す。満たさない
+  // 要素が出た時点で連続回数を0に戻す(No.20・21代替・26代替・32・35・193用の
+  // 共通ロジック。「216という数字を複数の場所にハードコードしない」の方針と
+  // 同様、この連続判定ロジックも1か所にまとめ、重複させない)
+  function hasConsecutiveRun(results, minCount, predicate) {
+    if (!Array.isArray(results)) return false;
+    let streak = 0;
+    for (let i = 0; i < results.length; i++) {
+      if (predicate(results[i])) {
+        streak += 1;
+        if (streak >= minCount) return true;
+      } else {
+        streak = 0;
+      }
+    }
+    return false;
+  }
+
+  // 「世界の国どこかな？」の1プレイの結果確定(evaluateFindCountryResult)から
+  // 呼ばれたcontextかどうか。即時付与用のevaluateFindCountryAnswer(resultsを
+  // 持たない)から呼ばれた場合はfalseになるため、1プレイ単位の判定(連続正解・
+  // ノーミス・コレクション以外の大半)が誤ったタイミングで評価されない
+  function isFindCountryPlayResult(ctx) {
+    return !!ctx && ctx.source === "findcountry" && Array.isArray(ctx.results);
+  }
+
+  // No.187「不死鳥の逆転劇」用: 通常30問コースで、第10問までに累計2ミス
+  // (ライフを2回失った状態)から、3ミス目を発生させずに最後まで初回正解で
+  // クリアしたかどうか。ユーザー提示の推奨判定をそのまま実装する:
+  // ①第10問までに2ミスしている ②2ミス目が発生した問題を正解して次へ進む
+  // (=results上はその問題の最終結果が"correct"になる。再挑戦はresultsに
+  // 中間結果を積まないため、この配列だけで自然に表現できる)
+  // ③その次の問題から最後まで、すべて初回正解する ④3ミス目が発生しない
+  function phoenixComeback(ctx) {
+    if (!isFindCountryPlayResult(ctx)) return false;
+    if (ctx.difficultyId === "pro" || !ctx.isNormalClear) return false;
+    if (ctx.target !== 30 || ctx.results.length < 30) return false;
+    if (!Number.isFinite(ctx.maxLives)) return false;
+    const q10 = ctx.results[9];
+    if (!q10 || !Number.isFinite(q10.livesAfter)) return false;
+    const missesByQ10 = ctx.maxLives - q10.livesAfter;
+    if (missesByQ10 !== 2) return false;
+    for (let i = 10; i < 30; i++) {
+      const r = ctx.results[i];
+      if (!r || r.livesAfter < q10.livesAfter) return false; // 3ミス目(以降の追加ミス)が発生した
+      if (!r.firstTryCorrect) return false; // 11問目以降は全て初回正解が必要
+    }
+    return true;
+  }
+
+  // No.191「世界一周の奇跡」用: 1プレイ中の初回正解だけを対象に、6地域
+  // (ALL_QUIZ_REGIONS、既存の地域分類をそのまま再利用)すべてから1問以上
+  // 初回正解しているかどうか。地図専用18地域(COUNTRIESに無いid)は
+  // countryRegionByIdがnullを返すため、既存の地域分類の対象外として
+  // 自然に無視される
+  function findCountryRegionSweepAchieved(results) {
+    if (!Array.isArray(results)) return false;
+    const covered = new Set();
+    results.forEach((r) => {
+      if (r.result === "correct" && r.firstTryCorrect) {
+        const region = countryRegionById(r.countryId);
+        if (region) covered.add(region);
+      }
+    });
+    return ALL_QUIZ_REGIONS.every((r) => covered.has(r));
+  }
+
+  // No.159〜194(「世界の国どこかな？」専用36種、2026年追加)。第4段階までの
+  // 既存153件(#1〜158)は一切変更しない。rarityは今回新設する表示用
+  // フィールド("normal"|"rare"|"super_rare")で、既存トロフィーには設定しない
+  // (undefinedのまま)。mode:"findcountry"は第2段階で用意されていた予約値を
+  // そのまま使う(common型と同じ単一状態として保存される、モードによる
+  // デュアル分岐には入らない)
+  const STAGE_FINDCOUNTRY_DEFINITIONS = {
+    // ---- #159〜172: 普通トロフィー(14件) ----
+    159: {
+      name: "地図への第一歩", condition: "「どこかな？」で初めて1問正解する", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && findCountryCollectionCounts().total >= 1,
+    },
+    160: {
+      name: "はじめての発見", condition: "初級5問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("beginner_5"),
+    },
+    161: {
+      name: "駆け出し探検家", condition: "初級10問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("beginner_10"),
+    },
+    162: {
+      name: "世界を歩く者", condition: "初級20問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("beginner_20"),
+    },
+    163: {
+      name: "初級マスター", condition: "初級30問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("beginner_30"),
+    },
+    164: {
+      name: "世界の探索者", condition: "中級5問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("intermediate_5"),
+    },
+    165: {
+      name: "国境を越えて", condition: "中級10問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("intermediate_10"),
+    },
+    166: {
+      name: "地理の冒険者", condition: "中級20問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("intermediate_20"),
+    },
+    167: {
+      name: "中級マスター", condition: "中級30問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("intermediate_30"),
+    },
+    168: {
+      name: "地球の挑戦者", condition: "上級5問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("advanced_5"),
+    },
+    169: {
+      name: "世界の案内人", condition: "上級10問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("advanced_10"),
+    },
+    170: {
+      name: "地図の達人", condition: "上級20問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("advanced_20"),
+    },
+    171: {
+      name: "上級マスター", condition: "上級30問コースをクリアする", mode: "findcountry", rarity: "normal",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.isFindCountryCourseCleared("advanced_30"),
+    },
+    172: {
+      // 既存コレクションは難易度を区別しないため、No.1と異なり過去実績からは
+      // 判定できない(実装前調査で確認済み)。この時点以降のPRO初回正解からの
+      // 即時付与のみとなる
+      name: "秘境への扉", condition: "PROモードで初めて1問正解する", mode: "findcountry", rarity: "normal",
+      check: (ctx) => !!ctx && ctx.source === "findcountry" && ctx.event === "answer"
+        && ctx.result === "correct" && ctx.difficultyId === "pro",
+    },
+
+    // ---- #173〜184: レアトロフィー(12件) ----
+    173: {
+      name: "初級完全制覇", condition: "初級の4コース(5・10・20・30問)すべてをクリアする(別プレイ可)", mode: "findcountry", rarity: "rare",
+      check: (ctx) => ctx && ctx.source === "findcountry"
+        && FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.filter((k) => k.indexOf("beginner_") === 0)
+          .every((k) => Storage.isFindCountryCourseCleared(k)),
+    },
+    174: {
+      name: "中級完全制覇", condition: "中級の4コース(5・10・20・30問)すべてをクリアする(別プレイ可)", mode: "findcountry", rarity: "rare",
+      check: (ctx) => ctx && ctx.source === "findcountry"
+        && FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.filter((k) => k.indexOf("intermediate_") === 0)
+          .every((k) => Storage.isFindCountryCourseCleared(k)),
+    },
+    175: {
+      name: "上級完全制覇", condition: "上級の4コース(5・10・20・30問)すべてをクリアする(別プレイ可)", mode: "findcountry", rarity: "rare",
+      check: (ctx) => ctx && ctx.source === "findcountry"
+        && FINDCOUNTRY_PRO_UNLOCK_COURSE_KEYS.filter((k) => k.indexOf("advanced_") === 0)
+          .every((k) => Storage.isFindCountryCourseCleared(k)),
+    },
+    176: {
+      name: "パーフェクトナビ", condition: "通常モードの20問コースをノーミス(誤答・パス・時間切れ0回)でクリアする", mode: "findcountry", rarity: "rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.isNormalClear && ctx.target === 20 && ctx.noMistakes,
+    },
+    177: {
+      name: "地図の精密機械", condition: "上級30問コースをノーミス(誤答・パス・時間切れ0回)でクリアする", mode: "findcountry", rarity: "rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "advanced" && ctx.target === 30
+        && ctx.isNormalClear && ctx.noMistakes,
+    },
+    178: {
+      name: "疾風のナビゲーター", condition: "1プレイで10問連続、それぞれ10秒以内に初回正解する(通常・PRO共通)", mode: "findcountry", rarity: "rare",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && hasConsecutiveRun(ctx.results, 10, (r) => r.result === "correct" && r.firstTryCorrect && r.elapsedSeconds <= 10),
+    },
+    179: {
+      name: "迷わぬ旅人", condition: "1プレイで20問連続初回正解する(通常・PRO共通)", mode: "findcountry", rarity: "rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && Number.isFinite(ctx.maxStreak) && ctx.maxStreak >= 20,
+    },
+    180: {
+      name: "世界を知る者", condition: "「どこかな？」コレクションで異なる50の国・地域を獲得する", mode: "findcountry", rarity: "rare",
+      check: (ctx) => ctx && ctx.source === "findcountry" && findCountryCollectionCounts().total >= 50,
+    },
+    181: {
+      name: "地球の半分", condition: "「どこかな？」コレクションで異なる100の国・地域を獲得する", mode: "findcountry", rarity: "rare",
+      check: (ctx) => ctx && ctx.source === "findcountry" && findCountryCollectionCounts().total >= 100,
+    },
+    182: {
+      name: "世界の収集家", condition: "「どこかな？」コレクションで基本198の国・地域をすべて獲得する", mode: "findcountry", rarity: "rare",
+      check: (ctx) => ctx && ctx.source === "findcountry" && findCountryCollectionCounts().basic >= findCountryBasicIds().size,
+    },
+    183: {
+      name: "秘境コレクター", condition: "「どこかな？」コレクションで基本198+地図専用18地域の全216対象を獲得する", mode: "findcountry", rarity: "rare",
+      check: (ctx) => ctx && ctx.source === "findcountry"
+        && findCountryCollectionCounts().total >= (typeof MAP_ONLY_REGIONS !== "undefined" ? findCountryBasicIds().size + MAP_ONLY_REGIONS.length : Infinity),
+    },
+    184: {
+      name: "PROへの挑戦", condition: "PROモードで10問連続正解する", mode: "findcountry", rarity: "rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "pro" && Number.isFinite(ctx.maxStreak) && ctx.maxStreak >= 10,
+    },
+
+    // ---- #185〜194: スーパーレアトロフィー(10件) ----
+    185: {
+      name: "地球の支配者", condition: "通常12コース(初級/中級/上級×5/10/20/30問)すべてをノーミスでクリアする(別プレイ可)", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.getFindCountryNoMissClearProgress().allCleared,
+    },
+    186: {
+      name: "光速の地理学者", condition: "上級30問コースを全問12秒以内・ノーミスでクリアする", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "advanced" && ctx.target === 30
+        && ctx.isNormalClear && ctx.noMistakes && ctx.results.every((r) => r.elapsedSeconds <= 12),
+    },
+    187: {
+      name: "不死鳥の逆転劇", condition: "通常30問コースで序盤(第10問まで)に累計2ミスした状態から、残りをすべて初回正解してクリアする", mode: "findcountry", rarity: "super_rare",
+      check: phoenixComeback,
+    },
+    188: {
+      name: "ラスト1秒の奇跡", condition: "通常モードで残り時間が0秒より大きく1秒未満の瞬間に正解する", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId !== "pro"
+        && ctx.results.some((r) => r.result === "correct" && r.secondsLeft > 0 && r.secondsLeft < 1),
+    },
+    189: {
+      name: "小さな巨人", condition: "PROモードでモナコ・サンマリノ・リヒテンシュタイン・ナウル・ツバルをすべて正解する(複数プレイ可)", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => ctx && ctx.source === "findcountry" && Storage.getFindCountryProTinyProgress().allCaptured,
+    },
+    190: {
+      name: "迷いなき一撃", condition: "上級モードで一度もズーム操作せず10問連続初回正解する", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "advanced" && !ctx.zoomUsedThisPlay
+        && hasConsecutiveRun(ctx.results, 10, (r) => r.result === "correct" && r.firstTryCorrect),
+    },
+    191: {
+      name: "世界一周の奇跡", condition: "1プレイ中にアジア/ヨーロッパ/アフリカ/北米/南米/オセアニアの6地域それぞれから1問以上初回正解する", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && findCountryRegionSweepAchieved(ctx.results),
+    },
+    192: {
+      name: "PROの王", condition: "PROモードで30問連続正解する", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "pro" && Number.isFinite(ctx.maxStreak) && ctx.maxStreak >= 30,
+    },
+    193: {
+      name: "奇跡の16連撃", condition: "PROモードで16問連続、各問8秒以内に正解する", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "pro"
+        && hasConsecutiveRun(ctx.results, 16, (r) => r.result === "correct" && r.elapsedSeconds <= 8),
+    },
+    194: {
+      // 既存のisProCompleteRun()(js/findcountry.js)の判定結果(isProComplete)を
+      // そのまま参照するだけで、216という出題対象数をここで再定義・再計算
+      // しない(isProCompleteRun自身がDIFFICULTIES[].countを参照して216を
+      // 判定しているため、ここでは「PROかつisProComplete」の2条件だけでよい)
+      name: "新世界の神", condition: "PROモード全216問を1プレイ中に1ミスもせず全問正解する", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "pro" && ctx.isProComplete === true,
+    },
+  };
+
+  // ========================================================
   // Stage E: トロフィー一覧画面(新規)向けのカテゴリ分類。
   // docs/trophy-spec-final.md 2章の照合テーブルが採用している番号区分
   // (#1〜19・20〜29・30〜39・40〜59・60〜70・71〜100・101〜112)をそのまま
@@ -1116,6 +1395,7 @@ const TrophyModule = (() => {
     { id: "legacy", label: "称号コレクション", range: "#101〜112" },
     { id: "capital_trivia", label: "首都トリビア", range: "#113〜141" },
     { id: "encyclopedia", label: "世界図鑑", range: "#143〜157" },
+    { id: "findcountry", label: "世界の国どこかな？", range: "#159〜194" },
   ];
   // #142「都の神話」・#158「世界の叡智」は、既存の番号区分(#60〜70の
   // 特別チャレンジ、#143〜157の世界図鑑)とは別に、両方とも「特別チャレンジ」
@@ -1132,7 +1412,8 @@ const TrophyModule = (() => {
     if (number <= 141) return "capital_trivia";
     if (number === 142) return "special"; // #142「都の神話」のみ例外的にspecialへ
     if (number <= 157) return "encyclopedia";
-    return "special"; // #158「世界の叡智」のみ例外的にspecialへ
+    if (number === 158) return "special"; // #158「世界の叡智」のみ例外的にspecialへ
+    return "findcountry"; // #159〜194
   }
   function getCategories() {
     return TROPHY_CATEGORIES.slice();
@@ -1155,6 +1436,9 @@ const TrophyModule = (() => {
       t.check = typeof def.check === "function" ? def.check : null; // #101〜112は参照型のためcheckを持たない
       t.description = typeof def.description === "string" ? def.description : null;
       t.countries = Array.isArray(def.countries) ? def.countries.slice() : null;
+      // 「世界の国どこかな？」専用36種(#159〜194)用のレア度表示。
+      // 既存の#1〜158にはrarityフィールドを持つ定義が無いため、常にnullのまま
+      t.rarity = (def.rarity === "normal" || def.rarity === "rare" || def.rarity === "super_rare") ? def.rarity : null;
       t.confirmed = true;
     });
   }
@@ -1182,6 +1466,9 @@ const TrophyModule = (() => {
         // 導出するための参照)。該当しないトロフィーはnullのまま
         description: null,
         countries: null,
+        // 「世界の国どこかな？」専用36種(#159〜194)用: 表示用のレア度
+        // ("normal"|"rare"|"super_rare")。該当しないトロフィーはnullのまま
+        rarity: null,
         // 第2段階で追加: どのモードの記録かを区別するためのフィールド。
         // "flag" | "capital" | "both"(国旗・首都両方の組合せ) |
         // "flag_only" | "capital_only" | null(未確定)。
@@ -1232,6 +1519,7 @@ const TrophyModule = (() => {
   applyStageBDefinitions(TROPHIES, STAGE_CAPITAL_TRIVIA_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_LEGEND_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_ENCYCLOPEDIA_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_FINDCOUNTRY_DEFINITIONS);
   // category/hiddenのみをここで補完する(name/condition/mode/checkは
   // applyStageBDefinitions()が設定した値から一切変更しない)。
   // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
@@ -1245,7 +1533,7 @@ const TrophyModule = (() => {
   // ---------- 自己検証(既存のjs/app.js冒頭・js/findcountry.jsのvalidatePools()
   // と同じ、console.assertベースの開発時チェック。問題が無ければ何も出力しない) ----------
   (function validateTrophyDefinitions() {
-    console.assert(TROPHIES.length === 153, `トロフィー定義が153件ではありません(実際: ${TROPHIES.length}件)`);
+    console.assert(TROPHIES.length === 189, `トロフィー定義が189件ではありません(実際: ${TROPHIES.length}件)`);
     const numbers = new Set(TROPHIES.map((t) => t.number));
     console.assert(numbers.size === TROPHIES.length, "トロフィー定義のnumberに重複があります");
     const ids = new Set(TROPHIES.map((t) => t.id));
@@ -1265,6 +1553,7 @@ const TrophyModule = (() => {
     const capitalTriviaNumbers = Object.keys(STAGE_CAPITAL_TRIVIA_DEFINITIONS).map(Number);
     const legendNumbers = Object.keys(STAGE_LEGEND_DEFINITIONS).map(Number);
     const encyclopediaNumbers = Object.keys(STAGE_ENCYCLOPEDIA_DEFINITIONS).map(Number);
+    const findCountryNumbers = Object.keys(STAGE_FINDCOUNTRY_DEFINITIONS).map(Number);
     console.assert(
       stageBNumbers.every((n) => !stageDNumbers.includes(n)),
       "STAGE_B_DEFINITIONSとSTAGE_D_DEFINITIONSで番号が重複しています"
@@ -1281,14 +1570,26 @@ const TrophyModule = (() => {
       encyclopediaNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n)),
       "STAGE_ENCYCLOPEDIA_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142)と番号が重複しています"
     );
+    console.assert(
+      findCountryNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n) && !encyclopediaNumbers.includes(n)),
+      "STAGE_FINDCOUNTRY_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142/世界図鑑)と番号が重複しています"
+    );
     const existingConfirmedCount = stageBNumbers.length + stageDNumbers.length;
     console.assert(existingConfirmedCount === 107, `既存のStage B・Dで107件全てが確定するはずが、合計が107件になっていません(実際: ${existingConfirmedCount}件)`);
     console.assert(capitalTriviaNumbers.length === 29, `首都トリビアの定義が29件ではありません(実際: ${capitalTriviaNumbers.length}件)`);
     console.assert(legendNumbers.length === 1, `#142「都の神話」の定義が1件ではありません(実際: ${legendNumbers.length}件)`);
     console.assert(encyclopediaNumbers.length === 16, `世界図鑑トロフィー(#143〜158)の定義が16件ではありません(実際: ${encyclopediaNumbers.length}件)`);
-    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length;
-    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
-    console.assert(expectedConfirmedCount === 153, `153件全てが確定するはずが、合計が153件になっていません(実際: ${expectedConfirmedCount}件)`);
+    console.assert(findCountryNumbers.length === 36, `「世界の国どこかな？」専用トロフィー(#159〜194)の定義が36件ではありません(実際: ${findCountryNumbers.length}件)`);
+    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length + findCountryNumbers.length;
+    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑・findcountry36で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    console.assert(expectedConfirmedCount === 189, `189件全てが確定するはずが、合計が189件になっていません(実際: ${expectedConfirmedCount}件)`);
+    // findcountry36のrarity構成が、仕様どおり普通14・レア12・スーパーレア10であること
+    const findCountryDefs = TROPHIES.filter((t) => findCountryNumbers.includes(t.number));
+    console.assert(findCountryDefs.every((t) => t.rarity === "normal" || t.rarity === "rare" || t.rarity === "super_rare"), "findcountry36のいずれかにrarityが設定されていません");
+    console.assert(findCountryDefs.filter((t) => t.rarity === "normal").length === 14, "findcountry36の普通トロフィーが14件ではありません");
+    console.assert(findCountryDefs.filter((t) => t.rarity === "rare").length === 12, "findcountry36のレアトロフィーが12件ではありません");
+    console.assert(findCountryDefs.filter((t) => t.rarity === "super_rare").length === 10, "findcountry36のスーパーレアトロフィーが10件ではありません");
+    console.assert(TROPHIES.filter((t) => !findCountryNumbers.includes(t.number)).every((t) => t.rarity === null), "findcountry36以外のトロフィーにrarityが設定されています");
     // #142は首都トリビア29件を集計するだけの判定のため、自分自身を条件判定に
     // 含めないこと(CAPITAL_TRIVIA_NUMBERSに142が含まれないこと)を確認する
     console.assert(!CAPITAL_TRIVIA_NUMBERS.includes(142), "CAPITAL_TRIVIA_NUMBERSに#142自身が含まれています");
@@ -1325,7 +1626,9 @@ const TrophyModule = (() => {
       "カテゴリが未設定、または未知のカテゴリのトロフィーがあります"
     );
     const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
-    console.assert(categoryTotal === 153, `カテゴリ別件数の合計が153件になっていません(実際: ${categoryTotal}件)`);
+    console.assert(categoryTotal === 189, `カテゴリ別件数の合計が189件になっていません(実際: ${categoryTotal}件)`);
+    const findCountryCategoryCount = TROPHIES.filter((t) => t.category === "findcountry").length;
+    console.assert(findCountryCategoryCount === 36, `findcountryカテゴリの件数が36件(#159〜194)ではありません(実際: ${findCountryCategoryCount}件)`);
     const capitalTriviaCategoryCount = TROPHIES.filter((t) => t.category === "capital_trivia").length;
     console.assert(capitalTriviaCategoryCount === 29, `首都トリビアカテゴリの件数が29件ではありません(実際: ${capitalTriviaCategoryCount}件)`);
     const encyclopediaCategoryCount = TROPHIES.filter((t) => t.category === "encyclopedia").length;
@@ -1814,10 +2117,21 @@ const TrophyModule = (() => {
   }
 
   // 「世界の国どこかな？」(js/findcountry.jsのshowResult())からの呼び出し
-  // 専用。context: { difficultyId, correctCount, answered, maxStreak,
-  //                   isNormalClear, isProComplete, gameOver, results(配列) }
+  // 専用。context: { difficultyId, correctCount, answered, target, maxLives,
+  //                   maxStreak, isNormalClear, isProComplete, noMistakes,
+  //                   zoomUsedThisPlay, gameOver, results(配列) }
   function evaluateFindCountryResult(context) {
-    return evaluate(Object.assign({ source: "findcountry" }, context));
+    return evaluate(Object.assign({ source: "findcountry", event: "result" }, context));
+  }
+
+  // 「世界の国どこかな？」専用トロフィーNo.159「地図への第一歩」・No.172
+  // 「秘境への扉」用: 1プレイの終了を待たず、正解したその瞬間
+  // (js/findcountry.jsのfinalizeAnswer())に1回だけ呼ばれる。resultsのような
+  // 1プレイ単位の集計を持たないため、isFindCountryPlayResult()のガードに
+  // よってそれ以外のfindcountry34種はここでは判定されない(安全な空振り)。
+  // 判定ロジック自体はevaluate()に一本化されており、ここで複製していない
+  function evaluateFindCountryAnswer(context) {
+    return evaluate(Object.assign({ source: "findcountry", event: "answer" }, context));
   }
 
   // 世界図鑑(js/encyclopedia.js)からの呼び出し専用。クイズのような
@@ -1859,6 +2173,7 @@ const TrophyModule = (() => {
     evaluate,
     evaluateQuizFinish,
     evaluateFindCountryResult,
+    evaluateFindCountryAnswer,
     evaluateEncyclopediaVisit,
   };
 })();

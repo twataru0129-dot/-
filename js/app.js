@@ -836,7 +836,18 @@ function legendIconSvgForNumber(number) {
 function trophyModeIcon(mode) {
   if (mode === "flag" || mode === "flag_only") return "🌍";
   if (mode === "capital" || mode === "capital_only") return "🏙️";
+  if (mode === "findcountry") return "🧭"; // ホーム画面の「世界の国どこかな？」モードカードと同じアイコン
   return "🏆";
+}
+
+// 「世界の国どこかな？」専用トロフィー36種類(#159〜194)用のレア度表示
+// ラベル。rarityが未設定(既存の#1〜158)の場合はnullを返し、呼び出し側で
+// バッジ自体を出さない
+function trophyRarityLabel(rarity) {
+  if (rarity === "normal") return "普通";
+  if (rarity === "rare") return "レア";
+  if (rarity === "super_rare") return "スーパーレア";
+  return null;
 }
 
 // 首都トリビア(#113〜141)用: def.countries(国idの配列)から
@@ -1153,6 +1164,14 @@ function buildTrophyCardElement(def, earnedEntry) {
   }
 
   const categoryDef = TROPHY_CATEGORY_LABELS[def.category] || "";
+  // 「世界の国どこかな？」専用トロフィー36種類(#159〜194)用のレア度バッジ。
+  // 既存の#1〜158はdef.rarityが無いため何も表示しない(既存カードの見た目は
+  // 一切変更しない)。36種は全て非隠し(hidden:false)のため、secretLockedで
+  // 隠す必要がない
+  const rarityLabel = trophyRarityLabel(def.rarity);
+  const rarityBadgeHtml = rarityLabel
+    ? `<span class="trophy-rarity-badge trophy-rarity-${def.rarity}">${rarityLabel}</span>`
+    : "";
   const nameHtml = secretLocked ? "？？？？？？" : def.name;
   const condHtml = secretLocked ? "" : `<p class="trophy-cond">${def.condition}</p>`;
   // 首都トリビア(#113〜141)・#142「都の神話」の正式解説文は、獲得済みの
@@ -1167,7 +1186,10 @@ function buildTrophyCardElement(def, earnedEntry) {
   card.innerHTML = `
     <div class="trophy-card-top">
       <span class="trophy-number">No.${def.number}</span>
-      <span class="trophy-category-badge">${categoryDef}</span>
+      <div class="trophy-card-badges">
+        <span class="trophy-category-badge">${categoryDef}</span>
+        ${rarityBadgeHtml}
+      </div>
     </div>
     ${marksHtml}
     <p class="trophy-name">${nameHtml}</p>

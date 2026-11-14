@@ -59,6 +59,16 @@ const MapModule = (() => {
   let pendingInitialFocusId = null;
   let isRandomFlightInProgress = false; // ランダム移動のカメラアニメーション中だけtrue
   let hasInteracted = false;
+  // 「世界の国どこかな？」トロフィー No.32「迷いなき一撃」用: このプレイ中に
+  // ユーザー自身がズーム操作(マウスホイール・トラックパッドのピンチ・
+  // 2本指タッチでのピンチズーム)を行ったかどうか。resetZoomTracking()で
+  // プレイ開始時にfalseへ戻し、wasZoomUsed()で読み取る。1本指のドラッグ/
+  // スワイプ/タップ(OrbitControlsのROTATE)や、ゲーム側の自動ズーム・
+  // 自動カメラ移動(pointOfView()の直接呼び出し。合成のwheel/touchイベントを
+  // 一切発生させない)はこのフラグに影響しない。ネイティブのwheel/touchmove
+  // イベントだけを見るため、OrbitControlsの内部実装や、プログラムによる
+  // カメラ移動がcontrols経由かどうかに依存しない
+  let zoomUsedSinceReset = false;
   let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
   let countryGeoById = new Map(); // id -> {lat,lng,area,sizeDeg,minLat,maxLat,minLng,maxLng,polys}(GeoJSON読み込み時に一度だけ算出、下記computeCountryGeoInfo参照)
   let pinAnchorById = new Map(); // id -> {lat,lng}。countryGeoByIdのうちPIN_TARGET_IDSだけを抜き出したもの(📍表示用)
@@ -1789,6 +1799,17 @@ const MapModule = (() => {
       container.addEventListener(evt, stopAutoRotateOnce, { passive: true });
     });
 
+    // No.32「迷いなき一撃」用のズーム検出。このアプリにはダブルタップズーム・
+    // 専用ズームボタンが存在しない(存在するズーム手段はマウスホイールと
+    // 2本指ピンチの2つだけ)ため、その2つのネイティブイベントだけを見れば
+    // 十分に「ユーザー自身のズーム操作」を特定できる。wheelは常にズーム、
+    // touchmoveは同時タッチ数が2以上の場合のみピンチ(=ズーム)と判定する
+    // (1本指のドラッグ/スワイプは対象外。許可された操作のまま変更しない)
+    container.addEventListener("wheel", markZoomUsed, { passive: true });
+    container.addEventListener("touchmove", (e) => {
+      if (e.touches && e.touches.length >= 2) markZoomUsed();
+    }, { passive: true });
+
     window.addEventListener("resize", resizeGlobe);
 
     // globe.glはインスタンス生成と同時に描画ループを開始する。読み込みが
@@ -1821,6 +1842,21 @@ const MapModule = (() => {
     if (hasInteracted || !globeInstance) return;
     hasInteracted = true;
     globeInstance.controls().autoRotate = false;
+  }
+
+  // ---------- ズーム操作の検出(No.32「迷いなき一撃」用) ----------
+  function markZoomUsed() {
+    zoomUsedSinceReset = true;
+  }
+  // 「世界の国どこかな？」が新しいプレイを開始する際に呼ぶ(js/findcountry.js
+  // のstartQuiz()参照)。地球儀がまだ構築されていない場合でもフラグの
+  // 初期化自体は問題なく行える
+  function resetZoomTracking() {
+    zoomUsedSinceReset = false;
+  }
+  // そのプレイ中に一度でもズーム操作があったかどうかを読み取る
+  function wasZoomUsed() {
+    return zoomUsedSinceReset;
   }
 
   // 地図タップ・検索のどちらから来ても、この共通処理で国を選択する。
@@ -2483,6 +2519,7 @@ const MapModule = (() => {
     setTapResultHandler, clearTapResultHandler,
     setQuizResultHighlight, clearQuizResultHighlight,
     setPinsForcedVisible,
+    resetZoomTracking, wasZoomUsed,
   };
 })();
 
