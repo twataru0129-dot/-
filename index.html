@@ -329,6 +329,33 @@
   </div>
 </section>
 
+<!-- ============ 特別な隠しトロフィー#142「都の神話」専用の達成演出画面。
+     首都トリビア29種類すべてを獲得した瞬間だけ、通常のトロフィー獲得通知
+     (screen-trophy-award)の後に表示する(既存の獲得通知・結果画面には影響しない) ============ -->
+<section id="screen-trophy-legend" class="screen">
+  <div class="panel legend-panel">
+    <div id="trophy-legend-confetti-wrap" class="confetti-canvas-wrap"></div>
+    <div class="legend-icon-wrap" aria-hidden="true">
+      <svg viewBox="0 0 100 100" class="legend-svg" focusable="false">
+        <circle cx="50" cy="58" r="32" class="legend-globe-outline"></circle>
+        <ellipse cx="50" cy="58" rx="32" ry="13" class="legend-globe-outline"></ellipse>
+        <ellipse cx="50" cy="58" rx="13" ry="32" class="legend-globe-outline"></ellipse>
+        <line x1="18" y1="58" x2="82" y2="58" class="legend-globe-outline"></line>
+        <path d="M27 32 L33 15 L41 28 L50 12 L59 28 L67 15 L73 32 Z" class="legend-crown"></path>
+        <circle cx="33" cy="15" r="2.6" class="legend-crown-jewel"></circle>
+        <circle cx="50" cy="12" r="2.8" class="legend-crown-jewel"></circle>
+        <circle cx="67" cy="15" r="2.6" class="legend-crown-jewel"></circle>
+      </svg>
+    </div>
+    <h2 class="legend-heading">首都トリビア完全制覇！</h2>
+    <p class="legend-subheading">その名は――<strong>都の神話</strong>。</p>
+    <p id="trophy-legend-description" class="legend-description"></p>
+    <div class="result-buttons">
+      <button id="btn-trophy-legend-continue" class="btn btn-gold btn-large">結果画面へ</button>
+    </div>
+  </div>
+</section>
+
 <!-- ============ トロフィー刷新 Stage E: トロフィー一覧画面(新規・既存の称号コレクションとは別画面) ============ -->
 <section id="screen-trophy-list" class="screen">
   <div class="panel trophy-panel">

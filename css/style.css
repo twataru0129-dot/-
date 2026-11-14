@@ -1278,3 +1278,157 @@ img { max-width: 100%; }
   .trophy-award-mark-lock { display: none; }
   .trophy-award-mark-secret .trophy-award-mark-icon { opacity: 1; }
 }
+
+/* ==========================================================
+   特別な隠しトロフィー#142「都の神話」専用デザイン
+   (「世界の首都を知り尽くした者に贈られる、伝説の黄金トロフィー」:
+   金色の王冠+地球儀・深い紺色/紫色基調。未獲得時は既存の隠しトロフィー
+   (.trophy-card-secret/.trophy-award-item-secret)と同じ見た目のまま、
+   獲得後にのみ以下の専用クラスが追加で重なる)
+   ========================================================== */
+
+/* 王冠+地球儀のインラインSVG(js/app.jsのLEGEND_ICON_SVG・index.htmlの
+   #screen-trophy-legendで共用。viewBoxで拡縮するため小さい丸アイコンでも
+   大きな演出アイコンでも同じマークアップを使う) */
+.legend-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.legend-globe-outline { fill: none; stroke: #ffe27a; stroke-width: 1.8; opacity: .92; }
+.legend-crown { fill: #ffd76a; stroke: #a97c0e; stroke-width: 1; }
+.legend-crown-jewel { fill: #fff6d6; }
+
+/* 一覧カード: 獲得済みの#142のみ、通常の丸アイコンの代わりに金色の輝きを
+   帯びた紺紫の円を使う(未獲得時はtrophy-card-secretのまま、何も変えない) */
+.trophy-mark-legend {
+  background: radial-gradient(circle at 32% 26%, #4a3b7a 0%, #241b45 55%, #150f2e 100%) !important;
+  box-shadow: 0 0 0 2px #ffd76a, 0 0 14px 2px rgba(255, 215, 106, .55), inset 0 -4px 0 rgba(0,0,0,.3) !important;
+}
+.trophy-card-legend {
+  border: 1.5px solid #ffd76a;
+  background: linear-gradient(165deg, #241b45 0%, #150f2e 65%, #1b1333 100%);
+}
+.trophy-card-legend .trophy-name,
+.trophy-card-legend .trophy-cond,
+.trophy-card-legend .trophy-number,
+.trophy-card-legend .trophy-mark-date {
+  color: #f3e8ff;
+}
+.trophy-card-legend .trophy-category-badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffd76a;
+}
+.trophy-description-legend {
+  color: #e9d8ff;
+  font-style: italic;
+}
+
+/* 獲得演出リスト(screen-trophy-award): #142のみ金×紺紫の特別な行にする */
+.trophy-award-item-legend {
+  background: linear-gradient(135deg, #241b45, #150f2e);
+  border: 1px solid #ffd76a;
+  box-shadow: 0 0 16px rgba(255, 215, 106, .25);
+}
+.trophy-award-item-legend .trophy-award-number,
+.trophy-award-item-legend .trophy-award-name,
+.trophy-award-item-legend .trophy-award-cond,
+.trophy-award-item-legend .trophy-award-secret-label {
+  color: #f3e8ff;
+}
+.trophy-award-mark-legend {
+  background: radial-gradient(circle at 32% 26%, #4a3b7a 0%, #241b45 55%, #150f2e 100%);
+  box-shadow: 0 0 0 2px #ffd76a, 0 0 14px 2px rgba(255, 215, 106, .55);
+}
+.trophy-award-description-legend {
+  color: #e9d8ff;
+  font-style: italic;
+}
+
+/* ---------- #142専用の達成演出画面(screen-trophy-legend) ---------- */
+#screen-trophy-legend {
+  background: radial-gradient(circle at 50% 20%, #352a5c 0%, #1b1333 45%, #0d0820 100%);
+}
+.legend-panel {
+  text-align: center;
+  padding-top: 48px;
+  position: relative;
+  overflow: hidden;
+  color: #f3e8ff;
+}
+.legend-icon-wrap {
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, #4a3b7a 0%, #241b45 55%, #150f2e 100%);
+  box-shadow: 0 0 0 3px #ffd76a, 0 0 32px 6px rgba(255, 215, 106, .5), inset 0 -8px 0 rgba(0,0,0,.3);
+  padding: 22px;
+  animation: legendIconIn .9s ease both, legendGlowPulse 2.6s ease-in-out .9s infinite;
+}
+@keyframes legendIconIn {
+  0% { opacity: 0; transform: scale(0.4) rotate(-8deg); }
+  70% { opacity: 1; transform: scale(1.08) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes legendGlowPulse {
+  0%, 100% { box-shadow: 0 0 0 3px #ffd76a, 0 0 28px 4px rgba(255, 215, 106, .45), inset 0 -8px 0 rgba(0,0,0,.3); }
+  50% { box-shadow: 0 0 0 3px #ffe9a8, 0 0 44px 10px rgba(255, 215, 106, .7), inset 0 -8px 0 rgba(0,0,0,.3); }
+}
+.legend-heading {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #ffe27a;
+  margin: 4px 0 8px;
+  opacity: 0;
+  animation: legendFadeUp .7s ease .5s both;
+}
+.legend-subheading {
+  font-size: 1.15rem;
+  margin: 0 0 20px;
+  color: #f3e8ff;
+  opacity: 0;
+  animation: legendFadeUp .7s ease .9s both;
+}
+.legend-subheading strong { color: #ffd76a; }
+.legend-description {
+  max-width: 480px;
+  margin: 0 auto 28px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 215, 106, .35);
+  color: #e9d8ff;
+  font-style: italic;
+  line-height: 1.7;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  animation: legendFadeUp .7s ease 1.3s both;
+}
+.legend-panel .result-buttons {
+  opacity: 0;
+  animation: legendFadeUp .7s ease 1.7s both;
+}
+@keyframes legendFadeUp {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* アニメーションが苦手な利用者向け: 王冠+地球儀の脈動・各要素の遅延付き
+   フェードインを完全に止め、最初から全て見える状態にする(既存の
+   グローバルなprefers-reduced-motion対応に加えて、animation-delayが
+   残ってしまう要素だけをここで明示的に上書きする) */
+@media (prefers-reduced-motion: reduce) {
+  .legend-icon-wrap,
+  .legend-heading,
+  .legend-subheading,
+  .legend-description,
+  .legend-panel .result-buttons {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .legend-icon-wrap { width: 112px; height: 112px; padding: 18px; }
+  .legend-heading { font-size: 1.35rem; }
+  .legend-subheading { font-size: 1rem; }
+}
