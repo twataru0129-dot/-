@@ -1011,6 +1011,52 @@ img { max-width: 100%; }
 /* ---------- トロフィー一覧画面 ---------- */
 .trophy-panel { max-width: 1100px; }
 
+/* トロフィー一覧(153件)を下までスクロールしても「戻る」まで迷わないよう、
+   戻るボタン+タイトルだけをposition: stickyで画面上部に固定する。
+   .screenが実際のスクロールコンテナ(window/body)の祖先であり、
+   .panel/.trophy-panelにoverflow・transformが設定されていないため、
+   追加のJSなしでsticky指定だけで機能する。
+   - margin: 「.panel」自身の上下左右パディング分を打ち消し、ヘッダーが
+     パネルの外枠まで届くようにする(トロフィーカード等、他の要素の
+     左右位置はパネルのパディングに従うため、見た目のずれは生じない)
+   - padding-top: env(safe-area-inset-top)により、スクロールして
+     position:stickyで画面最上部(viewportのtop:0)に固定された際も、
+     iPhoneのノッチ・Dynamic Island・ステータスバーに重ならないよう
+     内容を下にずらす(ヘッダー自体の背景は0から開始するため、
+     ノッチ部分も背景色で途切れなく覆われる)
+   - background: ページ全体と同じ色にし、スクロール中にカードの文字が
+     ヘッダーの下を透けて見えないようにする(スクロール位置に関わらず
+     文字が読みやすい状態を保つ) */
+.trophy-list-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -24px -20px 20px;
+  padding: calc(14px + env(safe-area-inset-top)) 20px 14px;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+/* 既存の.btn-back(position: absolute)は他の画面(図鑑・地図・復習等)で
+   そのまま使われているため、グローバルなルールは変更せず、この固定
+   ヘッダー内でだけ通常のflexアイテムとして振る舞うよう上書きする。
+   タップ領域もここで十分な高さ(44px以上)を確保する */
+.trophy-list-header .btn-back {
+  position: static;
+  flex-shrink: 0;
+  margin: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.trophy-list-header .screen-title {
+  flex: 1;
+  margin: 0;
+  font-size: 1.15rem;
+}
+
 .trophy-progress-summary {
   text-align: center;
   font-weight: 800;
