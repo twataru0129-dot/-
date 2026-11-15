@@ -341,6 +341,9 @@ const FindCountryModule = (() => {
     // results[]とは別の配列のため、results[]の意味(1問1件、最終結果のみ)は
     // 変更しない
     mistakeEvents: [],
+    // 隠しトロフィー61種類実装(第2段階): このプレイ中に新規獲得した隠し
+    // トロフィーのid(通知・演出には使わない取得専用の記録)
+    hiddenAwardedIdsThisPlay: [],
   };
 
   // 現在アクティブな制限時間タイマー(問題ごとに作り直す。1問につき1個だけ
@@ -498,6 +501,11 @@ const FindCountryModule = (() => {
     quizState.lifeLostThisPlay = false;
     quizState.lifeAtOneMoment = null;
     quizState.mistakeEvents = [];
+    // 隠しトロフィー61種類実装(第2段階): このプレイ中に新規獲得した隠し
+    // トロフィーのidを積むだけの配列(通知・演出には使わない、今後の
+    // 結果画面での獲得通知実装のための取得用)。新しいプレイ開始時に必ず
+    // 空へ戻す
+    quizState.hiddenAwardedIdsThisPlay = [];
     // 隠しトロフィー61種類実装(第1段階の追加修正): 新しいプレイを始めた
     // 時点で、前回のプレイ結果のスナップショットを必ずクリアする。showResult()
     // は今回のプレイがクリア/ゲームオーバーに到達した場合にしか呼ばれない
@@ -777,6 +785,80 @@ const FindCountryModule = (() => {
     });
   }
 
+  // ---------- 隠しトロフィー61種類実装(第2段階): プレイ中の時点状態 ----------
+  // showResult()が結果確定時に計算する値(isNormalClear/isProComplete/
+  // noMistakes/noMissClear/perfectClear/endReason)を、プレイがまだ続いている
+  // 「今の時点」の値として計算し直す。target・correctCount・livesは常に
+  // 最新のquizStateを参照するため、プレイがちょうど終わった瞬間にこの関数を
+  // 呼んでも、showResult()が計算する値と完全に一致する。showResult()側の
+  // 既存の計算はこの関数を使わず完全に独立したままにする(この関数の追加・
+  // 変更が既存36種類の判定タイミング・通知経路に一切影響しないようにする
+  // ための意図的な重複実装)
+  function computeFindCountryLiveState() {
+    const d = difficultyById(quizState.difficultyId);
+    const target = quizState.targetCorrectCount;
+    const correctCount = quizState.correctCount;
+    const answered = quizState.results.length;
+    const isProComplete = isProCompleteRun({
+      difficultyId: quizState.difficultyId,
+      gameOver: quizState.gameOver,
+      answered,
+      correctCount,
+      totalCount: d.count,
+    });
+    const isNormalClear = isNormalCourseClear({
+      difficultyId: quizState.difficultyId,
+      gameOver: quizState.gameOver,
+      correctCount,
+      targetCorrectCount: target,
+    });
+    const noMistakes = quizState.results.length > 0 && !quizState.lifeLostThisPlay;
+    const noMissClear = noMistakes && (isNormalClear || isProComplete);
+    const perfectClear = noMissClear && quizState.results.every((r) => r.points === 1000);
+    const endReason = (isNormalClear || isProComplete) ? "clear" : (quizState.gameOver ? "gameover" : "pool_exhausted");
+    return {
+      target, maxLives: maxLivesFor(quizState.difficultyId),
+      isProComplete, isNormalClear, noMistakes, noMissClear, perfectClear, endReason,
+    };
+  }
+
+  // ---------- 隠しトロフィー61種類実装(第2段階): プレイ中の進行判定 ----------
+  // 回答が確定するたび(正解・不正解・パス・時間切れのすべてのパターンで)に
+  // 呼ぶ。TrophyModule.evaluateFindCountryHiddenProgress()はstage==="hidden61"の
+  // 61件だけを対象にする(既存の#1〜194は一切再評価されない)。条件を満たした
+  // 瞬間にStorageへ即時保存されるため、この後プレイを中断しても獲得状態は
+  // 保持される。通知・ポップアップ・音・画面停止は意図的に一切発生させず、
+  // 新規に獲得したidはquizState.hiddenAwardedIdsThisPlayに積むだけにする
+  function evaluateHiddenTrophiesProgress() {
+    try {
+      if (typeof TrophyModule === "undefined" || typeof TrophyModule.evaluateFindCountryHiddenProgress !== "function") return;
+      const live = computeFindCountryLiveState();
+      const r = TrophyModule.evaluateFindCountryHiddenProgress({
+        difficultyId: quizState.difficultyId,
+        correctCount: quizState.correctCount,
+        answered: quizState.results.length,
+        target: live.target,
+        maxLives: live.maxLives,
+        maxStreak: quizState.maxStreak,
+        isNormalClear: live.isNormalClear,
+        isProComplete: live.isProComplete,
+        noMistakes: live.noMistakes,
+        noMissClear: live.noMissClear,
+        perfectClear: live.perfectClear,
+        endReason: live.endReason,
+        lifeAtOneMoment: quizState.lifeAtOneMoment,
+        mistakeEvents: quizState.mistakeEvents.slice(),
+        gameOver: quizState.gameOver,
+        results: quizState.results.slice(),
+      });
+      if (r && Array.isArray(r.hiddenAwardedIds) && r.hiddenAwardedIds.length) {
+        quizState.hiddenAwardedIdsThisPlay.push(...r.hiddenAwardedIds);
+      }
+    } catch (e) {
+      console.warn("世界の国どこかな？: 隠しトロフィー61種類の判定に失敗しました(結果には影響しません)", e);
+    }
+  }
+
   // ---------- 回答確定(タップ・パス・時間切れを1つの処理に集約) ----------
   // ライフ減少・連続正解の更新・得点計算・結果記録を、この関数の中だけで
   // 行うことで「同じ問題で2回以上ライフが減る/加点される」事故を防ぐ。
@@ -895,6 +977,11 @@ const FindCountryModule = (() => {
     }
 
     updateLivesDisplay();
+
+    // 隠しトロフィー61種類実装(第2段階): 正解・不正解・パス・時間切れの
+    // 全パターンでこの問題の最終結果が確定した直後に呼ぶ(既存36種類の
+    // 判定・通知タイミングには一切影響しない、専用の呼び出し経路)
+    evaluateHiddenTrophiesProgress();
 
     // トロフィー刷新 第3段階: No.1「地図への第一歩」・No.14「秘境への扉」は
     // 1プレイの終了を待たず、実際に正解したその瞬間に即時付与する確定仕様
@@ -1352,6 +1439,7 @@ const FindCountryModule = (() => {
       lifeAtOneMoment: quizState.lifeAtOneMoment,
       mistakeEvents: quizState.mistakeEvents.slice(),
       results: quizState.results.slice(),
+      hiddenAwardedIdsThisPlay: quizState.hiddenAwardedIdsThisPlay.slice(),
     };
     if (isNormalClear) {
       try {
@@ -1915,12 +2003,21 @@ const FindCountryModule = (() => {
     return quizState.mistakeEvents.slice();
   }
 
+  // 隠しトロフィー61種類実装(第2段階): このプレイ中に新規獲得した隠し
+  // トロフィーのid一覧を取得する(次段階の結果画面での獲得通知実装が
+  // このプレイの新規獲得分を参照できるようにするための仕組み。今回は
+  // 通知・演出の実装自体は行わない)。読み取り専用のコピーを返す
+  function getHiddenAwardedIdsThisPlay() {
+    return quizState.hiddenAwardedIdsThisPlay.slice();
+  }
+
   // showCollectionScreenは、js/app.jsの画面遷移スタック
   // (encyclopediaBackOptionsFromStack)が、地図・図鑑の詳細画面を経由して
   // コレクションへ戻る際に呼ぶための公開関数(ReviewModule.showList()と
   // 同じ役割)
   return {
-    initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, getMistakeEvents, isProCompleteRun,
+    initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, getMistakeEvents,
+    getHiddenAwardedIdsThisPlay, isProCompleteRun,
     isNormalCourseClear, showCollectionScreen,
     // ---- テスト専用(本番コードからは一切呼ばれない) ----
     // 3D地球儀への実際のピクセル単位のタップをPlaywrightで安定して再現する

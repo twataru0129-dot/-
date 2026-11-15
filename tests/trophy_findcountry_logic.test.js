@@ -100,9 +100,12 @@ function miss(kind, opts) {
 {
   const { Trophy } = freshSandbox();
   const defs = Trophy.getAllDefinitions();
-  check("total trophies = 189", defs.length === 189);
+  // 隠しトロフィー61種類実装(第2段階)でトロフィー定義総数が189→250件、
+  // カテゴリー数が10→11件、隠しトロフィー数が14→75件に拡張された
+  // (既存のfindcountry36種類自体の件数・内容は変更していない)
+  check("total trophies = 250", defs.length === 250);
   const cats = Trophy.getCategories();
-  check("category count = 10", cats.length === 10);
+  check("category count = 11", cats.length === 11);
   check("findcountry category exists", cats.some((c) => c.id === "findcountry"));
   const fcDefs = defs.filter((d) => d.number >= 159 && d.number <= 194);
   check("findcountry defs count = 36", fcDefs.length === 36);
@@ -113,7 +116,7 @@ function miss(kind, opts) {
   check("all 36 have name+condition", fcDefs.every((d) => typeof d.name === "string" && d.name && typeof d.condition === "string" && d.condition));
   check("all 36 are not hidden", fcDefs.every((d) => d.hidden === false));
   check("#194 name is 新世界の神", defs.find((d) => d.number === 194).name === "新世界の神");
-  check("hidden trophy count stays 14 (unchanged)", defs.filter((d) => d.hidden).length === 14);
+  check("hidden trophy count = 75 (既存14+隠しトロフィー61種類)", defs.filter((d) => d.hidden).length === 75);
 }
 
 // ---- 10-2: 通常モード系(course clear / no-miss) ----

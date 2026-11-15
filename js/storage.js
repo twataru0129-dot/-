@@ -613,6 +613,14 @@ const Storage = {
       return false;
     }
   },
+  // 指定コースが既にノーミスクリア済みかどうかを読むだけの関数(隠しトロフィー
+  // 61種類実装(第2段階)「神々のトライフォース」用。isFindCountryCourseCleared
+  // と同じ考え方で、既存のallCleared集計(12コース全件)とは別に、特定の
+  // 3コース(初級/中級/上級の各30問)だけを個別に参照できるようにする
+  isFindCountryCourseNoMissCleared(courseKey) {
+    const data = loadFindCountryNoMissData();
+    return !!data.noMissClearedCourses[courseKey];
+  },
   getFindCountryNoMissClearProgress() {
     const data = loadFindCountryNoMissData();
     const clearedCount = countClearedNoMissCourses(data.noMissClearedCourses);

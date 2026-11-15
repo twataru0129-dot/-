@@ -219,7 +219,9 @@ const TrophyModule = (() => {
   // 拡張された(136+1=137件)
   // 「世界の国どこかな？」専用トロフィー36種類(#159〜194)の追加により、
   // 上限が158から194に拡張された(153+36=189件)
-  const MAX_TROPHY_NUMBER = 194;
+  // 隠しトロフィー61種類(#195〜255、第2段階)の追加により、上限が194から
+  // 255に拡張された(189+61=250件)
+  const MAX_TROPHY_NUMBER = 255;
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
   // 参照する「参照型」スロット。新規にwfq_v1_trophy_earnedへ書き込むことは
@@ -1383,6 +1385,389 @@ const TrophyModule = (() => {
   };
 
   // ========================================================
+  // 隠しトロフィー61種類(#195〜255、第2段階)用の共通ヘルパー。
+  // 既存のhasConsecutiveRun/isFindCountryPlayResult等は一切変更せず、
+  // 新たに必要な分だけをここに追加する
+  // ========================================================
+
+  // 合計得点が素数かどうか(#201「素数の孤独」用)。totalPointsは
+  // computeScore(js/findcountry.js)がMath.round()する整数のみを渡す前提
+  function isPrimeNumber(n) {
+    if (!Number.isInteger(n) || n < 2) return false;
+    if (n % 2 === 0) return n === 2;
+    for (let i = 3; i * i <= n; i += 2) {
+      if (n % i === 0) return false;
+    }
+    return true;
+  }
+
+  // 「プレイ日」をローカル日付のMMDDを表す数値として返す(#204「奇跡の一致」用)。
+  // 例: 1月29日→129、12月31日→1231。toISOString()はUTCになるため使わず、
+  // Date#getMonth()/getDate()(呼び出し環境のローカルタイムゾーン)だけを使う
+  function localTodayMMDDNumber() {
+    const now = new Date();
+    return (now.getMonth() + 1) * 100 + now.getDate();
+  }
+
+  // resultsの全要素のpointsを合計する(#195〜228の最終得点系用)
+  function sumPoints(results) {
+    if (!Array.isArray(results)) return 0;
+    return results.reduce((sum, r) => sum + (Number(r.points) || 0), 0);
+  }
+
+  // 「世界の国どこかな？」の1プレイが、クリア(通常コース/PRO完全制覇)または
+  // ゲームオーバーのいずれかで実際に終わっているかどうか(#195〜228の最終
+  // 得点系用)。途中中断(showResult自体が呼ばれない)・出題対象を使い切った
+  // だけの状態では絶対にtrueにならないため、最終得点系は中断時には判定されない
+  function isFindCountryPlayConcluded(ctx) {
+    return isFindCountryPlayResult(ctx) && (ctx.isNormalClear === true || ctx.isProComplete === true || ctx.gameOver === true);
+  }
+
+  // resultsの中で、length個の連続要素のpointsが厳密に単調増加しており、
+  // かつ最後の要素のpointsがfinalMin以上であるような区間が1つでもあれば
+  // trueを返す(#239「ボレロ」用)。hasConsecutiveRunとは異なり「直前の
+  // 要素との関係」を見るため、別の走査ロジックとして用意する
+  function hasStrictlyIncreasingRun(results, length, finalMin) {
+    if (!Array.isArray(results) || results.length < length) return false;
+    for (let start = 0; start + length <= results.length; start++) {
+      let ok = true;
+      for (let i = start + 1; i < start + length; i++) {
+        if (!(results[i].points > results[i - 1].points)) { ok = false; break; }
+      }
+      if (ok && results[start + length - 1].points >= finalMin) return true;
+    }
+    return false;
+  }
+
+  // 1プレイ中に正解した国・地域idの集合(#232「WWL」・#250〜255の国の
+  // 組み合わせ系用)。表示名からの推測ではなく、results[].countryId
+  // (js/countries.js等の既存の正式id)だけを見る
+  function correctlyAnsweredCountryIdSet(results) {
+    const set = new Set();
+    if (Array.isArray(results)) {
+      results.forEach((r) => { if (r.result === "correct") set.add(r.countryId); });
+    }
+    return set;
+  }
+  function hasAllCountries(results, ids) {
+    const set = correctlyAnsweredCountryIdSet(results);
+    return ids.every((id) => set.has(id));
+  }
+
+  // ctx.lifeAtOneMoment(ライフが1になった問題番号)より後の問題だけを対象に
+  // hasConsecutiveRunを適用する(#243「サバイバー」・#247「ミッション・
+  // インポッシブル」用)。lifeAtOneMomentが無い(=一度もライフ1にならなかった
+  // プレイ。PROはライフ1で開始するため該当しない)場合は常にfalse
+  function hasConsecutiveRunAfterLifeOne(ctx, minCount, predicate) {
+    if (!ctx || !ctx.lifeAtOneMoment || !Array.isArray(ctx.results)) return false;
+    const idx = ctx.results.findIndex((r) => r.questionNumber === ctx.lifeAtOneMoment.questionNumber);
+    if (idx === -1) return false;
+    return hasConsecutiveRun(ctx.results.slice(idx + 1), minCount, predicate);
+  }
+
+  // #241「罪と罰」用: 誤答・パス・時間切れを1プレイ中に各1回以上経験し、
+  // ちょうど3種類目の異なるミス種類が発生したタップでライフが0になった
+  // (=ゲームオーバーになった)かどうか。mistakeEventsは発生順序どおりの
+  // 配列のため、最後の要素の直前までに現れたkindの種類数で判定できる。
+  // PROはパス不可・ライフ1(最初のミスで即ゲームオーバー)のため、
+  // 3種類のミスを経験する前に必ずプレイが終わる=この条件には到達しない
+  // (js/findcountry.jsのisPassAllowed()・DIFFICULTIESの既存仕様どおりの
+  // 自然な結果であり、ここで難易度を特別扱いする必要はない)
+  function sinAndPunishmentAchieved(ctx) {
+    if (!isFindCountryPlayResult(ctx)) return false;
+    if (ctx.gameOver !== true || !Array.isArray(ctx.mistakeEvents) || ctx.mistakeEvents.length < 3) return false;
+    const last = ctx.mistakeEvents[ctx.mistakeEvents.length - 1];
+    if (!last || last.livesAfter !== 0) return false;
+    const priorKinds = new Set(ctx.mistakeEvents.slice(0, -1).map((e) => e.kind));
+    return priorKinds.size === 2 && !priorKinds.has(last.kind);
+  }
+
+  // ========================================================
+  // 隠しトロフィー61種類(#195〜255、第2段階)。一覧画面・獲得演出は今回
+  // 実装しない(check関数による判定・即時保存までが対象)。プレイ中の通知・
+  // ポップアップ・音・画面停止を発生させないため、t.stage==="hidden61"を
+  // 持つ(TROPHIES組み立て後に付与)。これによりevaluate()は既定では
+  // この61件を一切判定せず、専用の呼び出し経路(evaluateFindCountryHiddenProgress、
+  // js/findcountry.jsのfinalizeAnswer()から回答確定ごとに呼ばれる)からのみ
+  // 判定される。既存#159〜194(36種類)の判定タイミング・通知経路には
+  // 一切影響しない
+  const STAGE_HIDDEN61_DEFINITIONS = {
+    // ---- #195〜228: 最終得点系(34件)。正式なクリアまたはゲームオーバー
+    // 時のみ判定する(途中中断では判定しない、isFindCountryPlayConcluded参照) ----
+    195: {
+      name: "運命の数字", condition: "合計得点が7777点になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) === 7777,
+    },
+    196: {
+      name: "神のいたずら", condition: "合計得点が12345点になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) === 12345,
+    },
+    197: {
+      name: "悪魔の契約", condition: "合計得点の下3桁が666になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 1000 === 666,
+    },
+    198: {
+      name: "天使の祝福", condition: "合計得点の下3桁が777になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 1000 === 777,
+    },
+    199: {
+      name: "黄金比の軌跡", condition: "合計得点の下5桁が11618になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 100000 === 11618,
+    },
+    200: {
+      name: "円周率の神秘", condition: "合計得点の下5桁が31415になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 100000 === 31415,
+    },
+    201: {
+      name: "素数の孤独", condition: "合計得点が素数になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && isPrimeNumber(sumPoints(ctx.results)),
+    },
+    202: {
+      name: "フィボナッチの導き", condition: "合計得点の下5桁が11235になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 100000 === 11235,
+    },
+    203: {
+      name: "時を刻む数字", condition: "合計得点の下4桁が2359になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 2359,
+    },
+    204: {
+      name: "奇跡の一致", condition: "合計得点の下4桁がプレイ日の月日(MMDD)と一致する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === localTodayMMDDNumber(),
+    },
+    205: {
+      name: "運命", condition: "合計得点の下4桁が1808になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 1808,
+    },
+    206: {
+      name: "ニンニク入れますか？", condition: "合計得点の下4桁が2291になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 2291,
+    },
+    207: {
+      name: "マラソンマン", condition: "合計得点の下5桁が42195、または下4桁が4219になる", mode: "findcountry",
+      check: (ctx) => {
+        if (!isFindCountryPlayConcluded(ctx)) return false;
+        const total = sumPoints(ctx.results);
+        return total % 100000 === 42195 || total % 10000 === 4219;
+      },
+    },
+    208: {
+      name: "ラマヌジャンの奇跡", condition: "合計得点の下4桁が1729になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 1729,
+    },
+    209: {
+      name: "カプレカ数の魔法", condition: "合計得点の下4桁が6174になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 6174,
+    },
+    210: {
+      name: "一瞬の永遠", condition: "合計得点の下4桁が8640になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 8640,
+    },
+    211: {
+      name: "製作者の誕生日", condition: "合計得点の下4桁が0129になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 129,
+    },
+    212: {
+      name: "ハッピーニューイヤー", condition: "合計得点の下4桁が0101になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 101,
+    },
+    213: {
+      name: "良いお年を", condition: "合計得点の下4桁が1231になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 1231,
+    },
+    214: {
+      name: "ファイナルヘブン", condition: "合計得点の下4桁が9999になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 9999,
+    },
+    215: {
+      name: "May the Force Be With You", condition: "合計得点の下4桁が1977になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 1977,
+    },
+    216: {
+      name: "E = mc²", condition: "合計得点の下4桁が1905になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 1905,
+    },
+    217: {
+      name: "404 Not Found", condition: "合計得点の下3桁が404になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 1000 === 404,
+    },
+    218: {
+      name: "エベレスト", condition: "合計得点の下4桁が8848になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 8848,
+    },
+    219: {
+      name: "マウント富士", condition: "合計得点の下4桁が3776になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 3776,
+    },
+    220: {
+      name: "東京スカイツリー", condition: "合計得点の下3桁が634になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 1000 === 634,
+    },
+    221: {
+      name: "東京タワー", condition: "合計得点の下3桁が333になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 1000 === 333,
+    },
+    222: {
+      name: "ドラえもん誕生", condition: "合計得点の下4桁が2112になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 2112,
+    },
+    223: {
+      name: "ポケモンマスター", condition: "合計得点の下3桁が151になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 1000 === 151,
+    },
+    224: {
+      name: "令和元年", condition: "合計得点の下4桁が2019になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 2019,
+    },
+    225: {
+      name: "煩悩の数", condition: "合計得点の下3桁が108になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 1000 === 108,
+    },
+    226: {
+      name: "真ポケモンマスター", condition: "合計得点の下4桁が1025になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 1025,
+    },
+    227: {
+      name: "アラビアンナイト", condition: "合計得点の下4桁が1001になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 1001,
+    },
+    228: {
+      name: "拍手喝采", condition: "合計得点の下4桁が8888になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayConcluded(ctx) && sumPoints(ctx.results) % 10000 === 8888,
+    },
+
+    // ---- #229〜249: プレイ中の正解・時間・連続記録系(21件) ----
+    229: {
+      name: "エンペラータイム", condition: "1プレイ中に3問連続で1,000点を獲得する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasConsecutiveRun(ctx.results, 3, (r) => r.points === 1000),
+    },
+    230: {
+      name: "閃光のように", condition: "残り時間が0秒より大きく0.5秒以下で正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && ctx.results.some((r) => r.result === "correct" && r.secondsLeft > 0 && r.secondsLeft <= 0.5),
+    },
+    231: {
+      name: "最速最強", condition: "5問連続、各問初回正解かつ5秒以内に正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && hasConsecutiveRun(ctx.results, 5, (r) => r.result === "correct" && r.firstTryCorrect && r.elapsedSeconds <= 5),
+    },
+    232: {
+      name: "WWL（ワールド・ワイド・ラブ）", condition: "1プレイ中にノーミスで異なる20の国・地域を正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.noMistakes === true
+        && correctlyAnsweredCountryIdSet(ctx.results).size >= 20,
+    },
+    233: {
+      name: "そして伝説へ…", condition: "通常30問コースを全30問ノーミスで正解してクリアする", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId !== "pro" && ctx.target === 30
+        && ctx.isNormalClear === true && ctx.noMistakes === true,
+    },
+    234: {
+      name: "遥かなる時の彼方へ", condition: "PROモードで100問連続正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "pro" && Number.isFinite(ctx.maxStreak) && ctx.maxStreak >= 100,
+    },
+    235: {
+      name: "やきとり", condition: "1問も正解しないままライフが0になりゲームオーバーになる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.gameOver === true && ctx.correctCount === 0,
+    },
+    236: {
+      name: "ハットトリック", condition: "1プレイ中に3問連続で900〜999点を獲得する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasConsecutiveRun(ctx.results, 3, (r) => r.points >= 900 && r.points <= 999),
+    },
+    237: {
+      name: "ロスタイムの奇跡", condition: "1プレイで残り2秒以下での正解を3回経験する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && ctx.results.filter((r) => r.result === "correct" && r.secondsLeft <= 2).length >= 3,
+    },
+    238: {
+      name: "サイクルヒット", condition: "1プレイで1,000点台・900点台・800点台・700点台をそれぞれ1回以上獲得する(1,000点台は1,000点を指す)", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && ctx.results.some((r) => r.points === 1000)
+        && ctx.results.some((r) => r.points >= 900 && r.points <= 999)
+        && ctx.results.some((r) => r.points >= 800 && r.points <= 899)
+        && ctx.results.some((r) => r.points >= 700 && r.points <= 799),
+    },
+    239: {
+      name: "ボレロ", condition: "5問連続で得点が厳密に上昇し、5問目が940点以上になる", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasStrictlyIncreasingRun(ctx.results, 5, 940),
+    },
+    240: {
+      name: "ロット乱し", condition: "5問連続、各問残り3秒以下で正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && hasConsecutiveRun(ctx.results, 5, (r) => r.result === "correct" && r.secondsLeft <= 3),
+    },
+    241: {
+      name: "罪と罰", condition: "1プレイで誤答・パス・時間切れをそれぞれ1回以上経験し、3種類目のミスでライフが0になりゲームオーバーになる", mode: "findcountry",
+      check: sinAndPunishmentAchieved,
+    },
+    242: {
+      name: "ギルティ", condition: "4問連続で、各問の初回回答が誤答になる(再挑戦後の正解は許容する)", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasConsecutiveRun(ctx.results, 4, (r) => r.wrongAttempts >= 1),
+    },
+    243: {
+      name: "サバイバー", condition: "ライフが1になった後、5問連続で初回正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && hasConsecutiveRunAfterLifeOne(ctx, 5, (r) => r.result === "correct" && r.firstTryCorrect),
+    },
+    244: {
+      name: "神々のトライフォース", condition: "初級・中級・上級の各30問コースをすべてノーミスでクリアする(別プレイ可)", mode: "findcountry",
+      check: (ctx) => ctx && ctx.source === "findcountry"
+        && Storage.isFindCountryCourseNoMissCleared("beginner_30")
+        && Storage.isFindCountryCourseNoMissCleared("intermediate_30")
+        && Storage.isFindCountryCourseNoMissCleared("advanced_30"),
+    },
+    245: {
+      name: "ナイツオブラウンド", condition: "13問連続、各問初回正解かつ8秒以内に正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && hasConsecutiveRun(ctx.results, 13, (r) => r.result === "correct" && r.firstTryCorrect && r.elapsedSeconds <= 8),
+    },
+    246: {
+      name: "光と闇", condition: "1プレイ中に1,000点と、200点未満の正解をそれぞれ1回以上獲得する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && ctx.results.some((r) => r.points === 1000)
+        && ctx.results.some((r) => r.result === "correct" && r.points < 200),
+    },
+    247: {
+      name: "ミッション・インポッシブル", condition: "ライフが1になった後、10問連続で初回正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx)
+        && hasConsecutiveRunAfterLifeOne(ctx, 10, (r) => r.result === "correct" && r.firstTryCorrect),
+    },
+    248: {
+      name: "伝説の始まり", condition: "PROモードで50問連続正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "pro" && Number.isFinite(ctx.maxStreak) && ctx.maxStreak >= 50,
+    },
+    249: {
+      name: "チート疑惑", condition: "コースをノーミスでクリアし、全問1,000点を獲得する(PRO完全クリアも対象)", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.perfectClear === true,
+    },
+
+    // ---- #250〜255: 国の組み合わせ系(6件)。順序は問わず、途中のミスも
+    // 許容する(正解した国・地域idの集合だけを見る) ----
+    250: {
+      name: "グランドスラム", condition: "1プレイ中にオーストラリア・フランス・イギリス・アメリカをすべて正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasAllCountries(ctx.results, ["au", "fr", "gb", "us"]),
+    },
+    251: {
+      name: "大航海時代", condition: "1プレイ中にポルトガル・スペイン・オランダ・イギリスをすべて正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasAllCountries(ctx.results, ["pt", "es", "nl", "gb"]),
+    },
+    252: {
+      name: "冷戦の記憶", condition: "1プレイ中にアメリカ・ロシアをすべて正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasAllCountries(ctx.results, ["us", "ru"]),
+    },
+    253: {
+      name: "東西文明の交差点", condition: "1プレイ中にトルコ・ギリシャ・イラン・エジプトをすべて正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasAllCountries(ctx.results, ["tr", "gr", "ir", "eg"]),
+    },
+    254: {
+      name: "太陽の沈まぬ帝国", condition: "1プレイ中にスペイン・メキシコ・ペルー・フィリピンをすべて正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasAllCountries(ctx.results, ["es", "mx", "pe", "ph"]),
+    },
+    255: {
+      name: "古代文明の目覚め", condition: "1プレイ中にエジプト・イラク・インド・中国をすべて正解する", mode: "findcountry",
+      check: (ctx) => isFindCountryPlayResult(ctx) && hasAllCountries(ctx.results, ["eg", "iq", "in", "cn"]),
+    },
+  };
+
+  // ========================================================
   // Stage E: トロフィー一覧画面(新規)向けのカテゴリ分類。
   // docs/trophy-spec-final.md 2章の照合テーブルが採用している番号区分
   // (#1〜19・20〜29・30〜39・40〜59・60〜70・71〜100・101〜112)をそのまま
@@ -1404,6 +1789,7 @@ const TrophyModule = (() => {
     { id: "capital_trivia", label: "首都トリビア", range: "#113〜141" },
     { id: "encyclopedia", label: "世界図鑑", range: "#143〜157" },
     { id: "findcountry", label: "世界の国どこかな？", range: "#159〜194" },
+    { id: "findcountry_hidden", label: "世界の国どこかな？ 隠しトロフィー", range: "#195〜255" },
   ];
   // #142「都の神話」・#158「世界の叡智」は、既存の番号区分(#60〜70の
   // 特別チャレンジ、#143〜157の世界図鑑)とは別に、両方とも「特別チャレンジ」
@@ -1421,7 +1807,8 @@ const TrophyModule = (() => {
     if (number === 142) return "special"; // #142「都の神話」のみ例外的にspecialへ
     if (number <= 157) return "encyclopedia";
     if (number === 158) return "special"; // #158「世界の叡智」のみ例外的にspecialへ
-    return "findcountry"; // #159〜194
+    if (number <= 194) return "findcountry"; // #159〜194
+    return "findcountry_hidden"; // #195〜255(隠しトロフィー61種類、第2段階)
   }
   function getCategories() {
     return TROPHY_CATEGORIES.slice();
@@ -1469,6 +1856,9 @@ const TrophyModule = (() => {
         condition: null,
         category: null,
         hidden: null, // 隠しトロフィーかどうかも未確定
+        // 隠しトロフィー61種類(第2段階)用: evaluate()の絞り込み専用マーカー
+        // ("hidden61"|null)。表示には使わない。TROPHIES組み立て後に補完する
+        stage: null,
         // 首都トリビア(#113〜141)用: 長文の解説文(獲得後に表示)と、
         // 対象2か国のid配列(表示時にjs/countries.jsから国名・首都名を
         // 導出するための参照)。該当しないトロフィーはnullのまま
@@ -1520,6 +1910,10 @@ const TrophyModule = (() => {
   // ここに追加した(表示処理自体はjs/app.js側の既存のsecretLocked分岐を
   // そのまま使う。新しい表示コードは追加していない)
   const HIDDEN_TROPHY_NUMBERS = new Set([53, 61, 62, 64, 65, 67, 70, 75, 86, 87, 88, 89, 142, 158]);
+  // 隠しトロフィー61種類(#195〜255、第2段階)。企画の性質上すべて隠し
+  // トロフィーとして扱う(表示自体は今回実装しないが、将来の一覧画面で
+  // 既存のsecretLocked分岐をそのまま使えるようにhiddenフラグだけ先に立てる)
+  const HIDDEN61_NUMBERS = Array.from({ length: 61 }, (_, i) => 195 + i);
 
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
@@ -1528,20 +1922,26 @@ const TrophyModule = (() => {
   applyStageBDefinitions(TROPHIES, STAGE_LEGEND_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_ENCYCLOPEDIA_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_FINDCOUNTRY_DEFINITIONS);
-  // category/hiddenのみをここで補完する(name/condition/mode/checkは
+  applyStageBDefinitions(TROPHIES, STAGE_HIDDEN61_DEFINITIONS);
+  // category/hidden/stageのみをここで補完する(name/condition/mode/checkは
   // applyStageBDefinitions()が設定した値から一切変更しない)。
   // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
-  // - hidden: 上記HIDDEN_TROPHY_NUMBERSの13件のみtrue、残り124件はfalse
+  // - hidden: 既存のHIDDEN_TROPHY_NUMBERS(14件)+隠しトロフィー61種類(61件)の
+  //   合計75件のみtrue、残り175件はfalse
+  // - stage: 隠しトロフィー61種類だけ"hidden61"を持つ(evaluate()が既定では
+  //   この61件を一切判定しないようにするための絞り込み専用マーカー。
+  //   表示には使わない)
   TROPHIES.forEach((t) => {
     t.category = categoryForNumber(t.number);
-    t.hidden = HIDDEN_TROPHY_NUMBERS.has(t.number);
+    t.hidden = HIDDEN_TROPHY_NUMBERS.has(t.number) || HIDDEN61_NUMBERS.includes(t.number);
+    t.stage = (t.number >= 195 && t.number <= 255) ? "hidden61" : null;
   });
   const TROPHY_BY_ID = new Map(TROPHIES.map((t) => [t.id, t]));
 
   // ---------- 自己検証(既存のjs/app.js冒頭・js/findcountry.jsのvalidatePools()
   // と同じ、console.assertベースの開発時チェック。問題が無ければ何も出力しない) ----------
   (function validateTrophyDefinitions() {
-    console.assert(TROPHIES.length === 189, `トロフィー定義が189件ではありません(実際: ${TROPHIES.length}件)`);
+    console.assert(TROPHIES.length === 250, `トロフィー定義が250件ではありません(実際: ${TROPHIES.length}件)`);
     const numbers = new Set(TROPHIES.map((t) => t.number));
     console.assert(numbers.size === TROPHIES.length, "トロフィー定義のnumberに重複があります");
     const ids = new Set(TROPHIES.map((t) => t.id));
@@ -1562,6 +1962,7 @@ const TrophyModule = (() => {
     const legendNumbers = Object.keys(STAGE_LEGEND_DEFINITIONS).map(Number);
     const encyclopediaNumbers = Object.keys(STAGE_ENCYCLOPEDIA_DEFINITIONS).map(Number);
     const findCountryNumbers = Object.keys(STAGE_FINDCOUNTRY_DEFINITIONS).map(Number);
+    const hidden61Numbers = Object.keys(STAGE_HIDDEN61_DEFINITIONS).map(Number);
     console.assert(
       stageBNumbers.every((n) => !stageDNumbers.includes(n)),
       "STAGE_B_DEFINITIONSとSTAGE_D_DEFINITIONSで番号が重複しています"
@@ -1582,15 +1983,20 @@ const TrophyModule = (() => {
       findCountryNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n) && !encyclopediaNumbers.includes(n)),
       "STAGE_FINDCOUNTRY_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142/世界図鑑)と番号が重複しています"
     );
+    console.assert(
+      hidden61Numbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n) && !encyclopediaNumbers.includes(n) && !findCountryNumbers.includes(n)),
+      "STAGE_HIDDEN61_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142/世界図鑑/findcountry36)と番号が重複しています"
+    );
     const existingConfirmedCount = stageBNumbers.length + stageDNumbers.length;
     console.assert(existingConfirmedCount === 107, `既存のStage B・Dで107件全てが確定するはずが、合計が107件になっていません(実際: ${existingConfirmedCount}件)`);
     console.assert(capitalTriviaNumbers.length === 29, `首都トリビアの定義が29件ではありません(実際: ${capitalTriviaNumbers.length}件)`);
     console.assert(legendNumbers.length === 1, `#142「都の神話」の定義が1件ではありません(実際: ${legendNumbers.length}件)`);
     console.assert(encyclopediaNumbers.length === 16, `世界図鑑トロフィー(#143〜158)の定義が16件ではありません(実際: ${encyclopediaNumbers.length}件)`);
     console.assert(findCountryNumbers.length === 36, `「世界の国どこかな？」専用トロフィー(#159〜194)の定義が36件ではありません(実際: ${findCountryNumbers.length}件)`);
-    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length + findCountryNumbers.length;
-    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑・findcountry36で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
-    console.assert(expectedConfirmedCount === 189, `189件全てが確定するはずが、合計が189件になっていません(実際: ${expectedConfirmedCount}件)`);
+    console.assert(hidden61Numbers.length === 61, `隠しトロフィー61種類(#195〜255)の定義が61件ではありません(実際: ${hidden61Numbers.length}件)`);
+    const expectedConfirmedCount = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length + findCountryNumbers.length + hidden61Numbers.length;
+    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑・findcountry36・隠しトロフィー61で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    console.assert(expectedConfirmedCount === 250, `250件全てが確定するはずが、合計が250件になっていません(実際: ${expectedConfirmedCount}件)`);
     // findcountry36のrarity構成が、仕様どおり普通14・レア12・スーパーレア10であること
     const findCountryDefs = TROPHIES.filter((t) => findCountryNumbers.includes(t.number));
     console.assert(findCountryDefs.every((t) => t.rarity === "normal" || t.rarity === "rare" || t.rarity === "super_rare"), "findcountry36のいずれかにrarityが設定されていません");
@@ -1634,9 +2040,11 @@ const TrophyModule = (() => {
       "カテゴリが未設定、または未知のカテゴリのトロフィーがあります"
     );
     const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
-    console.assert(categoryTotal === 189, `カテゴリ別件数の合計が189件になっていません(実際: ${categoryTotal}件)`);
+    console.assert(categoryTotal === 250, `カテゴリ別件数の合計が250件になっていません(実際: ${categoryTotal}件)`);
     const findCountryCategoryCount = TROPHIES.filter((t) => t.category === "findcountry").length;
     console.assert(findCountryCategoryCount === 36, `findcountryカテゴリの件数が36件(#159〜194)ではありません(実際: ${findCountryCategoryCount}件)`);
+    const findCountryHiddenCategoryCount = TROPHIES.filter((t) => t.category === "findcountry_hidden").length;
+    console.assert(findCountryHiddenCategoryCount === 61, `findcountry_hiddenカテゴリの件数が61件(#195〜255)ではありません(実際: ${findCountryHiddenCategoryCount}件)`);
     const capitalTriviaCategoryCount = TROPHIES.filter((t) => t.category === "capital_trivia").length;
     console.assert(capitalTriviaCategoryCount === 29, `首都トリビアカテゴリの件数が29件ではありません(実際: ${capitalTriviaCategoryCount}件)`);
     const encyclopediaCategoryCount = TROPHIES.filter((t) => t.category === "encyclopedia").length;
@@ -1647,15 +2055,26 @@ const TrophyModule = (() => {
     console.assert(!!legendDef && legendDef.category === "special", "#142「都の神話」のカテゴリがspecialになっていません");
     const greatLegendDef = TROPHIES.find((t) => t.number === 158);
     console.assert(!!greatLegendDef && greatLegendDef.category === "special", "#158「世界の叡智」のカテゴリがspecialになっていません");
-    // 隠しトロフィーは正式確定した14件のみ(HIDDEN_TROPHY_NUMBERS、既存12件+#142+#158)。
-    // それ以外の139件はhidden:falseであること、14件という件数そのものも確認する
+    // 隠しトロフィーは正式確定した75件のみ(HIDDEN_TROPHY_NUMBERSの既存14件+
+    // 隠しトロフィー61種類)。それ以外の175件はhidden:falseであること、
+    // 75件という件数そのものも確認する
     const hiddenDefs = TROPHIES.filter((t) => t.hidden === true);
-    console.assert(hiddenDefs.length === 14, `隠しトロフィーが14件ではありません(実際: ${hiddenDefs.length}件)`);
+    console.assert(hiddenDefs.length === 75, `隠しトロフィーが75件ではありません(実際: ${hiddenDefs.length}件)`);
     console.assert(
-      hiddenDefs.every((t) => HIDDEN_TROPHY_NUMBERS.has(t.number)) && TROPHIES.filter((t) => !t.hidden).every((t) => !HIDDEN_TROPHY_NUMBERS.has(t.number)),
-      "hiddenフラグが正式確定した14件(HIDDEN_TROPHY_NUMBERS)と一致していません"
+      hiddenDefs.every((t) => HIDDEN_TROPHY_NUMBERS.has(t.number) || HIDDEN61_NUMBERS.includes(t.number))
+        && TROPHIES.filter((t) => !t.hidden).every((t) => !HIDDEN_TROPHY_NUMBERS.has(t.number) && !HIDDEN61_NUMBERS.includes(t.number)),
+      "hiddenフラグが正式確定した75件(HIDDEN_TROPHY_NUMBERS+隠しトロフィー61種類)と一致していません"
     );
     console.assert(TROPHIES.every((t) => typeof t.hidden === "boolean"), "hiddenがboolean以外のトロフィーがあります");
+    // 隠しトロフィー61種類実装(第2段階)で追加したstage("hidden61"|null)の
+    // 自己検証。evaluate()の絞り込みが正しく機能する前提(stage==="hidden61"が
+    // ちょうど61件、残り189件はnull)を確認する
+    const stage61Defs = TROPHIES.filter((t) => t.stage === "hidden61");
+    console.assert(stage61Defs.length === 61, `stage==="hidden61"のトロフィーが61件ではありません(実際: ${stage61Defs.length}件)`);
+    console.assert(
+      stage61Defs.every((t) => HIDDEN61_NUMBERS.includes(t.number)) && TROPHIES.filter((t) => t.stage !== "hidden61").every((t) => t.stage === null),
+      "stageフラグがHIDDEN61_NUMBERSと一致していません"
+    );
     // 世界図鑑の地域制覇6件(#148〜153)の対象国数合計が、COUNTRIES全件数と
     // 一致すること(ハードコードした想定件数ではなく、countryIdsInRegion()が
     // 実際に返す値で確認する。198件目の閲覧で6地域とも同時に制覇済みになる
@@ -2021,8 +2440,13 @@ const TrophyModule = (() => {
   // どちらか一方でも獲得していれば「獲得済み」として数える(1枚のカードに
   // 2つの達成マークを出すStage Gの表示方針と整合させるため)
   function getProgressSummary() {
-    const earnedCount = Object.keys(getEarned()).length;
-    return { earnedCount, totalCount: TROPHIES.length };
+    // 隠しトロフィー61種類実装(第2段階): 一覧画面・獲得演出は次段階で
+    // 実装する確定仕様のため、この集計からも除外し、既存の「X / 189 件 獲得」
+    // 表示が変化しないようにする(judge/保存自体は既に有効)
+    const hidden61Ids = new Set(TROPHIES.filter((t) => t.stage === "hidden61").map((t) => t.id));
+    const earnedCount = Object.keys(getEarned()).filter((id) => !hidden61Ids.has(id)).length;
+    const totalCount = TROPHIES.filter((t) => t.stage !== "hidden61").length;
+    return { earnedCount, totalCount };
   }
 
   // ========================================================
@@ -2095,10 +2519,28 @@ const TrophyModule = (() => {
   // それ以外(mode未設定のcommon型・Stage A時点では存在しない)は従来どおり
   // 単一の共通状態として扱う。今回はconfirmed:trueのスロットが1件も無い
   // ため、この分岐が実際に通ることはない(安全な空振りのまま)
-  function evaluate(context) {
+  // options.onlyStage: 隠しトロフィー61種類実装(第2段階)で追加。指定時は
+  // t.stageが一致するトロフィーだけを判定する(他は一切チェックしない)。
+  // 省略時(既存の全呼び出し元)は、t.stage==="hidden61"の61件を常に
+  // スキップする(evaluateFindCountryHiddenProgress専用の呼び出し経路からしか
+  // 判定されないようにするための隔離。既存#1〜194の判定タイミング・
+  // 通知経路には一切影響しない)。
+  // 戻り値のhiddenAwardedIdsには、今回新たに獲得が確定したstage==="hidden61"の
+  // idだけが入る(awardedIdsには入らないため、既存の呼び出し元(js/app.js・
+  // js/findcountry.js)が行う獲得通知・専用演出のトリガーには一切混入しない。
+  // 保存(awardIfNew)自体はawardedIds/hiddenAwardedIdsのどちらに入るかに
+  // 関わらず、条件を満たした瞬間に必ず行われる)
+  function evaluate(context, options) {
+    const onlyStage = options && options.onlyStage;
     const awardedIds = [];
+    const hiddenAwardedIds = [];
     TROPHIES.forEach((t) => {
       if (!t.confirmed || typeof t.check !== "function") return;
+      if (onlyStage) {
+        if (t.stage !== onlyStage) return;
+      } else if (t.stage === "hidden61") {
+        return;
+      }
       const isDual = t.mode === "both";
       const subMode = isDual ? (context && context.mode) : undefined;
       if (isDual && subMode !== "flag" && subMode !== "capital") return; // デュアル型は対象モードのcontextでしか判定しない
@@ -2111,10 +2553,10 @@ const TrophyModule = (() => {
         qualifies = false;
       }
       if (qualifies && awardIfNew(t.id, subMode)) {
-        awardedIds.push(t.id);
+        if (t.stage === "hidden61") hiddenAwardedIds.push(t.id); else awardedIds.push(t.id);
       }
     });
-    return { awardedIds };
+    return { awardedIds, hiddenAwardedIds };
   }
 
   // 国旗クイズ・首都クイズ(js/app.jsのfinishQuiz())からの呼び出し専用。
@@ -2154,6 +2596,20 @@ const TrophyModule = (() => {
   // 判定がプレイ終了を待たずミス履歴を参照できるようにするための基盤)
   function evaluateFindCountryAnswer(context) {
     return evaluate(Object.assign({ source: "findcountry", event: "answer" }, context));
+  }
+
+  // 隠しトロフィー61種類(#195〜255、第2段階)専用の呼び出し経路。
+  // js/findcountry.jsのfinalizeAnswer()から、正解・不正解・パス・時間切れの
+  // 全パターンで(1問の最終結果が確定するたびに)呼ばれる。contextは
+  // evaluateFindCountryResultと同じ形だが、プレイ終了を待たず「今の時点
+  // までの状態」として都度計算した値を渡す想定(詳細はjs/findcountry.jsの
+  // computeFindCountryLiveState()参照)。onlyStage:"hidden61"を指定することで
+  // evaluate()はこの61件だけを判定し、既存#1〜194を一切再評価しない
+  // (評価タイミングを増やしても既存トロフィーの獲得条件・通知タイミングに
+  // 影響を与えないための隔離)。戻り値のhiddenAwardedIdsだけを使うこと
+  // (awardedIdsは常に空になる)
+  function evaluateFindCountryHiddenProgress(context) {
+    return evaluate(Object.assign({ source: "findcountry", event: "progress" }, context), { onlyStage: "hidden61" });
   }
 
   // 世界図鑑(js/encyclopedia.js)からの呼び出し専用。クイズのような
@@ -2196,6 +2652,7 @@ const TrophyModule = (() => {
     evaluateQuizFinish,
     evaluateFindCountryResult,
     evaluateFindCountryAnswer,
+    evaluateFindCountryHiddenProgress,
     evaluateEncyclopediaVisit,
   };
 })();
