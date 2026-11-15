@@ -2440,12 +2440,11 @@ const TrophyModule = (() => {
   // どちらか一方でも獲得していれば「獲得済み」として数える(1枚のカードに
   // 2つの達成マークを出すStage Gの表示方針と整合させるため)
   function getProgressSummary() {
-    // 隠しトロフィー61種類実装(第2段階): 一覧画面・獲得演出は次段階で
-    // 実装する確定仕様のため、この集計からも除外し、既存の「X / 189 件 獲得」
-    // 表示が変化しないようにする(judge/保存自体は既に有効)
-    const hidden61Ids = new Set(TROPHIES.filter((t) => t.stage === "hidden61").map((t) => t.id));
-    const earnedCount = Object.keys(getEarned()).filter((id) => !hidden61Ids.has(id)).length;
-    const totalCount = TROPHIES.filter((t) => t.stage !== "hidden61").length;
+    // 隠しトロフィー61種類(#195〜255)は、他の隠しトロフィーと同様に
+    // 一覧画面に表示するようになったため、この集計にも含める
+    // (合計250件、獲得数には獲得済みの隠しトロフィーも加算される)
+    const earnedCount = Object.keys(getEarned()).length;
+    const totalCount = TROPHIES.length;
     return { earnedCount, totalCount };
   }
 

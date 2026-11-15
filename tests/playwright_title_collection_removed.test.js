@@ -70,15 +70,17 @@ function check(name, cond) {
     const gap = trophyBtnBox.top - gridBox.bottom;
     check(`[${label}] モード選択とトロフィー一覧ボタンの間隔が自然(0〜120px、重なりなし): ${gap.toFixed(1)}px`, gap >= 0 && gap <= 120);
 
-    // トロフィー一覧が正常に開き、固定ヘッダー・隠し14件が維持されている
-    // (「世界の国どこかな？」専用トロフィー36種類の追加により総数は153件から
-    // 189件に変わった。これは今回の追加の一部であり、既存トロフィーの
-    // 「称号コレクション」カテゴリー(legacy、12件)自体には変更がない)
+    // トロフィー一覧が正常に開き、固定ヘッダー・隠しトロフィーの表示が維持
+    // されている(「世界の国どこかな？」専用トロフィー36種類の追加により
+    // 総数は153件から189件、さらに隠しトロフィー61種類(#195〜255)の
+    // 一覧表示対応により189件から250件に変わった。これは今回の追加の一部
+    // であり、既存トロフィーの「称号コレクション」カテゴリー(legacy、12件)
+    // 自体には変更がない)
     await page.click("#btn-trophy-list");
     await page.waitForSelector("#trophy-grid .trophy-card");
     check(`[${label}] トロフィー一覧の固定ヘッダーが維持されている`, (await page.$(".trophy-list-header")) !== null);
     const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-    check(`[${label}] トロフィー総数が189件(153件+findcountry専用36件)になっている`, totalCount === 189);
+    check(`[${label}] トロフィー総数が250件(153件+findcountry専用36件+隠しトロフィー61件)になっている`, totalCount === 250);
     const legacyTab = await page.$('#trophy-category-tabs [data-category="legacy"]');
     check(`[${label}] 「称号コレクション」カテゴリータブ(#101〜112、legacy)が維持されている`, !!legacyTab);
     if (legacyTab) {
