@@ -2128,12 +2128,17 @@ const TrophyModule = (() => {
   // 専用。context: { difficultyId, correctCount, answered, target, maxLives,
   //                   maxStreak, isNormalClear, isProComplete, noMistakes,
   //                   noMissClear, perfectClear, endReason, lifeAtOneMoment,
+  //                   mistakeEvents(配列、{order, questionNumber, countryId,
+  //                   kind("wrong"|"pass"|"timeout"), livesAfter}。ライフが
+  //                   減った出来事を起きた順序どおりに1件ずつ積んだもので、
+  //                   同じ問題で複数回誤答した場合もそれぞれ独立した要素に
+  //                   なる。再挑戦の末に正解した問題の誤答も削除されない)、
   //                   gameOver, results(配列、各要素はfirstTryCorrect・
   //                   wrongAttempts・zoomUsedを含む。No.190はzoomUsedを
   //                   問題単位で参照する) }。noMissClear/perfectClear/
-  //                   endReason/lifeAtOneMomentは隠しトロフィー61種類実装
-  //                   (第1段階)で追加した判定基盤で、現時点ではどの
-  //                   check()もまだ参照しない(将来の追加分がここから使う)
+  //                   endReason/lifeAtOneMoment/mistakeEventsは隠しトロフィー
+  //                   61種類実装(第1段階)で追加した判定基盤で、現時点では
+  //                   どのcheck()もまだ参照しない(将来の追加分がここから使う)
   function evaluateFindCountryResult(context) {
     return evaluate(Object.assign({ source: "findcountry", event: "result" }, context));
   }
@@ -2143,7 +2148,10 @@ const TrophyModule = (() => {
   // (js/findcountry.jsのfinalizeAnswer())に1回だけ呼ばれる。resultsのような
   // 1プレイ単位の集計を持たないため、isFindCountryPlayResult()のガードに
   // よってそれ以外のfindcountry34種はここでは判定されない(安全な空振り)。
-  // 判定ロジック自体はevaluate()に一本化されており、ここで複製していない
+  // 判定ロジック自体はevaluate()に一本化されており、ここで複製していない。
+  // context.mistakeEventsには、この正解タップより前のミス履歴(上記と同じ形)
+  // が渡される(隠しトロフィー61種類実装(第1段階)で追加。今後の即時獲得
+  // 判定がプレイ終了を待たずミス履歴を参照できるようにするための基盤)
   function evaluateFindCountryAnswer(context) {
     return evaluate(Object.assign({ source: "findcountry", event: "answer" }, context));
   }

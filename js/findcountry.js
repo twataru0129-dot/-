@@ -333,6 +333,14 @@ const FindCountryModule = (() => {
     // トロフィー専用プレイ記録: ライフが1になった瞬間の情報(questionNumber,
     // countryId)。1になるたびに上書きする(最後にライフ1になった時点の記録)
     lifeAtOneMoment: null,
+    // 隠しトロフィー61種類実装(第1段階の追加修正): このプレイ中にライフが
+    // 減った出来事を、起きた順序どおりに積み重ねる履歴。{order, questionNumber,
+    // countryId, kind("wrong"|"pass"|"timeout"), livesAfter}。同じ問題で
+    // 複数回誤答した場合もそれぞれ独立した要素として積み、誤答後に再挑戦して
+    // 正解してもこの履歴からは一切削除しない(recordMistakeEvent参照)。
+    // results[]とは別の配列のため、results[]の意味(1問1件、最終結果のみ)は
+    // 変更しない
+    mistakeEvents: [],
   };
 
   // 現在アクティブな制限時間タイマー(問題ごとに作り直す。1問につき1個だけ
@@ -489,6 +497,13 @@ const FindCountryModule = (() => {
     quizState.lastRank = null;
     quizState.lifeLostThisPlay = false;
     quizState.lifeAtOneMoment = null;
+    quizState.mistakeEvents = [];
+    // 隠しトロフィー61種類実装(第1段階の追加修正): 新しいプレイを始めた
+    // 時点で、前回のプレイ結果のスナップショットを必ずクリアする。showResult()
+    // は今回のプレイがクリア/ゲームオーバーに到達した場合にしか呼ばれない
+    // ため、ここでクリアしておかないと、途中中断後にgetLastPlayRecordForTest()
+    // を呼んだ際、前回のプレイの結果が今回の結果と誤認されてしまう
+    lastPlayRecordForTest = null;
     // トロフィーNo.190「迷いなき一撃」用のズーム操作リセットは、問題ごとに
     // renderQuestion()で行う(この関数の末尾で必ずrenderQuestion()を呼ぶため、
     // 最初の問題もそこでリセットされる。ここで別途リセットする必要はない)
@@ -747,6 +762,21 @@ const FindCountryModule = (() => {
     applyTimerPauseState();
   }
 
+  // ---------- 隠しトロフィー61種類実装(第1段階の追加修正): ミスイベント履歴 ----------
+  // ライフが減る出来事(不正解タップ・パス・時間切れ)を起きた順序どおりに
+  // quizState.mistakeEventsへ積む。呼び出し元でライフを減らした"後"に呼ぶ
+  // 前提(livesAfterが減少後の値になるようにするため)。同じ問題で複数回
+  // 誤答しても、1回ごとに必ず1件追加する(上書き・統合はしない)
+  function recordMistakeEvent(kind) {
+    quizState.mistakeEvents.push({
+      order: quizState.mistakeEvents.length + 1,
+      questionNumber: quizState.currentIndex + 1,
+      countryId: quizState.currentCountry.id,
+      kind, // "wrong" | "pass" | "timeout"
+      livesAfter: quizState.lives,
+    });
+  }
+
   // ---------- 回答確定(タップ・パス・時間切れを1つの処理に集約) ----------
   // ライフ減少・連続正解の更新・得点計算・結果記録を、この関数の中だけで
   // 行うことで「同じ問題で2回以上ライフが減る/加点される」事故を防ぐ。
@@ -814,6 +844,10 @@ const FindCountryModule = (() => {
         if (quizState.lives === 1) {
           quizState.lifeAtOneMoment = { questionNumber: quizState.currentIndex + 1, countryId: quizState.currentCountry.id };
         }
+        // この分岐に来るresultは必ず"pass"か"timeout"("wrong"は常に
+        // livesAlreadyHandled:trueで渡されるため、ここには来ない。
+        // handleWrongTap側で既にrecordMistakeEvent("wrong")を呼んでいる)
+        recordMistakeEvent(result);
       }
     }
 
@@ -871,7 +905,15 @@ const FindCountryModule = (() => {
     if (result === "correct") {
       try {
         if (typeof TrophyModule !== "undefined" && typeof TrophyModule.evaluateFindCountryAnswer === "function") {
-          const r = TrophyModule.evaluateFindCountryAnswer({ difficultyId: quizState.difficultyId, result: "correct" });
+          // 隠しトロフィー61種類実装(第1段階の追加修正): 今後の即時獲得判定
+          // (例: 「このプレイ、ここまで一度もミスせずに正解した」等)が
+          // 1プレイの終了を待たずここでミス履歴を参照できるよう、
+          // 結果確定後のmistakeEventsをそのまま渡す
+          const r = TrophyModule.evaluateFindCountryAnswer({
+            difficultyId: quizState.difficultyId,
+            result: "correct",
+            mistakeEvents: quizState.mistakeEvents.slice(),
+          });
           if (r && Array.isArray(r.awardedIds) && r.awardedIds.length) {
             const awardedIds = r.awardedIds;
             setTimeout(() => {
@@ -1006,6 +1048,10 @@ const FindCountryModule = (() => {
     if (quizState.lives === 1) {
       quizState.lifeAtOneMoment = { questionNumber: quizState.currentIndex + 1, countryId: quizState.currentCountry.id };
     }
+    // ライフが尽きてゲームオーバーになる最後の不正解タップもここで必ず
+    // 記録する(この後finalizeAnswerへlivesAlreadyHandled:trueで渡るため、
+    // finalizeAnswer側では記録しない。二重記録防止)
+    recordMistakeEvent("wrong");
     updateLivesDisplay();
 
     if (quizState.lives <= 0) {
@@ -1301,7 +1347,12 @@ const FindCountryModule = (() => {
     // テスト専用(本番コードからは一切呼ばれない): ノーミス/ノーミスクリア/
     // 満点クリアの3区分と終了理由・ライフ1到達タイミングを、DOM/Storageの
     // 副作用を経由せず直接確認できるようにするためのスナップショット
-    lastPlayRecordForTest = { noMistakes, noMissClear, perfectClear, endReason, lifeAtOneMoment: quizState.lifeAtOneMoment, results: quizState.results.slice() };
+    lastPlayRecordForTest = {
+      noMistakes, noMissClear, perfectClear, endReason,
+      lifeAtOneMoment: quizState.lifeAtOneMoment,
+      mistakeEvents: quizState.mistakeEvents.slice(),
+      results: quizState.results.slice(),
+    };
     if (isNormalClear) {
       try {
         const courseKey = Storage.findCountryCourseKey(quizState.difficultyId, target);
@@ -1340,6 +1391,11 @@ const FindCountryModule = (() => {
           perfectClear,
           endReason,
           lifeAtOneMoment: quizState.lifeAtOneMoment,
+          // 隠しトロフィー61種類実装(第1段階の追加修正): ライフが減った
+          // 出来事の時系列履歴(発生順序・問題番号・国ID・種類・発生後の
+          // 残りライフ)。results[]とは異なり、同じ問題での複数回の誤答や、
+          // 再挑戦で正解した問題の誤答も1件も欠けずそのまま含む
+          mistakeEvents: quizState.mistakeEvents.slice(),
           gameOver: quizState.gameOver,
           results: quizState.results.slice(),
         });
@@ -1850,12 +1906,21 @@ const FindCountryModule = (() => {
     return quizState.results.slice();
   }
 
+  // 隠しトロフィー61種類実装(第1段階の追加修正): getResultsと同じ考え方で、
+  // ミスイベント履歴(mistakeEvents)もプレイ中・プレイ終了後のどちらでも
+  // 安全に参照できるよう公開する(今後の即時獲得判定からの利用を想定)。
+  // 読み取り専用のコピーを返すため、呼び出し側が配列を書き換えても
+  // quizState.mistakeEvents自体には影響しない
+  function getMistakeEvents() {
+    return quizState.mistakeEvents.slice();
+  }
+
   // showCollectionScreenは、js/app.jsの画面遷移スタック
   // (encyclopediaBackOptionsFromStack)が、地図・図鑑の詳細画面を経由して
   // コレクションへ戻る際に呼ぶための公開関数(ReviewModule.showList()と
   // 同じ役割)
   return {
-    initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, isProCompleteRun,
+    initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, getMistakeEvents, isProCompleteRun,
     isNormalCourseClear, showCollectionScreen,
     // ---- テスト専用(本番コードからは一切呼ばれない) ----
     // 3D地球儀への実際のピクセル単位のタップをPlaywrightで安定して再現する
