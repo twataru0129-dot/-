@@ -313,6 +313,7 @@ const FindCountryModule = (() => {
     // 「もう一度さがす」ボタンを待っている間)で、追加のタップ・パスを受け付けない状態かどうか
     hasMistakeThisQuestion: false, // この問題で一度でも不正解タップがあったか(再挑戦後に
     // 正解しても連続正解には加算しない判定・既にリセット済みの連続正解の多重リセット防止に使う)
+    wrongAttemptsThisQuestion: 0, // トロフィー専用プレイ記録: この問題での誤答タップ回数(renderQuestionでリセット)
     canAdvance: false, // この問題の最終結果が確定し、「次の問題へ」/「結果を見る」ボタンで
     // 進んでよい状態かどうか(answeredは「もう一度さがす」を待っている間もtrueになるため別管理する)
     results: [], // {questionNumber, countryId, answeredId, result, elapsedSeconds, secondsLeft, points, livesAfter, streakAfter}
@@ -323,6 +324,15 @@ const FindCountryModule = (() => {
     resultShown: false, // showResult()の処理(クリア記録・ランキング判定)を既に実行したか
     // (「結果を見る」の連打等による二重処理防止。showResult()の先頭で必ず確認する)
     lastRank: null, // 送信した記録がTOP5に入った順位(1〜5)。入らなければnull
+    // ノーミス正式判定用: このプレイ中に一度でもライフが減ったか(handleWrongTapの
+    // 不正解タップ、finalizeAnswerのパス・時間切れの両方で立てる)。再挑戦して
+    // 正解してもライフは回復しないため、一度trueになったら同じプレイ中は
+    // 二度とfalseに戻さない(=ノーミスの正式定義「開始から終了まで一度も
+    // ライフが減らない」をresults[]の見た目に依存せず直接表す)
+    lifeLostThisPlay: false,
+    // トロフィー専用プレイ記録: ライフが1になった瞬間の情報(questionNumber,
+    // countryId)。1になるたびに上書きする(最後にライフ1になった時点の記録)
+    lifeAtOneMoment: null,
   };
 
   // 現在アクティブな制限時間タイマー(問題ごとに作り直す。1問につき1個だけ
@@ -338,6 +348,10 @@ const FindCountryModule = (() => {
   // 一時停止オーバーレイとは別の「一時停止したい理由」として扱い、どちらか片方でも
   // 真であればタイマーは止めたままにする(applyTimerPauseState参照)
   let retryFeedbackActive = false;
+
+  // テスト専用(本番コードからは一切呼ばれない): showResult()が最後に計算した
+  // ノーミス/ノーミスクリア/満点クリア等の判定結果のスナップショット
+  let lastPlayRecordForTest = null;
 
   // 一時停止オーバーレイの表示中・再挑戦待ちのどちらかであればタイマーを
   // 一時停止し、両方とも解消していれば再開する。呼び出し元がどちらの状態を
@@ -473,6 +487,8 @@ const FindCountryModule = (() => {
     quizState.gameOver = false;
     quizState.resultShown = false;
     quizState.lastRank = null;
+    quizState.lifeLostThisPlay = false;
+    quizState.lifeAtOneMoment = null;
     // トロフィーNo.190「迷いなき一撃」用のズーム操作リセットは、問題ごとに
     // renderQuestion()で行う(この関数の末尾で必ずrenderQuestion()を呼ぶため、
     // 最初の問題もそこでリセットされる。ここで別途リセットする必要はない)
@@ -635,6 +651,9 @@ const FindCountryModule = (() => {
     quizState.currentIndex = quizState.sequence.length - 1;
     quizState.answered = false;
     quizState.hasMistakeThisQuestion = false;
+    // トロフィー専用プレイ記録: この問題での誤答タップ回数(再挑戦も含めて
+    // 累計)。hasMistakeThisQuestionと同様、問題が変わるたびにリセットする
+    quizState.wrongAttemptsThisQuestion = 0;
     // トロフィーNo.190「迷いなき一撃」用: この問題の間にユーザー自身の
     // ズーム操作があったかどうかを、問題が変わるたびに必ずリセットする。
     // 再挑戦(handleRetryClick)はここを通らないため、同じ問題への再挑戦中に
@@ -791,6 +810,10 @@ const FindCountryModule = (() => {
       quizState.currentStreak = 0;
       if (!opts.livesAlreadyHandled) {
         quizState.lives = Math.max(0, quizState.lives - 1);
+        quizState.lifeLostThisPlay = true;
+        if (quizState.lives === 1) {
+          quizState.lifeAtOneMoment = { questionNumber: quizState.currentIndex + 1, countryId: quizState.currentCountry.id };
+        }
       }
     }
 
@@ -824,6 +847,7 @@ const FindCountryModule = (() => {
       answeredId: answeredId || null,
       result, // "correct" | "wrong" | "pass" | "timeout"
       firstTryCorrect,
+      wrongAttempts: quizState.wrongAttemptsThisQuestion, // トロフィー専用プレイ記録: この問題での誤答タップ回数
       zoomUsed,
       elapsedSeconds, // 回答時間(0.01秒単位)
       secondsLeft: round2(Math.max(0, secondsLeft)), // 回答確定時の残り時間(0.01秒単位)
@@ -975,8 +999,13 @@ const FindCountryModule = (() => {
   // 従来どおりパス不可・1ミス即ゲームオーバーの仕様を変更しない
   function handleWrongTap(tappedId) {
     quizState.hasMistakeThisQuestion = true;
+    quizState.wrongAttemptsThisQuestion += 1;
     quizState.currentStreak = 0;
     quizState.lives = Math.max(0, quizState.lives - 1);
+    quizState.lifeLostThisPlay = true;
+    if (quizState.lives === 1) {
+      quizState.lifeAtOneMoment = { questionNumber: quizState.currentIndex + 1, countryId: quizState.currentCountry.id };
+    }
     updateLivesDisplay();
 
     if (quizState.lives <= 0) {
@@ -1244,10 +1273,35 @@ const FindCountryModule = (() => {
     // 12コースのクリア記録(第6段階)は、ランキングのTOP5判定・名前入力の
     // 有無とは完全に独立して、1プレイにつき必ず1回だけ記録する
     let proUnlockJustHappened = false;
-    // トロフィー刷新 第3段階: 誤答・パス・時間切れが1件も無い(=results全件が
-    // "correct")かどうか。既存のisNormalClear判定とは独立に、ノーミスクリア系
-    // トロフィー(No.18・19・27・28)の判定だけに使う
-    const noMistakes = quizState.results.length > 0 && quizState.results.every((r) => r.result === "correct");
+    // ノーミスの正式定義: 開始から終了まで一度もライフが減らないこと。
+    // 以前はresults全件が"correct"かどうかで判定していたが、不正解→再挑戦→
+    // 正解の問題は最終結果だけが"correct"として記録される(再挑戦中の不正解は
+    // results[]に残らない)ため、ライフを1個以上失っていても誤ってノーミス
+    // 扱いになる不具合があった。lifeLostThisPlay(ライフが減った瞬間に必ず
+    // trueになり、再挑戦で正解してもfalseへ戻らないフラグ)を直接見ることで、
+    // 見た目のresults[]に依存せず正しく判定する。ノーミス系トロフィー
+    // (No.176「パーフェクトナビ」・177「地図の精密機械」・185「地球の支配者」・
+    // 186「光速の地理学者」)の判定だけに使い、既存のクリア記録・ランキング・
+    // PRO解放条件(isNormalClear/isProComplete、どちらもノーミスを要件にしない)
+    // には影響しない
+    const noMistakes = quizState.results.length > 0 && !quizState.lifeLostThisPlay;
+    // ノーミスクリア: ノーミス状態で、かつこのプレイがクリア条件(通常コースの
+    // 正解数到達、またはPRO全216問完全正解)を実際に満たしたこと。ノーミスの
+    // まま力尽きて終了した場合(ゲームオーバー・出題対象を使い切った場合)は
+    // クリアではないため含めない
+    const noMissClear = noMistakes && (isNormalClear || isProComplete);
+    // 満点クリア: ノーミスクリアの上で、すべての正解が1,000点(3.00秒以内の
+    // 回答)だったこと。ノーミスが成立している時点で全結果が"correct"である
+    // ことは保証されるため、ここではpointsだけを追加で確認すればよい
+    const perfectClear = noMissClear && quizState.results.every((r) => r.points === 1000);
+    // ゲーム終了理由。中断(backToCourseSelect/backToHome)はshowResult()自体を
+    // 呼ばないため、この3値のうち"abandoned"はここには現れない(中断の記録は
+    // 「クリア扱いにしない」という既存仕様どおり、そもそも何も保存・判定しない)
+    const endReason = (isNormalClear || isProComplete) ? "clear" : (quizState.gameOver ? "gameover" : "pool_exhausted");
+    // テスト専用(本番コードからは一切呼ばれない): ノーミス/ノーミスクリア/
+    // 満点クリアの3区分と終了理由・ライフ1到達タイミングを、DOM/Storageの
+    // 副作用を経由せず直接確認できるようにするためのスナップショット
+    lastPlayRecordForTest = { noMistakes, noMissClear, perfectClear, endReason, lifeAtOneMoment: quizState.lifeAtOneMoment, results: quizState.results.slice() };
     if (isNormalClear) {
       try {
         const courseKey = Storage.findCountryCourseKey(quizState.difficultyId, target);
@@ -1279,6 +1333,13 @@ const FindCountryModule = (() => {
           isNormalClear,
           isProComplete,
           noMistakes,
+          // 隠しトロフィー61種類実装(第1段階)で追加した判定基盤。現時点では
+          // どのcheck()もまだ参照しないが、将来の定義から同じ呼び出し1箇所
+          // (このevaluateFindCountryResult)経由で使えるよう、ここで先に揃えておく
+          noMissClear,
+          perfectClear,
+          endReason,
+          lifeAtOneMoment: quizState.lifeAtOneMoment,
           gameOver: quizState.gameOver,
           results: quizState.results.slice(),
         });
@@ -1806,5 +1867,9 @@ const FindCountryModule = (() => {
     // 遷移といった本来のゲーム処理は全て実際のコードを経由して検証できる
     getCurrentCountryId: () => (quizState.currentCountry ? quizState.currentCountry.id : null),
     simulateTapForTest: (id) => handleTap(id),
+    // 隠しトロフィー61種類実装(第1段階)で追加した判定基盤(ノーミス/
+    // ノーミスクリア/満点クリア/終了理由/ライフ1到達タイミング)を、
+    // showResult()を経由した実際の処理結果のまま直接確認するためのアクセサ
+    getLastPlayRecordForTest: () => lastPlayRecordForTest,
   };
 })();

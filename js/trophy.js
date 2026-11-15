@@ -2127,8 +2127,13 @@ const TrophyModule = (() => {
   // 「世界の国どこかな？」(js/findcountry.jsのshowResult())からの呼び出し
   // 専用。context: { difficultyId, correctCount, answered, target, maxLives,
   //                   maxStreak, isNormalClear, isProComplete, noMistakes,
+  //                   noMissClear, perfectClear, endReason, lifeAtOneMoment,
   //                   gameOver, results(配列、各要素はfirstTryCorrect・
-  //                   zoomUsedを含む。No.190はzoomUsedを問題単位で参照する) }
+  //                   wrongAttempts・zoomUsedを含む。No.190はzoomUsedを
+  //                   問題単位で参照する) }。noMissClear/perfectClear/
+  //                   endReason/lifeAtOneMomentは隠しトロフィー61種類実装
+  //                   (第1段階)で追加した判定基盤で、現時点ではどの
+  //                   check()もまだ参照しない(将来の追加分がここから使う)
   function evaluateFindCountryResult(context) {
     return evaluate(Object.assign({ source: "findcountry", event: "result" }, context));
   }
