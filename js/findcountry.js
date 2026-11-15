@@ -1493,6 +1493,19 @@ const FindCountryModule = (() => {
       console.warn("世界の国どこかな？: トロフィー判定に失敗しました(結果には影響しません)", e);
     }
 
+    // 隠しトロフィー61種類実装の修正: プレイ中はevaluateHiddenTrophiesProgress()
+    // (finalizeAnswer()から回答確定ごとに呼ばれる)によって判定・即時保存だけを
+    // 行い、quizState.hiddenAwardedIdsThisPlayに積んでいるだけで、結果確定時の
+    // 通知配列(findCountryTrophyAwardedIds)には一度も合流していなかった。
+    // 正式なクリア・ゲームオーバーで結果が確定したこの時点(showResult()は
+    // 中断時には呼ばれない)で、既存35種類の通知idと合流し、Setで重複を
+    // 除去してから既存の1回の獲得演出通知にまとめて渡す。この合流以外は
+    // 一切変更していないため、既存36種類・その他のトロフィーの通知タイミング・
+    // 内容には影響しない
+    findCountryTrophyAwardedIds = Array.from(
+      new Set([...findCountryTrophyAwardedIds, ...quizState.hiddenAwardedIdsThisPlay])
+    );
+
     const resultCtx = {
       d, maxLives, target, answered, correctCount, rate, totalPoints, avgElapsed,
       isProComplete, isNormalClear, proUnlockJustHappened, findCountryTrophyAwardedIds,
