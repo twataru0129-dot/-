@@ -373,8 +373,11 @@ async function readClearProgress(page) {
     // 終了ボタンを押す前に必ず閉じておく
     await drainTrophyAwardScreens(page);
 
-    // 「終了する」ボタン(確認ダイアログはpage.on("dialog")で自動的に承諾)
+    // 「終了する」ボタン。確認はネイティブdialog()ではなく自前の
+    // #confirm-modal(はい/いいえボタン)のため、そちらを直接押す
     await page.click("#findcountry-quiz-back");
+    await page.waitForSelector("#confirm-modal:not(.hidden)", { timeout: 5000 });
+    await page.click("#confirm-modal-yes");
     await page.waitForTimeout(300);
     const activeScreen = await page.$eval(".screen.active", (el) => el.id);
     check("テスト8: 中断すると難易度/問題数選択画面へ戻る(結果画面を経由しない)", activeScreen === "screen-findcountry-count" || activeScreen === "screen-findcountry-difficulty");
