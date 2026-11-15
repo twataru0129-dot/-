@@ -1201,7 +1201,10 @@ function buildTrophyCardElement(def, earnedEntry) {
 let TROPHY_CATEGORY_LABELS = {};
 
 function renderTrophyFilterControls() {
-  const categories = TrophyModule.getCategories();
+  // 隠しトロフィー61種類実装(第2段階)で追加した"findcountry_hidden"カテゴリーは、
+  // 一覧画面・獲得演出を次段階で実装する確定仕様のため、既存のカテゴリー
+  // タブには表示しない(renderTrophyGrid側の表示除外と対応させる)
+  const categories = TrophyModule.getCategories().filter((c) => c.id !== "findcountry_hidden");
   TROPHY_CATEGORY_LABELS = {};
   categories.forEach((c) => { TROPHY_CATEGORY_LABELS[c.id] = c.label; });
 
@@ -1241,7 +1244,10 @@ function renderTrophyFilterControls() {
 function renderTrophyGrid() {
   const grid = $("trophy-grid");
   grid.innerHTML = "";
-  const defs = TrophyModule.getAllDefinitions();
+  // 隠しトロフィー61種類(#195〜255、第2段階)は、一覧画面・獲得演出を
+  // 次段階で実装する確定仕様のため、既存のこの一覧には表示しない
+  // (judge/保存は既に有効だが、表示だけを次段階まで保留する)
+  const defs = TrophyModule.getAllDefinitions().filter((def) => def.stage !== "hidden61");
   const earned = TrophyModule.getEarned();
   defs.forEach((def) => {
     grid.appendChild(buildTrophyCardElement(def, earned[def.id]));

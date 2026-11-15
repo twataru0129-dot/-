@@ -64,18 +64,21 @@ function check(name, cond) {
   const { Trophy } = freshSandbox();
   const defs = Trophy.getAllDefinitions();
   // 「世界の国どこかな？」専用トロフィー36種類(#159〜194)の追加により、
-  // 153件/9カテゴリから189件/10カテゴリに変わった(世界図鑑関連の期待値
-  // (#143〜157=15件等)はこの追加の対象外のため変更していない)
-  check("total trophies = 189", defs.length === 189);
+  // 153件/9カテゴリから189件/10カテゴリに変わり、さらに隠しトロフィー
+  // 61種類(#195〜255、第2段階)の追加で189件/10カテゴリから250件/11カテゴリに
+  // 変わった(世界図鑑関連の期待値(#143〜157=15件等)はこれらの追加の
+  // 対象外のため変更していない)
+  check("total trophies = 250", defs.length === 250);
   const cats = Trophy.getCategories();
-  check("category count = 10", cats.length === 10);
+  check("category count = 11", cats.length === 11);
   check("encyclopedia category exists", cats.some((c) => c.id === "encyclopedia"));
   const byCat = {};
   defs.forEach((d) => { byCat[d.category] = (byCat[d.category] || 0) + 1; });
   check("encyclopedia category count = 15 (#143-157)", byCat.encyclopedia === 15);
   check("special category count = 13 (existing 11 + #142 + #158)", byCat.special === 13);
   check("capital_trivia category count = 29 (unchanged)", byCat.capital_trivia === 29);
-  check("hidden trophy count = 14", defs.filter((d) => d.hidden).length === 14);
+  check("findcountry_hidden category count = 61 (#195-255)", byCat.findcountry_hidden === 61);
+  check("hidden trophy count = 75 (既存14+隠しトロフィー61種類)", defs.filter((d) => d.hidden).length === 75);
   check("#158 is hidden", defs.find((d) => d.number === 158).hidden === true);
   check("#158 name is 世界の叡智", defs.find((d) => d.number === 158).name === "世界の叡智");
 }
