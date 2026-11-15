@@ -59,6 +59,30 @@ const MapModule = (() => {
   let pendingInitialFocusId = null;
   let isRandomFlightInProgress = false; // ランダム移動のカメラアニメーション中だけtrue
   let hasInteracted = false;
+  // 「世界の国どこかな？」トロフィー No.190「迷いなき一撃」用: 直近で
+  // resetZoomTracking()を呼んだ時点から現在までの間に、ユーザー自身が
+  // ズーム操作(マウスホイール・トラックパッドのピンチ・2本指タッチでの
+  // ピンチズーム)を行ったかどうか。呼び出し元(js/findcountry.js)は
+  // 問題ごとに(renderQuestion()で)resetZoomTracking()を呼ぶため、実質的に
+  // 「この1問の間にズーム操作があったか」を表すフラグになる(1プレイ全体の
+  // フラグではない)。wasZoomUsed()で読み取る。1本指のドラッグ/スワイプ/
+  // タップ(OrbitControlsのROTATE)や、ゲーム側の自動ズーム・自動カメラ移動
+  // (pointOfView()の直接呼び出し。合成のwheel/touchイベントを一切発生させ
+  // ない)はこのフラグに影響しない。ネイティブのwheel/touchmoveイベントだけを
+  // 見るため、OrbitControlsの内部実装や、プログラムによるカメラ移動が
+  // controls経由かどうかに依存しない
+  let zoomUsedSinceReset = false;
+  // 2本指ピンチの誤検出対策用: 直近のtouchstart/touchmoveで記録した2本指間の
+  // 距離(px)。2本指でなくなったり、新たに2本指になったりするたびにnullへ戻す
+  let pinchBaselineDistance = null;
+  // この距離(px)以上、2本指間の距離が変化して初めて「ピンチ操作があった」と
+  // みなす(ただ指を2本置いただけで指が動いていない場合を誤検出しないため)
+  const PINCH_MOVE_THRESHOLD_PX = 8;
+  function touchPairDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
   let trackedCountry = null; // 選択中で、国名ラベルを追従させる対象(非選択時はnull)
   let countryGeoById = new Map(); // id -> {lat,lng,area,sizeDeg,minLat,maxLat,minLng,maxLng,polys}(GeoJSON読み込み時に一度だけ算出、下記computeCountryGeoInfo参照)
   let pinAnchorById = new Map(); // id -> {lat,lng}。countryGeoByIdのうちPIN_TARGET_IDSだけを抜き出したもの(📍表示用)
@@ -1789,6 +1813,47 @@ const MapModule = (() => {
       container.addEventListener(evt, stopAutoRotateOnce, { passive: true });
     });
 
+    // No.32/No.190「迷いなき一撃」用のズーム検出。このアプリにはダブルタップ
+    // ズーム・専用ズームボタンが存在しない(存在するズーム手段はマウスホイールと
+    // 2本指ピンチの2つだけ)ため、その2つのネイティブイベントだけを見れば
+    // 十分に「ユーザー自身のズーム操作」を特定できる。wheelは発生した時点で
+    // 常にズームと判定する(1本指のドラッグ/スワイプ/タップは対象外)
+    container.addEventListener("wheel", markZoomUsed, { passive: true });
+    // 2本指タッチは、ただ指を2本置いただけ(距離が変化しない)でも
+    // touchmoveが発生し得るため、実際に2本の指の距離が一定以上変化した
+    // 場合だけをピンチズームとみなす(「指を2本置いただけの誤検出」への対処)。
+    // touchstartで2本になった時点の距離を基準として記録し、touchmoveで
+    // その基準との差がPINCH_MOVE_THRESHOLD_PXを超えたら初めてマークする。
+    // 3本目以降の指が加わった/本数が変わった場合は基準を取り直す
+    container.addEventListener("touchstart", (e) => {
+      if (e.touches && e.touches.length === 2) {
+        pinchBaselineDistance = touchPairDistance(e.touches);
+      } else {
+        pinchBaselineDistance = null;
+      }
+    }, { passive: true });
+    container.addEventListener("touchmove", (e) => {
+      if (!e.touches || e.touches.length !== 2) {
+        pinchBaselineDistance = null;
+        return;
+      }
+      const dist = touchPairDistance(e.touches);
+      if (pinchBaselineDistance === null) {
+        pinchBaselineDistance = dist;
+        return;
+      }
+      if (Math.abs(dist - pinchBaselineDistance) > PINCH_MOVE_THRESHOLD_PX) {
+        markZoomUsed();
+      }
+    }, { passive: true });
+    ["touchend", "touchcancel"].forEach((evt) => {
+      container.addEventListener(evt, (e) => {
+        // 残りのタッチ数が2本でなくなったら基準をリセットする(1本に戻って
+        // 再び2本目が触れたときに、新しい基準から判定し直すため)
+        if (!e.touches || e.touches.length !== 2) pinchBaselineDistance = null;
+      }, { passive: true });
+    });
+
     window.addEventListener("resize", resizeGlobe);
 
     // globe.glはインスタンス生成と同時に描画ループを開始する。読み込みが
@@ -1821,6 +1886,22 @@ const MapModule = (() => {
     if (hasInteracted || !globeInstance) return;
     hasInteracted = true;
     globeInstance.controls().autoRotate = false;
+  }
+
+  // ---------- ズーム操作の検出(No.190「迷いなき一撃」用) ----------
+  function markZoomUsed() {
+    zoomUsedSinceReset = true;
+  }
+  // 「世界の国どこかな？」が新しい問題を出題する際に呼ぶ(js/findcountry.js
+  // のrenderQuestion()参照、問題ごとに毎回呼ばれる)。地球儀がまだ構築されて
+  // いない場合でもフラグの初期化自体は問題なく行える
+  function resetZoomTracking() {
+    zoomUsedSinceReset = false;
+    pinchBaselineDistance = null;
+  }
+  // 直近のresetZoomTracking()以降、ズーム操作があったかどうかを読み取る
+  function wasZoomUsed() {
+    return zoomUsedSinceReset;
   }
 
   // 地図タップ・検索のどちらから来ても、この共通処理で国を選択する。
@@ -2483,6 +2564,7 @@ const MapModule = (() => {
     setTapResultHandler, clearTapResultHandler,
     setQuizResultHighlight, clearQuizResultHighlight,
     setPinsForcedVisible,
+    resetZoomTracking, wasZoomUsed,
   };
 })();
 

@@ -63,9 +63,12 @@ function check(name, cond) {
 {
   const { Trophy } = freshSandbox();
   const defs = Trophy.getAllDefinitions();
-  check("total trophies = 153", defs.length === 153);
+  // 「世界の国どこかな？」専用トロフィー36種類(#159〜194)の追加により、
+  // 153件/9カテゴリから189件/10カテゴリに変わった(世界図鑑関連の期待値
+  // (#143〜157=15件等)はこの追加の対象外のため変更していない)
+  check("total trophies = 189", defs.length === 189);
   const cats = Trophy.getCategories();
-  check("category count = 9", cats.length === 9);
+  check("category count = 10", cats.length === 10);
   check("encyclopedia category exists", cats.some((c) => c.id === "encyclopedia"));
   const byCat = {};
   defs.forEach((d) => { byCat[d.category] = (byCat[d.category] || 0) + 1; });

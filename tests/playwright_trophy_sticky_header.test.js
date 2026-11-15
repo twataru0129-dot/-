@@ -94,9 +94,10 @@ async function runForViewport(browser, base, viewport, label) {
   await page.click('#trophy-category-tabs [data-category="all"]');
   await page.waitForTimeout(150);
 
-  // 7. 153種類のトロフィーが正常に表示される
+  // 7. 189種類のトロフィーが正常に表示される(「世界の国どこかな？」専用
+  // トロフィー36種類の追加により153件から189件に変わった)
   const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-  check(`[${label}] トロフィー153件が全てDOMに存在する`, totalCount === 153);
+  check(`[${label}] トロフィー189件が全てDOMに存在する`, totalCount === 189);
 
   // 8. 隠しトロフィーの表示仕様が維持されている(「？？？？？？」のまま)
   const hiddenNames = await page.$$eval(".trophy-card.trophy-card-secret .trophy-name", (els) => els.map((e) => e.textContent.trim()));

@@ -473,6 +473,9 @@ const FindCountryModule = (() => {
     quizState.gameOver = false;
     quizState.resultShown = false;
     quizState.lastRank = null;
+    // トロフィーNo.190「迷いなき一撃」用のズーム操作リセットは、問題ごとに
+    // renderQuestion()で行う(この関数の末尾で必ずrenderQuestion()を呼ぶため、
+    // 最初の問題もそこでリセットされる。ここで別途リセットする必要はない)
 
     showScreen("screen-map");
     enterFindCountryMapMode();
@@ -632,6 +635,12 @@ const FindCountryModule = (() => {
     quizState.currentIndex = quizState.sequence.length - 1;
     quizState.answered = false;
     quizState.hasMistakeThisQuestion = false;
+    // トロフィーNo.190「迷いなき一撃」用: この問題の間にユーザー自身の
+    // ズーム操作があったかどうかを、問題が変わるたびに必ずリセットする。
+    // 再挑戦(handleRetryClick)はここを通らないため、同じ問題への再挑戦中に
+    // ズームした場合はリセットされず、その問題全体として「ズームあり」の
+    // ままになる(確定仕様: 再挑戦中のズームも対象問題のズームとして数える)
+    try { MapModule.resetZoomTracking(); } catch (e) { /* noop */ }
     // 「次の問題へ」/「結果を見る」ボタンは実際には.hiddenで隠れているため
     // 通常のタップでは押せないが、念のための防御としてhandleNextClick側でも
     // 判定する。answeredは「もう一度さがす」を待っている間もtrueになるため、
@@ -766,6 +775,16 @@ const FindCountryModule = (() => {
         console.warn("世界の国どこかな？: コレクションの記録に失敗しました", e);
         isNewCapture = false;
       }
+      // トロフィーNo.31「小さな巨人」用: PROモードで正解した対象5か国だけを
+      // 専用の記録に残す(通常モードでの正解は対象外という確定仕様のため、
+      // difficultyIdがPROの場合だけ呼ぶ。対象外のidはStorage側で無視される)
+      if (quizState.difficultyId === PRO_DIFFICULTY_ID) {
+        try {
+          Storage.recordFindCountryProTinyCapture(quizState.currentCountry.id);
+        } catch (e) {
+          console.warn("世界の国どこかな？: PRO小国記録に失敗しました", e);
+        }
+      }
     } else {
       // 不正解・パス・時間切れは、その後に正解位置を確認しても
       // 連続正解としては扱わない(回答確定の時点で即座に0にする)
@@ -783,11 +802,29 @@ const FindCountryModule = (() => {
     const elapsedSeconds = round2(Math.min(d.seconds, Math.max(0, d.seconds - secondsLeft)));
     const points = computeScore({ result, elapsedSeconds });
 
+    // firstTryCorrect: このトロフィー刷新で追加したフィールド。result==="correct"で
+    // かつ再挑戦なし(hasMistakeThisQuestionがfalse)の場合のみtrueにする。
+    // トロフィーNo.20・21・26・29・32・33・34・35(「初回正解」の連続・判定)が
+    // この問題単位の記録だけから正確に判定できるようにするため(currentStreak自体は
+    // 既存仕様のまま変更しない)
+    const firstTryCorrect = result === "correct" && !quizState.hasMistakeThisQuestion;
+
+    // zoomUsed: トロフィーNo.190「迷いなき一撃」用。この問題がrenderQuestion()
+    // で出題されてから今この最終結果が確定するまでの間(再挑戦があればその
+    // 間も含む)に、ユーザー自身のズーム操作(マウスホイール・2本指ピンチ)が
+    // あったかどうか。MapModule.resetZoomTracking()は問題が変わるたびに
+    // (renderQuestion()で)呼ばれているため、ここで読む値は必ず「この問題
+    // だけ」のズーム有無になる
+    let zoomUsed = false;
+    try { zoomUsed = MapModule.wasZoomUsed(); } catch (e) { zoomUsed = false; }
+
     quizState.results.push({
       questionNumber: quizState.currentIndex + 1,
       countryId: quizState.currentCountry.id,
       answeredId: answeredId || null,
       result, // "correct" | "wrong" | "pass" | "timeout"
+      firstTryCorrect,
+      zoomUsed,
       elapsedSeconds, // 回答時間(0.01秒単位)
       secondsLeft: round2(Math.max(0, secondsLeft)), // 回答確定時の残り時間(0.01秒単位)
       points, // 得点(不正解・パス・時間切れは常に0)
@@ -800,6 +837,29 @@ const FindCountryModule = (() => {
     }
 
     updateLivesDisplay();
+
+    // トロフィー刷新 第3段階: No.1「地図への第一歩」・No.14「秘境への扉」は
+    // 1プレイの終了を待たず、実際に正解したその瞬間に即時付与する確定仕様
+    // のため、結果画面を待たずここで1回だけ判定する。他の35種は1プレイの
+    // 結果が確定した時点(showResult)でまとめて判定するため、ここでは
+    // 判定対象にならない(各checkがcontext.eventを見て自分の対象かどうかを
+    // 判断する。例外が起きても結果表示・ゲーム進行には影響させない)
+    if (result === "correct") {
+      try {
+        if (typeof TrophyModule !== "undefined" && typeof TrophyModule.evaluateFindCountryAnswer === "function") {
+          const r = TrophyModule.evaluateFindCountryAnswer({ difficultyId: quizState.difficultyId, result: "correct" });
+          if (r && Array.isArray(r.awardedIds) && r.awardedIds.length) {
+            const awardedIds = r.awardedIds;
+            setTimeout(() => {
+              document.dispatchEvent(new CustomEvent("trophymodule:non-quiz-award", { detail: { ids: awardedIds } }));
+            }, 0);
+          }
+        }
+      } catch (e) {
+        console.warn("世界の国どこかな？: 即時付与トロフィーの判定に失敗しました", e);
+      }
+    }
+
     showFeedback(result, answeredId, isNewCapture);
   }
 
@@ -1184,42 +1244,54 @@ const FindCountryModule = (() => {
     // 12コースのクリア記録(第6段階)は、ランキングのTOP5判定・名前入力の
     // 有無とは完全に独立して、1プレイにつき必ず1回だけ記録する
     let proUnlockJustHappened = false;
+    // トロフィー刷新 第3段階: 誤答・パス・時間切れが1件も無い(=results全件が
+    // "correct")かどうか。既存のisNormalClear判定とは独立に、ノーミスクリア系
+    // トロフィー(No.18・19・27・28)の判定だけに使う
+    const noMistakes = quizState.results.length > 0 && quizState.results.every((r) => r.result === "correct");
     if (isNormalClear) {
       try {
         const courseKey = Storage.findCountryCourseKey(quizState.difficultyId, target);
         proUnlockJustHappened = Storage.markFindCountryCourseCleared(courseKey).justUnlockedPro;
+        // トロフィーNo.27「地球の支配者」用: 通常クリア記録とは別の専用キーに
+        // ノーミスクリアだけを記録する(既存のクリア記録・PRO解放判定には影響しない)
+        if (noMistakes) {
+          Storage.markFindCountryCourseNoMissCleared(courseKey);
+        }
       } catch (e) {
         console.warn("世界の国どこかな？: コースクリア記録の保存に失敗しました", e);
       }
     }
-
-    const resultCtx = {
-      d, maxLives, target, answered, correctCount, rate, totalPoints, avgElapsed,
-      isProComplete, isNormalClear, proUnlockJustHappened,
-    };
-
     // トロフィー刷新 第2段階: ランキングTOP5判定・名前入力の有無に関係なく、
     // このプレイの結果(正解数・連続正解・クリア判定等)が確定した時点で
-    // 必ず1回だけ新トロフィーシステム(js/trophy.js)の判定を呼ぶ。正式な
-    // 107項目はまだ1件も確定していないため、現時点では必ず何も獲得されない
-    // (安全な空振り)。例外が起きても既存の結果画面・ランキング・12コース
-    // クリア記録には一切影響しないよう必ずtry/catchで囲む
+    // 必ず1回だけ新トロフィーシステム(js/trophy.js)の判定を呼ぶ。
+    // 例外が起きても既存の結果画面・ランキング・12コースクリア記録には
+    // 一切影響しないよう必ずtry/catchで囲む
+    let findCountryTrophyAwardedIds = [];
     try {
       if (typeof TrophyModule !== "undefined") {
-        TrophyModule.evaluateFindCountryResult({
+        const r = TrophyModule.evaluateFindCountryResult({
           difficultyId: quizState.difficultyId,
           correctCount,
           answered,
+          target,
+          maxLives,
           maxStreak: quizState.maxStreak,
           isNormalClear,
           isProComplete,
+          noMistakes,
           gameOver: quizState.gameOver,
           results: quizState.results.slice(),
         });
+        if (r && Array.isArray(r.awardedIds)) findCountryTrophyAwardedIds = r.awardedIds;
       }
     } catch (e) {
       console.warn("世界の国どこかな？: トロフィー判定に失敗しました(結果には影響しません)", e);
     }
+
+    const resultCtx = {
+      d, maxLives, target, answered, correctCount, rate, totalPoints, avgElapsed,
+      isProComplete, isNormalClear, proUnlockJustHappened, findCountryTrophyAwardedIds,
+    };
 
     // 追加修正: 名前のためにランキング順位が変わらないよう、保存前の
     // プレビュー(Storage.previewFindCountryRank)で「TOP5に入るか」だけを
@@ -1271,7 +1343,7 @@ const FindCountryModule = (() => {
   // 実際に結果画面のDOMへ反映してから表示する(showResult()から、TOP5で
   // なければ即座に、TOP5なら名前入力後に呼ばれる)
   function renderResultScreen(ctx) {
-    const { d, maxLives, target, answered, correctCount, rate, totalPoints, avgElapsed, isProComplete, isNormalClear, proUnlockJustHappened } = ctx;
+    const { d, maxLives, target, answered, correctCount, rate, totalPoints, avgElapsed, isProComplete, isNormalClear, proUnlockJustHappened, findCountryTrophyAwardedIds } = ctx;
 
     $("findcountry-result-title").textContent = quizState.gameOver
       ? "ゲームオーバー"
@@ -1344,6 +1416,18 @@ const FindCountryModule = (() => {
     }
 
     showScreen("screen-findcountry-result");
+
+    // トロフィー刷新 第3段階: このプレイの結果確定で新規に成立したトロフィー
+    // (No.1・14の即時付与分を除く、1プレイの最終結果だけで判定できる35種)を、
+    // 結果画面に切り替わった直後に通知する。既存のnotifyNonQuizTrophyAward
+    // (js/app.js)が「現在の画面」を戻り先として記憶するため、画面が
+    // screen-findcountry-resultに切り替わった後に呼ぶ必要がある(先に呼ぶと
+    // 戻り先がまだ地図画面のままになってしまう)。idごとの重複表示防止は
+    // 既存のnotifyNonQuizTrophyAward側で行われるため、finalizeAnswer側で
+    // 既に即時付与されたNo.1・14がここで再度渡っても二重に表示されない
+    if (Array.isArray(findCountryTrophyAwardedIds) && findCountryTrophyAwardedIds.length) {
+      document.dispatchEvent(new CustomEvent("trophymodule:non-quiz-award", { detail: { ids: findCountryTrophyAwardedIds } }));
+    }
   }
 
   // ---------- ランキングTOP5入賞時の名前入力(追加修正) ----------
@@ -1712,5 +1796,15 @@ const FindCountryModule = (() => {
   return {
     initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, isProCompleteRun,
     isNormalCourseClear, showCollectionScreen,
+    // ---- テスト専用(本番コードからは一切呼ばれない) ----
+    // 3D地球儀への実際のピクセル単位のタップをPlaywrightで安定して再現する
+    // ことは現実的でないため、実際のタップ結果コールバック(handleTap、
+    // MapModule.setTapResultHandler()に登録される関数そのもので、本番の
+    // タップ処理と全く同じ経路)と、出題中の正解idをテストから直接呼べる
+    // ようにする。これにより「ピクセル座標から国を特定する」工程だけを
+    // 省略し、正解判定・ライフ処理・連続正解・トロフィー判定・結果画面への
+    // 遷移といった本来のゲーム処理は全て実際のコードを経由して検証できる
+    getCurrentCountryId: () => (quizState.currentCountry ? quizState.currentCountry.id : null),
+    simulateTapForTest: (id) => handleTap(id),
   };
 })();

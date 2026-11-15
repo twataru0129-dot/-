@@ -1099,6 +1099,29 @@ img { max-width: 100%; }
   border-radius: 999px;
   padding: 3px 10px;
 }
+/* 「世界の国どこかな？」専用トロフィー36種類(#159〜194)用: カテゴリー
+   バッジとレア度バッジを並べるための器。既存のカード(レア度バッジを
+   持たない#1〜158)はこの中にカテゴリーバッジ1つだけが入るため見た目は
+   変わらない */
+.trophy-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.trophy-rarity-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: #fff;
+  white-space: nowrap;
+}
+.trophy-rarity-normal { background: #8d99a6; }
+.trophy-rarity-rare { background: #2f80d6; }
+.trophy-rarity-super_rare {
+  background: linear-gradient(135deg, #f5a623, #e85d9c);
+}
 
 .trophy-marks {
   display: flex;
