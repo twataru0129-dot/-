@@ -1347,9 +1347,17 @@ const TrophyModule = (() => {
       check: (ctx) => ctx && ctx.source === "findcountry" && Storage.getFindCountryProTinyProgress().allCaptured,
     },
     190: {
-      name: "迷いなき一撃", condition: "上級モードで一度もズーム操作せず10問連続初回正解する", mode: "findcountry", rarity: "super_rare",
-      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "advanced" && !ctx.zoomUsedThisPlay
-        && hasConsecutiveRun(ctx.results, 10, (r) => r.result === "correct" && r.firstTryCorrect),
+      // 追加修正: 「プレイ全体でズーム禁止」ではなく「ズーム操作の無い10問連続
+      // (初回正解)の区間が1つでも成立すればよい」という確定仕様に対応。
+      // 各results要素のzoomUsed(js/findcountry.jsのfinalizeAnswer()が、
+      // 問題ごとにMapModule.resetZoomTracking()/wasZoomUsed()で記録)を
+      // hasConsecutiveRun()のpredicateに含めるだけで、「ズームした問題で
+      // 連続記録が切れ、次の問題から新しく10問を目指せる」という挙動が
+      // 既存のhasConsecutiveRun()のリセット動作だけで自然に実現できる
+      // (判定ロジックを複製していない)
+      name: "迷いなき一撃", condition: "上級モードで、ズーム操作のない10問連続で初回正解する", mode: "findcountry", rarity: "super_rare",
+      check: (ctx) => isFindCountryPlayResult(ctx) && ctx.difficultyId === "advanced"
+        && hasConsecutiveRun(ctx.results, 10, (r) => r.result === "correct" && r.firstTryCorrect && !r.zoomUsed),
     },
     191: {
       name: "世界一周の奇跡", condition: "1プレイ中にアジア/ヨーロッパ/アフリカ/北米/南米/オセアニアの6地域それぞれから1問以上初回正解する", mode: "findcountry", rarity: "super_rare",
@@ -2119,7 +2127,8 @@ const TrophyModule = (() => {
   // 「世界の国どこかな？」(js/findcountry.jsのshowResult())からの呼び出し
   // 専用。context: { difficultyId, correctCount, answered, target, maxLives,
   //                   maxStreak, isNormalClear, isProComplete, noMistakes,
-  //                   zoomUsedThisPlay, gameOver, results(配列) }
+  //                   gameOver, results(配列、各要素はfirstTryCorrect・
+  //                   zoomUsedを含む。No.190はzoomUsedを問題単位で参照する) }
   function evaluateFindCountryResult(context) {
     return evaluate(Object.assign({ source: "findcountry", event: "result" }, context));
   }

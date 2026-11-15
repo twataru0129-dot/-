@@ -473,9 +473,9 @@ const FindCountryModule = (() => {
     quizState.gameOver = false;
     quizState.resultShown = false;
     quizState.lastRank = null;
-    // トロフィーNo.32「迷いなき一撃」用: このプレイ中のズーム操作有無を
-    // 新しいプレイの開始時に必ずリセットする(前のプレイの状態が残らない)
-    try { MapModule.resetZoomTracking(); } catch (e) { /* noop */ }
+    // トロフィーNo.190「迷いなき一撃」用のズーム操作リセットは、問題ごとに
+    // renderQuestion()で行う(この関数の末尾で必ずrenderQuestion()を呼ぶため、
+    // 最初の問題もそこでリセットされる。ここで別途リセットする必要はない)
 
     showScreen("screen-map");
     enterFindCountryMapMode();
@@ -635,6 +635,12 @@ const FindCountryModule = (() => {
     quizState.currentIndex = quizState.sequence.length - 1;
     quizState.answered = false;
     quizState.hasMistakeThisQuestion = false;
+    // トロフィーNo.190「迷いなき一撃」用: この問題の間にユーザー自身の
+    // ズーム操作があったかどうかを、問題が変わるたびに必ずリセットする。
+    // 再挑戦(handleRetryClick)はここを通らないため、同じ問題への再挑戦中に
+    // ズームした場合はリセットされず、その問題全体として「ズームあり」の
+    // ままになる(確定仕様: 再挑戦中のズームも対象問題のズームとして数える)
+    try { MapModule.resetZoomTracking(); } catch (e) { /* noop */ }
     // 「次の問題へ」/「結果を見る」ボタンは実際には.hiddenで隠れているため
     // 通常のタップでは押せないが、念のための防御としてhandleNextClick側でも
     // 判定する。answeredは「もう一度さがす」を待っている間もtrueになるため、
@@ -803,12 +809,22 @@ const FindCountryModule = (() => {
     // 既存仕様のまま変更しない)
     const firstTryCorrect = result === "correct" && !quizState.hasMistakeThisQuestion;
 
+    // zoomUsed: トロフィーNo.190「迷いなき一撃」用。この問題がrenderQuestion()
+    // で出題されてから今この最終結果が確定するまでの間(再挑戦があればその
+    // 間も含む)に、ユーザー自身のズーム操作(マウスホイール・2本指ピンチ)が
+    // あったかどうか。MapModule.resetZoomTracking()は問題が変わるたびに
+    // (renderQuestion()で)呼ばれているため、ここで読む値は必ず「この問題
+    // だけ」のズーム有無になる
+    let zoomUsed = false;
+    try { zoomUsed = MapModule.wasZoomUsed(); } catch (e) { zoomUsed = false; }
+
     quizState.results.push({
       questionNumber: quizState.currentIndex + 1,
       countryId: quizState.currentCountry.id,
       answeredId: answeredId || null,
       result, // "correct" | "wrong" | "pass" | "timeout"
       firstTryCorrect,
+      zoomUsed,
       elapsedSeconds, // 回答時間(0.01秒単位)
       secondsLeft: round2(Math.max(0, secondsLeft)), // 回答確定時の残り時間(0.01秒単位)
       points, // 得点(不正解・パス・時間切れは常に0)
@@ -831,7 +847,7 @@ const FindCountryModule = (() => {
     if (result === "correct") {
       try {
         if (typeof TrophyModule !== "undefined" && typeof TrophyModule.evaluateFindCountryAnswer === "function") {
-          const r = TrophyModule.evaluateFindCountryAnswer({ difficultyId: quizState.difficultyId });
+          const r = TrophyModule.evaluateFindCountryAnswer({ difficultyId: quizState.difficultyId, result: "correct" });
           if (r && Array.isArray(r.awardedIds) && r.awardedIds.length) {
             const awardedIds = r.awardedIds;
             setTimeout(() => {
@@ -1245,11 +1261,6 @@ const FindCountryModule = (() => {
         console.warn("世界の国どこかな？: コースクリア記録の保存に失敗しました", e);
       }
     }
-    // トロフィーNo.32「迷いなき一撃」用: このプレイ中に一度でもズーム操作が
-    // あったかどうか(結果画面へ進む直前、まだ地図モードを離れる前に読む)
-    let zoomUsedThisPlay = false;
-    try { zoomUsedThisPlay = MapModule.wasZoomUsed(); } catch (e) { zoomUsedThisPlay = false; }
-
     // トロフィー刷新 第2段階: ランキングTOP5判定・名前入力の有無に関係なく、
     // このプレイの結果(正解数・連続正解・クリア判定等)が確定した時点で
     // 必ず1回だけ新トロフィーシステム(js/trophy.js)の判定を呼ぶ。
@@ -1268,7 +1279,6 @@ const FindCountryModule = (() => {
           isNormalClear,
           isProComplete,
           noMistakes,
-          zoomUsedThisPlay,
           gameOver: quizState.gameOver,
           results: quizState.results.slice(),
         });
@@ -1786,5 +1796,15 @@ const FindCountryModule = (() => {
   return {
     initEvents, openDifficultyScreen, computeScore, maxLivesFor, getResults, isProCompleteRun,
     isNormalCourseClear, showCollectionScreen,
+    // ---- テスト専用(本番コードからは一切呼ばれない) ----
+    // 3D地球儀への実際のピクセル単位のタップをPlaywrightで安定して再現する
+    // ことは現実的でないため、実際のタップ結果コールバック(handleTap、
+    // MapModule.setTapResultHandler()に登録される関数そのもので、本番の
+    // タップ処理と全く同じ経路)と、出題中の正解idをテストから直接呼べる
+    // ようにする。これにより「ピクセル座標から国を特定する」工程だけを
+    // 省略し、正解判定・ライフ処理・連続正解・トロフィー判定・結果画面への
+    // 遷移といった本来のゲーム処理は全て実際のコードを経由して検証できる
+    getCurrentCountryId: () => (quizState.currentCountry ? quizState.currentCountry.id : null),
+    simulateTapForTest: (id) => handleTap(id),
   };
 })();

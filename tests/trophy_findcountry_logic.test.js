@@ -64,6 +64,7 @@ function ok(countryId, opts) {
     answeredId: countryId,
     result: "correct",
     firstTryCorrect: opts.firstTryCorrect !== false,
+    zoomUsed: !!opts.zoomUsed,
     elapsedSeconds: opts.elapsedSeconds !== undefined ? opts.elapsedSeconds : 1,
     secondsLeft: opts.secondsLeft !== undefined ? opts.secondsLeft : 10,
     points: 1000,
@@ -79,6 +80,7 @@ function miss(kind, opts) {
     answeredId: opts.answeredId || null,
     result: kind, // "wrong" | "pass" | "timeout"
     firstTryCorrect: false,
+    zoomUsed: !!opts.zoomUsed,
     elapsedSeconds: opts.elapsedSeconds !== undefined ? opts.elapsedSeconds : 5,
     secondsLeft: opts.secondsLeft !== undefined ? opts.secondsLeft : 0,
     points: 0,
@@ -239,13 +241,94 @@ function miss(kind, opts) {
   check("No.187 NOT awarded when a 3rd mistake occurs", !r2.awardedIds.includes("trophy_187"));
 }
 {
-  const { Trophy } = freshSandbox();
-  // 迷いなき一撃: advanced, zoom未使用, 10問連続初回正解
-  const results = Array.from({ length: 10 }, (_, i) => ok("id" + i, { questionNumber: i + 1 }));
-  const r = Trophy.evaluateFindCountryResult({ difficultyId: "advanced", zoomUsedThisPlay: false, results });
-  check("No.190 awarded when no zoom used", r.awardedIds.includes("trophy_190"));
-  const r2 = Trophy.evaluateFindCountryResult({ difficultyId: "advanced", zoomUsedThisPlay: true, results });
-  check("No.190 NOT awarded when zoom was used", !r2.awardedIds.includes("trophy_190"));
+  // 迷いなき一撃(No.190): 「プレイ全体でズーム禁止」ではなく「ズーム操作の
+  // 無い10問連続(初回正解)の区間が1つでも成立すればよい」という確定仕様を
+  // 問題単位のzoomUsedフィールドで検証する(js/findcountry.jsのfinalizeAnswer()が
+  // 各問題ごとに記録する形をそのまま再現)。一度獲得すると以後のevaluate()で
+  // isEarned()によりスキップされ、awardedIdsに含まれなくなる(=再現できなく
+  // なる)ため、ケースごとに必ずfreshSandbox()をやり直す
+
+  // 1. 最初の10問をズームせず初回正解 → 獲得
+  {
+    const { Trophy } = freshSandbox();
+    const case1 = Array.from({ length: 10 }, (_, i) => ok("id" + i, { questionNumber: i + 1 }));
+    check("No.190-1: 最初の10問ズームなし初回正解 → 獲得",
+      Trophy.evaluateFindCountryResult({ difficultyId: "advanced", results: case1 }).awardedIds.includes("trophy_190"));
+  }
+
+  // 2. 最初の5問でズーム、その後10問連続でズームせず初回正解 → 獲得
+  {
+    const { Trophy } = freshSandbox();
+    const case2 = Array.from({ length: 5 }, (_, i) => ok("id" + i, { questionNumber: i + 1, zoomUsed: true }))
+      .concat(Array.from({ length: 10 }, (_, i) => ok("id" + (5 + i), { questionNumber: 6 + i })));
+    check("No.190-2: 最初5問ズームあり→その後10問連続ズームなし初回正解 → 獲得",
+      Trophy.evaluateFindCountryResult({ difficultyId: "advanced", results: case2 }).awardedIds.includes("trophy_190"));
+  }
+
+  // 3. 10問のうち1問でもズーム → その10問区間では獲得しない(他に代わりの
+  // 10連続区間が無い、全10問中5問目だけズームのケース)
+  {
+    const { Trophy } = freshSandbox();
+    const case3 = Array.from({ length: 10 }, (_, i) => ok("id" + i, { questionNumber: i + 1, zoomUsed: i === 4 }));
+    check("No.190-3: 10問のうち1問でもズーム → 未獲得",
+      !Trophy.evaluateFindCountryResult({ difficultyId: "advanced", results: case3 }).awardedIds.includes("trophy_190"));
+  }
+
+  // 4. ズームした問題の次から10問連続達成 → 獲得(1問目だけズーム、2〜11問目の
+  // 10問で達成。3の「他に代わりの区間が無い」ケースと区別するため11問用意)
+  {
+    const { Trophy } = freshSandbox();
+    const case4 = [ok("z0", { questionNumber: 1, zoomUsed: true })]
+      .concat(Array.from({ length: 10 }, (_, i) => ok("id" + i, { questionNumber: 2 + i })));
+    check("No.190-4: ズームした問題の次から10問連続達成 → 獲得",
+      Trophy.evaluateFindCountryResult({ difficultyId: "advanced", results: case4 }).awardedIds.includes("trophy_190"));
+  }
+
+  // 5. 1本指で地球儀を回転させただけ(1本指ドラッグはzoomUsedをtrueにしない
+  // 仕様、js/map.js参照)で10問連続初回正解 → 獲得。zoomUsed:falseで表現する
+  {
+    const { Trophy } = freshSandbox();
+    const case5 = Array.from({ length: 10 }, (_, i) => ok("id" + i, { questionNumber: i + 1, zoomUsed: false }));
+    check("No.190-5: 1本指回転のみ(zoomUsedなし)で10問連続初回正解 → 獲得",
+      Trophy.evaluateFindCountryResult({ difficultyId: "advanced", results: case5 }).awardedIds.includes("trophy_190"));
+  }
+
+  // 6. 10問中1問で誤答後に正解(再挑戦) → その問題では連続記録が切れる
+  // (firstTryCorrect:falseで表現。11問用意し、6問目だけ再挑戦後の正解)
+  {
+    const { Trophy } = freshSandbox();
+    const case6 = Array.from({ length: 11 }, (_, i) => ok("id" + i, { questionNumber: i + 1, firstTryCorrect: i !== 5 }));
+    check("No.190-6: 誤答後の正解(再挑戦)がある問題で連続記録が切れる → 未獲得(11問中は最大5連続のみ)",
+      !Trophy.evaluateFindCountryResult({ difficultyId: "advanced", results: case6 }).awardedIds.includes("trophy_190"));
+  }
+
+  // 7. 9問連続達成 → 未獲得
+  {
+    const { Trophy } = freshSandbox();
+    const case7 = Array.from({ length: 9 }, (_, i) => ok("id" + i, { questionNumber: i + 1 }));
+    check("No.190-7: 9問連続のみ → 未獲得",
+      !Trophy.evaluateFindCountryResult({ difficultyId: "advanced", results: case7 }).awardedIds.includes("trophy_190"));
+  }
+
+  // 8. 中級モードで同じ条件(10問連続ズームなし初回正解)を達成 → 未獲得
+  // (difficultyIdがadvancedでないため対象外)
+  {
+    const { Trophy } = freshSandbox();
+    const case8 = Array.from({ length: 10 }, (_, i) => ok("id" + i, { questionNumber: i + 1 }));
+    check("No.190-8: 中級モードで同条件達成 → 未獲得(上級限定)",
+      !Trophy.evaluateFindCountryResult({ difficultyId: "intermediate", results: case8 }).awardedIds.includes("trophy_190"));
+  }
+
+  // 9. 自動カメラ移動のみ発生(ゲーム側のpointOfView()呼び出しはネイティブの
+  // wheel/touchイベントを発生させないため、zoomUsedは常にfalseになる、
+  // js/map.js参照) → ズーム扱いにしない。case1と同じ形(zoomUsed:false)で
+  // 十分に表現できる(既にcase1で獲得確認済みだが、意図を明示する別名で確認)
+  {
+    const { Trophy } = freshSandbox();
+    const case9 = Array.from({ length: 10 }, (_, i) => ok("id" + i, { questionNumber: i + 1, zoomUsed: false }));
+    check("No.190-9: 自動カメラ移動のみ(zoomUsedなし) → ズーム扱いにならず獲得",
+      Trophy.evaluateFindCountryResult({ difficultyId: "advanced", results: case9 }).awardedIds.includes("trophy_190"));
+  }
 }
 {
   const { Trophy } = freshSandbox();
