@@ -95,6 +95,64 @@ async function getHiddenAwardedIdsThisPlay(page) {
   return page.evaluate(() => FindCountryModule.getHiddenAwardedIdsThisPlay());
 }
 
+async function proceedPastNameEntryIfShown(page) {
+  const nameEntryActive = await page.$(".screen.active#screen-findcountry-name-entry");
+  if (nameEntryActive) {
+    await page.click("#findcountry-name-entry-submit");
+    await page.waitForTimeout(200);
+  }
+}
+
+// 現在の問題を正解タップで確定し、「次の問題へ」/「結果を見る」を押して
+// 進める(名前入力・トロフィー獲得通知が挟まっても自動で抜ける)。
+async function answerCorrectAndAdvance(page) {
+  await tapCorrect(page);
+  await page.waitForTimeout(150);
+  await drainTrophyAwardScreens(page);
+  await clickNext(page);
+  await proceedPastNameEntryIfShown(page);
+  await drainTrophyAwardScreens(page);
+}
+
+// パスして次の問題へ進める(警告なき連続1000点の記録を意図的に途切れさせる
+// ための捨て問題用。pass自体は0点扱いになり、#229のような「○問連続1000点」
+// 系の条件がウォームアップ中に偶然成立してしまうのを防ぐ)
+async function passAndAdvance(page) {
+  await page.click("#findcountry-quiz-pass");
+  await page.waitForTimeout(150);
+  await drainTrophyAwardScreens(page);
+  await clickNext(page);
+  await proceedPastNameEntryIfShown(page);
+  await drainTrophyAwardScreens(page);
+}
+
+// globe.gl(3D地球儀)はページ内で最初に開いたときだけ初期化コストがかかり、
+// その間も制限時間タイマーは動き続けるため、「○問連続1,000点」のような
+// 時間に厳しい条件を計測する前に、使い捨てのプレイを1コース分行って
+// 地球儀を温めておく(tests/playwright_findcountry_nomiss_record_logic.test.js
+// のwarmUpGlobe()と同じ対策)。このプレイ自体はコレクションを更新するため、
+// No.159「地図への第一歩」はこの使い捨てプレイの中で獲得される。
+// なおこのコースは正解数ベースでクリア判定されるため(パスは消化数に
+// 数えない)、2問正解するたびに1回パスを挟んで連続1000点の記録を途切れさせ
+// (#229等の「○問連続」系が使い捨てコース自体で先取りされるのを防ぐ)、
+// 結果画面に到達するまで続ける(問題数は固定の5問決め打ちにしない)
+async function warmUpGlobe(page) {
+  for (let i = 0; i < 20; i++) {
+    const onResult = await page.$(".screen.active#screen-findcountry-result");
+    if (onResult) break;
+    await answerCorrectAndAdvance(page);
+    const onResultAfter1 = await page.$(".screen.active#screen-findcountry-result");
+    if (onResultAfter1) break;
+    await answerCorrectAndAdvance(page);
+    const onResultAfter2 = await page.$(".screen.active#screen-findcountry-result");
+    if (onResultAfter2) break;
+    await passAndAdvance(page);
+  }
+  await page.click("#btn-findcountry-result-retry");
+  await page.waitForSelector("#screen-map.findcountry-mode", { timeout: 15000 });
+  await page.waitForTimeout(300);
+}
+
 (async () => {
   const consoleErrors = [];
   const browser = await chromium.launch();
@@ -114,15 +172,47 @@ async function getHiddenAwardedIdsThisPlay(page) {
 
     check("テストA前提: #229は開始時点で未獲得", (await isEarned(page, "trophy_229")) === false);
 
-    // 1問目: 既存のNo.159(「地図への第一歩」、初めての正解)が即時通知される
+    // 使い捨ての1コース分(1問目)で、既存のNo.159(「地図への第一歩」、
+    // 初めての正解)が新61種類の追加後も変わらず即時通知されることを確認する。
+    // この1問目はヘッドレスブラウザの地球儀コールドスタート分の時間を含むため
+    // 得点の速さは問わず、通知の有無だけを見る
     await tapCorrect(page);
     await page.waitForSelector("#screen-trophy-award.active", { timeout: 5000 });
     const awardText = await page.textContent("#trophy-award-list");
     check("テストA: 既存No.159の即時通知は新61種類の追加後も変わらず表示される", (awardText || "").includes("地図への第一歩"));
     await drainTrophyAwardScreens(page);
     await clickNext(page);
+    await proceedPastNameEntryIfShown(page);
+    await drainTrophyAwardScreens(page);
 
-    // 2〜3問目: さらに2回連続1000点正解し、#229の条件(3問連続1000点)を満たす
+    // 残りの問題を消化し、同じコースをリトライして地球儀を温め直した状態で
+    // 本来の計測(3問連続1000点)を行う。この使い捨てコース自体で偶然
+    // 「3問連続1000点」が成立して#229が先取りされないよう、2問正解する
+    // たびにパスを挟んで連続記録を途切れさせる(このコースは正解数ベースで
+    // クリア判定されるため、パスは消化数に数えない。結果画面に到達するまで続ける)
+    for (let i = 0; i < 20; i++) {
+      const onResult = await page.$(".screen.active#screen-findcountry-result");
+      if (onResult) break;
+      await answerCorrectAndAdvance(page);
+      const onResultAfter1 = await page.$(".screen.active#screen-findcountry-result");
+      if (onResultAfter1) break;
+      await answerCorrectAndAdvance(page);
+      const onResultAfter2 = await page.$(".screen.active#screen-findcountry-result");
+      if (onResultAfter2) break;
+      await passAndAdvance(page);
+    }
+    await page.click("#btn-findcountry-result-retry");
+    await page.waitForSelector("#screen-map.findcountry-mode", { timeout: 15000 });
+    await page.waitForTimeout(300);
+
+    // 1〜3問目: 3回連続1000点正解し、#229の条件(3問連続1000点)を満たす
+    await tapCorrect(page);
+    await page.waitForTimeout(150);
+    const activeAfter1st = await page.$eval(".screen.active", (el) => el.id);
+    check("テストA: 1問目正解後も画面はscreen-mapのまま(新61種類による画面停止なし)", activeAfter1st === "screen-map");
+    await drainTrophyAwardScreens(page);
+    await clickNext(page);
+
     await tapCorrect(page);
     await page.waitForTimeout(150);
     const activeAfter2nd = await page.$eval(".screen.active", (el) => el.id);
@@ -150,6 +240,7 @@ async function getHiddenAwardedIdsThisPlay(page) {
   {
     const page = await newPage(browser, consoleErrors);
     await startCourse(page, base, 0, 5);
+    await warmUpGlobe(page); // 地球儀のコールドスタート分を本来の計測から除く
 
     await tapCorrect(page);
     await drainTrophyAwardScreens(page);
