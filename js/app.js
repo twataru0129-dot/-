@@ -1322,10 +1322,11 @@ function applyTrophyFilters() {
     if (visible) visibleCount++;
   });
 
-  // No.1〜19(国旗・首都の分割カード): 2枚とも絞り込みで非表示になった
-  // ペアだけ、外側の.trophy-dual-pairラッパーも非表示にして不自然な
-  // 空白をグリッドに残さない。片方だけ表示される場合はラッパー自体は
-  // 表示したままにし、CSSのflexで残った1枚が自然に幅いっぱいへ広がる
+  // 国旗・首都の分割カード: 2枚とも絞り込みで非表示になったペアだけ、
+  // 外側の.trophy-dual-pairラッパーも非表示にして不自然な空白を
+  // グリッドに残さない。片方だけ表示される場合はラッパー自体は
+  // 表示したままにし、CSS側で残った1枚の幅を2枚表示時と同じ固定幅に
+  // 保つ(flex-grow: 0)ため、幅いっぱいへは広がらず右半分は空白のまま
   document.querySelectorAll("#trophy-grid .trophy-dual-pair").forEach((pair) => {
     const anyVisible = !!pair.querySelector(".trophy-card:not(.hidden)");
     pair.classList.toggle("hidden", !anyVisible);
