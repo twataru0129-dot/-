@@ -94,11 +94,13 @@ async function runForViewport(browser, base, viewport, label) {
   await page.click('#trophy-category-tabs [data-category="all"]');
   await page.waitForTimeout(150);
 
-  // 7. 250種類のトロフィーが正常に表示される(「世界の国どこかな？」専用
-  // トロフィー36種類の追加により153件から189件、さらに隠しトロフィー
-  // 61種類(#195〜255)の一覧表示対応により189件から250件に変わった)
+  // 7. トロフィーカードが正常に表示される(「世界の国どこかな？」専用
+  // トロフィー36種類の追加により153件から189件、隠しトロフィー61種類
+  // (#195〜255)の一覧表示対応により189件から250件、さらに集計方式A案
+  // (No.1〜19を国旗/首都の2枚の独立カードに分割)により250件から269件
+  // (250+19)に変わった)
   const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-  check(`[${label}] トロフィー250件が全てDOMに存在する`, totalCount === 250);
+  check(`[${label}] トロフィー269件が全てDOMに存在する`, totalCount === 269);
 
   // 8. 隠しトロフィーの表示仕様が維持されている(「？？？？？？」のまま)。
   // 既存14件+隠しトロフィー61種類(#195〜255)=75件

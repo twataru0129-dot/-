@@ -74,7 +74,7 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     await openTrophyList(page);
 
     const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-    check("テスト1: トロフィー総数が250件(既存189件+隠しトロフィー61件)", totalCount === 250);
+    check("テスト1: トロフィー総数が269件(既存189件+隠しトロフィー61件+No.1〜19分割19件)", totalCount === 269);
 
     const hiddenTab = await page.$('#trophy-category-tabs [data-category="findcountry_hidden"]');
     check("テスト1: 「世界の国どこかな？ 隠しトロフィー」カテゴリータブが存在する", !!hiddenTab);
@@ -113,9 +113,9 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     check("テスト1: 既存findcountry専用36件の表示件数が変わっていない", normalCards.length === 36);
     check("テスト1: 既存findcountry専用36件は正式名称のまま表示される(隠し扱いされていない)", normalCards.every((c) => c.name !== "？？？？？？" && !c.secret));
 
-    // 進捗表示(🏆 X / 250 件 獲得)が新しい総数に追従していること
+    // 進捗表示(🏆 X / 269 件 獲得)が新しい総数に追従していること
     const progressText = await page.textContent("#trophy-progress-summary");
-    check("テスト1: 進捗表示が「/ 250 件」になっている", /\/\s*250\s*件/.test(progressText || ""));
+    check("テスト1: 進捗表示が「/ 269 件」になっている", /\/\s*269\s*件/.test(progressText || ""));
 
     check("テスト1: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
     await page.close();

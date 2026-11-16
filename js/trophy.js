@@ -1915,6 +1915,16 @@ const TrophyModule = (() => {
   // 既存のsecretLocked分岐をそのまま使えるようにhiddenフラグだけ先に立てる)
   const HIDDEN61_NUMBERS = Array.from({ length: 61 }, (_, i) => 195 + i);
 
+  // トロフィー一覧の集計方式A案: No.1〜19(STAGE_B_DEFINITIONSの「既存データ
+  // デュアル状態」コメント参照)は国旗・首都を完全に独立した2枠として数える。
+  // #21・26・27・#30〜39等、他にもmode==="both"のデュアルトロフィーは
+  // 存在するが、今回の指示で対象とされているのはNo.1〜19のみのため、
+  // それ以外は従来どおり1枠(id単位)のまま変更しない
+  const DUAL_SPLIT_CARD_NUMBERS = new Set(Array.from({ length: 19 }, (_, i) => i + 1));
+  function isDualSplitCardNumber(number) {
+    return DUAL_SPLIT_CARD_NUMBERS.has(number);
+  }
+
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_D_DEFINITIONS);
@@ -2435,16 +2445,28 @@ const TrophyModule = (() => {
     }
   }
 
-  // 獲得数の概要(将来の一覧画面での「n / 107 獲得」のような表示を想定した
-  // 補助関数。今回はまだどこからも呼ばれない)。デュアル型は国旗・首都の
-  // どちらか一方でも獲得していれば「獲得済み」として数える(1枚のカードに
-  // 2つの達成マークを出すStage Gの表示方針と整合させるため)
+  // 獲得数の概要(一覧画面上部の「n / m 件 獲得」表示用)。
+  // 集計方式A案: No.1〜19は国旗・首都を独立した2枠として数え、
+  // それぞれ達成していれば1、両方達成していれば2として加算する
+  // (一覧画面でもNo.1〜19だけを国旗用/首都用の2枚の独立カードに分割
+  // 表示するため、カード単位の枚数と集計を一致させる)。No.1〜19以外は
+  // 従来どおりid単位で1枚=1個として数える(249件+No.1〜19の2枠=269件、
+  // ただし269を直接埋め込まずTROPHIES・DUAL_SPLIT_CARD_NUMBERSから算出する)
   function getProgressSummary() {
-    // 隠しトロフィー61種類(#195〜255)は、他の隠しトロフィーと同様に
-    // 一覧画面に表示するようになったため、この集計にも含める
-    // (合計250件、獲得数には獲得済みの隠しトロフィーも加算される)
-    const earnedCount = Object.keys(getEarned()).length;
-    const totalCount = TROPHIES.length;
+    const earned = getEarned();
+    let earnedCount = 0;
+    let totalCount = 0;
+    TROPHIES.forEach((t) => {
+      if (isDualSplitCardNumber(t.number)) {
+        totalCount += 2;
+        const entry = earned[t.id];
+        if (entry && entry.flag) earnedCount += 1;
+        if (entry && entry.capital) earnedCount += 1;
+      } else {
+        totalCount += 1;
+        if (earned[t.id]) earnedCount += 1;
+      }
+    });
     return { earnedCount, totalCount };
   }
 
@@ -2640,6 +2662,7 @@ const TrophyModule = (() => {
     isEarned,
     awardIfNew,
     getProgressSummary,
+    isDualSplitCardNumber,
     getStats,
     recordQuizStats,
     resetAll,
