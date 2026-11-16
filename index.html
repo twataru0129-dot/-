@@ -432,6 +432,14 @@
     <button id="map-pins-toggle-btn" class="map-pins-toggle-btn" aria-pressed="false">📍 ピン OFF</button>
     <div id="map-country-label" class="map-country-label hidden"></div>
 
+    <!-- ============ イギリス4構成国(世界地図モード専用の表示機能)
+         世界地図モードでイギリスを選択しているときだけ表示する、国名ラベル+
+         指示線のオーバーレイ。既存の#map-country-label(単一国用)とは別の
+         要素にして、既存の表示・追従処理を一切変更しない。js/map.jsが
+         isUkOverlayActiveNow()が真の間だけ毎フレーム位置を更新する ============ -->
+    <svg id="map-uk-region-lines" class="map-uk-region-lines hidden" aria-hidden="true"></svg>
+    <div id="map-uk-region-labels" class="map-uk-region-labels hidden" aria-hidden="true"></div>
+
     <div id="map-status" class="map-status hidden">
       <p id="map-status-text" class="map-status-text">世界地図を読み込んでいます…</p>
       <button id="map-status-retry" class="map-status-retry hidden" type="button">もう一度読み込む</button>
@@ -453,6 +461,17 @@
       </div>
       <ul id="map-card-supplement" class="map-card-supplement hidden"></ul>
       <p id="map-card-desc" class="map-card-desc"></p>
+
+      <!-- ============ イギリス4構成国(世界地図モード専用)
+           country.id === "gb" のときだけ.hiddenを外す。4枚のカードは
+           js/map.jsがUK_CONSTITUENT_REGIONS(js/map-uk-regions.js)から
+           毎回組み立てる。既存の国旗・首都・解説・図鑑ボタンの表示・
+           処理は一切変更しない ============ -->
+      <div id="map-uk-constituents-section" class="map-uk-constituents-section hidden">
+        <p class="map-uk-constituents-heading">🇬🇧 イギリスを構成する4つの国</p>
+        <div id="map-uk-constituents-grid" class="map-uk-constituents-grid"></div>
+      </div>
+
       <button id="map-card-encyclopedia-btn" class="map-card-encyclopedia-btn" type="button">📖 世界図鑑で見る</button>
     </div>
 
@@ -649,6 +668,7 @@
 <script src="./js/countries.js"></script>
 <script src="./js/map-regions.js"></script>
 <script src="./js/map-colors.js"></script>
+<script src="./js/map-uk-regions.js"></script>
 <script src="./js/capital-display.js"></script>
 <script src="./js/encyclopedia-data.js"></script>
 <script src="./js/storage.js"></script>
