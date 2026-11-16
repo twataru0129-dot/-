@@ -1164,6 +1164,64 @@ img { max-width: 100%; }
 .trophy-name { font-weight: 800; margin: 0 0 4px; text-align: center; }
 .trophy-cond { font-size: 0.85rem; color: var(--color-text-sub); margin: 0; text-align: center; }
 
+/* ---------- トロフィー一覧 集計方式A案: No.1〜19の国旗/首都分割カード ----------
+   同じ番号の国旗クイズカード・首都クイズカードを横並びの2枚にし、
+   2枚合わせて従来の横長カード1枚分(トロフィーグリッドの1マス)に
+   収める。align-items: stretchにより、片方の条件文が長くて2行になった
+   場合でも2枚の高さが自動的に揃う。片方のカードだけ絞り込みで非表示
+   (.hidden、display: noneは既存の共通クラス)になった場合は、
+   flex: 1 1 50%の性質上もう片方が自然に幅いっぱいへ広がり、
+   不自然な空白を残さない */
+.trophy-dual-pair {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.trophy-dual-pair .trophy-card-split {
+  flex: 1 1 50%;
+  min-width: 0;
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+}
+.trophy-card-split .trophy-card-top { margin-bottom: 6px; }
+.trophy-card-split .trophy-number { font-size: 0.68rem; }
+.trophy-split-mode-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--color-primary-dark);
+  background: var(--color-bg);
+  border-radius: 999px;
+  padding: 2px 7px;
+  white-space: nowrap;
+}
+.trophy-card-split .trophy-marks { gap: 0; margin: 2px 0 8px; }
+.trophy-card-split .trophy-mark {
+  width: 38px;
+  height: 38px;
+  font-size: 1rem;
+}
+.trophy-card-split .trophy-mark-date {
+  font-size: 0.64rem;
+  overflow-wrap: break-word;
+}
+.trophy-card-split .trophy-name {
+  font-size: 0.82rem;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.trophy-card-split .trophy-cond {
+  font-size: 0.7rem;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  flex-grow: 1;
+}
+/* 320px前後の極めて狭い画面でも2列を維持できるよう、余白をさらに切り詰める */
+@media (max-width: 359px) {
+  .trophy-dual-pair { gap: 6px; }
+  .trophy-dual-pair .trophy-card-split { padding: 8px 6px; }
+}
+
 /* ---------- 首都トリビア(#113〜141): 獲得済みのみ読める対象国+正式解説文 ---------- */
 .trophy-pair {
   font-size: 0.78rem;

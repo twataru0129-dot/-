@@ -1915,6 +1915,22 @@ const TrophyModule = (() => {
   // 既存のsecretLocked分岐をそのまま使えるようにhiddenフラグだけ先に立てる)
   const HIDDEN61_NUMBERS = Array.from({ length: 61 }, (_, i) => 195 + i);
 
+  // トロフィー一覧の集計方式A案: 国旗・首都を独立管理するデュアル状態の
+  // トロフィーは、国旗・首都を完全に独立した2枠として数える。
+  // 第1弾でNo.1〜19(STAGE_B_DEFINITIONSの「既存データ デュアル状態」
+  // コメント参照)、第2弾(追加修正)で#21「ロケット回答」・#26「瞬間判断の
+  // 達人」・#27「反射神経の鬼」・#30〜39「国別生涯正解履歴」の13種類を
+  // 追加し、合計32種類(19+13)が対象。それ以外のmode==="both"ではない
+  // トロフィー・参照型(#101〜112)等は従来どおり1枠(id単位)のまま変更しない
+  const DUAL_SPLIT_CARD_NUMBERS = new Set([
+    ...Array.from({ length: 19 }, (_, i) => i + 1), // No.1〜19
+    21, 26, 27, // ロケット回答・瞬間判断の達人・反射神経の鬼
+    ...Array.from({ length: 10 }, (_, i) => 30 + i), // No.30〜39(国別生涯正解履歴)
+  ]);
+  function isDualSplitCardNumber(number) {
+    return DUAL_SPLIT_CARD_NUMBERS.has(number);
+  }
+
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_D_DEFINITIONS);
@@ -2435,16 +2451,29 @@ const TrophyModule = (() => {
     }
   }
 
-  // 獲得数の概要(将来の一覧画面での「n / 107 獲得」のような表示を想定した
-  // 補助関数。今回はまだどこからも呼ばれない)。デュアル型は国旗・首都の
-  // どちらか一方でも獲得していれば「獲得済み」として数える(1枚のカードに
-  // 2つの達成マークを出すStage Gの表示方針と整合させるため)
+  // 獲得数の概要(一覧画面上部の「n / m 件 獲得」表示用)。
+  // 集計方式A案: DUAL_SPLIT_CARD_NUMBERS(No.1〜19・#21・26・27・30〜39、
+  // 合計32種類)は国旗・首都を独立した2枠として数え、それぞれ達成して
+  // いれば1、両方達成していれば2として加算する(一覧画面でもこの32種類
+  // だけを国旗用/首都用の2枚の独立カードに分割表示するため、カード単位の
+  // 枚数と集計を一致させる)。それ以外は従来どおりid単位で1枚=1個として
+  // 数える(218件+32種類の2枠=282件、ただし282を直接埋め込まず
+  // TROPHIES・DUAL_SPLIT_CARD_NUMBERSから算出する)
   function getProgressSummary() {
-    // 隠しトロフィー61種類(#195〜255)は、他の隠しトロフィーと同様に
-    // 一覧画面に表示するようになったため、この集計にも含める
-    // (合計250件、獲得数には獲得済みの隠しトロフィーも加算される)
-    const earnedCount = Object.keys(getEarned()).length;
-    const totalCount = TROPHIES.length;
+    const earned = getEarned();
+    let earnedCount = 0;
+    let totalCount = 0;
+    TROPHIES.forEach((t) => {
+      if (isDualSplitCardNumber(t.number)) {
+        totalCount += 2;
+        const entry = earned[t.id];
+        if (entry && entry.flag) earnedCount += 1;
+        if (entry && entry.capital) earnedCount += 1;
+      } else {
+        totalCount += 1;
+        if (earned[t.id]) earnedCount += 1;
+      }
+    });
     return { earnedCount, totalCount };
   }
 
@@ -2640,6 +2669,7 @@ const TrophyModule = (() => {
     isEarned,
     awardIfNew,
     getProgressSummary,
+    isDualSplitCardNumber,
     getStats,
     recordQuizStats,
     resetAll,

@@ -1113,6 +1113,55 @@ function buildTrophyMarkHtml(iconEarned, iconLocked, earned, dateStr, label, isS
     <p class="trophy-mark-date">${earned ? `${dateStr} 取得` : lockedText}</p>`;
 }
 
+// トロフィー一覧の集計方式A案: No.1〜19は国旗/首都を独立した2枠として
+// 数えるため、一覧の表示もこの2枠を完全に独立した2枚のカードに分割する
+// (従来の和暦表示「2026年11月16日」は半分幅のカードには長すぎるため、
+// 分割カードだけYYYY.MM.DD形式のコンパクトな日付表示にする)
+function formatCompactDate(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}.${m}.${d}`;
+}
+
+// No.1〜19専用: 国旗クイズ側/首都クイズ側いずれか一方だけの獲得状態を持つ、
+// 単一モードのミニカードを1枚作る
+function buildTrophySplitSideCard(def, modeLabel, icon, earned, earnedAt) {
+  const card = document.createElement("div");
+  card.className = "trophy-card trophy-card-split" + (earned ? "" : " locked");
+  card.dataset.category = def.category;
+  card.dataset.earned = String(earned);
+  card.dataset.hidden = "false";
+  const dateStr = earnedAt ? formatCompactDate(new Date(earnedAt)) : "";
+  card.innerHTML = `
+    <div class="trophy-card-top">
+      <span class="trophy-number">No.${def.number}</span>
+      <span class="trophy-split-mode-badge">${modeLabel}</span>
+    </div>
+    <div class="trophy-marks">
+      <div class="trophy-mark-col">
+        ${buildTrophyMarkHtml(icon, icon, earned, dateStr, modeLabel, false)}
+      </div>
+    </div>
+    <p class="trophy-name">${def.name}</p>
+    <p class="trophy-cond">${def.condition}</p>`;
+  return card;
+}
+
+// No.1〜19専用: 同じ番号の国旗クイズカード・首都クイズカードを、それぞれ
+// 完全に独立したdata-earned/data-categoryを持つ.trophy-card要素として
+// 作り、2枚まとめて1つの.trophy-dual-pair(トロフィー一覧グリッドの
+// 1マス分)に収める。獲得判定・獲得日時の取得(trophyEarnedState)自体は
+// 既存のデュアル処理をそのまま使い、変更していない
+function buildDualSplitCardPair(def, earnedEntry) {
+  const st = trophyEarnedState(def, earnedEntry);
+  const wrap = document.createElement("div");
+  wrap.className = "trophy-dual-pair";
+  wrap.appendChild(buildTrophySplitSideCard(def, "国旗クイズ", "🌍", st.flagEarned, st.flagEarnedAt));
+  wrap.appendChild(buildTrophySplitSideCard(def, "首都クイズ", "🏙️", st.capitalEarned, st.capitalEarnedAt));
+  return wrap;
+}
+
 // 隠しトロフィー(def.hidden)の未獲得時は、正式名称・獲得条件を一切DOMに
 // 出さない(HTML属性・ツールチップ等からも条件が漏れないようにする)。
 // 獲得後は通常のトロフィーと全く同じ表示に戻る。番号・カテゴリは隠しでも表示する
@@ -1247,7 +1296,14 @@ function renderTrophyGrid() {
   const defs = TrophyModule.getAllDefinitions();
   const earned = TrophyModule.getEarned();
   defs.forEach((def) => {
-    grid.appendChild(buildTrophyCardElement(def, earned[def.id]));
+    // 集計方式A案: No.1〜19のみ、国旗クイズ・首都クイズの2枚の独立カードに
+    // 分割する。No.20以降(他のmode==="both"のデュアルトロフィーを含む)は
+    // 既存どおり1枚のカードに2つの達成マークを並べる表示のまま変更しない
+    if (TrophyModule.isDualSplitCardNumber(def.number)) {
+      grid.appendChild(buildDualSplitCardPair(def, earned[def.id]));
+    } else {
+      grid.appendChild(buildTrophyCardElement(def, earned[def.id]));
+    }
   });
 }
 
@@ -1265,6 +1321,16 @@ function applyTrophyFilters() {
     card.classList.toggle("hidden", !visible);
     if (visible) visibleCount++;
   });
+
+  // No.1〜19(国旗・首都の分割カード): 2枚とも絞り込みで非表示になった
+  // ペアだけ、外側の.trophy-dual-pairラッパーも非表示にして不自然な
+  // 空白をグリッドに残さない。片方だけ表示される場合はラッパー自体は
+  // 表示したままにし、CSSのflexで残った1枚が自然に幅いっぱいへ広がる
+  document.querySelectorAll("#trophy-grid .trophy-dual-pair").forEach((pair) => {
+    const anyVisible = !!pair.querySelector(".trophy-card:not(.hidden)");
+    pair.classList.toggle("hidden", !anyVisible);
+  });
+
   $("trophy-result-count").textContent = `${visibleCount}件を表示中`;
 
   document.querySelectorAll("#trophy-category-tabs .trophy-tab").forEach((btn) => {
