@@ -1,8 +1,10 @@
 // ==========================================================
-// トロフィー一覧の集計方式A案(No.1〜19を国旗・首都の独立2枠として数える)
-// のロジック層テスト。js/storage.js・js/trophy.jsをNodeのvmモジュールで
+// トロフィー一覧の集計方式A案(国旗・首都を独立した2枠として数える)の
+// ロジック層テスト。js/storage.js・js/trophy.jsをNodeのvmモジュールで
 // ロードし(DOM不要)、TrophyModule.getProgressSummary()/
 // isDualSplitCardNumber()を直接呼んで検証する。
+// 第1弾(No.1〜19)に続き、追加修正で#21・26・27・30〜39の13種類を対象に
+// 加え、合計32種類・282件(250+32)になった状態を検証する。
 // 依存パッケージ不要(node tests/trophy_dual_split_aggregation_logic.test.js で実行)。
 // ==========================================================
 const fs = require("fs");
@@ -55,15 +57,20 @@ function check(name, cond) {
   check("trophy.js self-validation has zero failures", assertFailures.length === 0);
 }
 
-// ---- isDualSplitCardNumber(): No.1〜19のみtrue ----
+// ---- isDualSplitCardNumber(): No.1〜19・#21・26・27・30〜39(合計32件)がtrue ----
 {
   const { Trophy } = freshSandbox();
   for (let n = 1; n <= 19; n++) {
     check(`isDualSplitCardNumber(${n}) === true`, Trophy.isDualSplitCardNumber(n) === true);
   }
-  // No.20以降は、他にmode==="both"のデュアルトロフィー(#21・26・27・30〜39等)
-  // が存在しても、今回の指示でNo.1〜19のみが対象のため全てfalseになること
-  [0, 20, 21, 26, 27, 29, 30, 38, 39, 40, 100, 159, 194, 195, 250].forEach((n) => {
+  [21, 26, 27].forEach((n) => {
+    check(`isDualSplitCardNumber(${n}) === true(追加修正で対象に追加)`, Trophy.isDualSplitCardNumber(n) === true);
+  });
+  for (let n = 30; n <= 39; n++) {
+    check(`isDualSplitCardNumber(${n}) === true(追加修正で対象に追加)`, Trophy.isDualSplitCardNumber(n) === true);
+  }
+  // 対象外(mode==="both"ではない、または参照型等)は従来どおりfalseのまま
+  [0, 20, 22, 23, 24, 25, 28, 29, 40, 100, 159, 194, 195, 250].forEach((n) => {
     check(`isDualSplitCardNumber(${n}) === false`, Trophy.isDualSplitCardNumber(n) === false);
   });
 }
@@ -74,11 +81,11 @@ function check(name, cond) {
   check("getAllDefinitions().length === 250(変更なし)", Trophy.getAllDefinitions().length === 250);
 }
 
-// ---- getProgressSummary(): 初期状態(未獲得)でtotalCount===269 ----
+// ---- getProgressSummary(): 初期状態(未獲得)でtotalCount===282 ----
 {
   const { Trophy } = freshSandbox();
   const summary = Trophy.getProgressSummary();
-  check("初期状態: totalCount === 269 (250 + No.1〜19の19枠)", summary.totalCount === 269);
+  check("初期状態: totalCount === 282 (250 + 32種類の追加枠)", summary.totalCount === 282);
   check("初期状態: earnedCount === 0", summary.earnedCount === 0);
 }
 
@@ -91,7 +98,7 @@ function check(name, cond) {
   Trophy.awardIfNew("trophy_1", "flag");
   const afterFlagOnly = Trophy.getProgressSummary();
   check("No.1の国旗のみ獲得でearnedCountが1増える", afterFlagOnly.earnedCount === before + 1);
-  check("国旗のみ獲得でもtotalCountは変わらない(269)", afterFlagOnly.totalCount === 269);
+  check("国旗のみ獲得でもtotalCountは変わらない(282)", afterFlagOnly.totalCount === 282);
 
   Trophy.awardIfNew("trophy_1", "capital");
   const afterBoth = Trophy.getProgressSummary();
@@ -106,19 +113,20 @@ function check(name, cond) {
   check("重複呼び出し後もearnedCountは変わらない", afterDup.earnedCount === before + 2);
 }
 
-// ---- No.1〜19以外のデュアルトロフィー(例: No.30)は、従来どおり
-//      どちらか一方でも獲得していれば1個としてのみ数える(1〜19との
-//      挙動の違いを確認し、既存の集計方式を壊していないことを確認する) ----
+// ---- 追加修正で対象に加わった13種類(#21・26・27・30〜39)も、No.1〜19と
+//      同じくそれぞれ独立した2枠として数えること ----
 {
   const { Trophy } = freshSandbox();
-  const before = Trophy.getProgressSummary().earnedCount;
-  Trophy.awardIfNew("trophy_30", "flag");
-  const afterFlagOnly = Trophy.getProgressSummary();
-  check("No.30(分割対象外)は国旗のみ獲得で1個として数える", afterFlagOnly.earnedCount === before + 1);
-
-  Trophy.awardIfNew("trophy_30", "capital");
-  const afterBoth = Trophy.getProgressSummary();
-  check("No.30は両方獲得しても従来どおり1個のまま(2個にならない)", afterBoth.earnedCount === before + 1);
+  [21, 26, 27, 30, 39].forEach((n) => {
+    const before = Trophy.getProgressSummary().earnedCount;
+    Trophy.awardIfNew(`trophy_${n}`, "flag");
+    const afterFlagOnly = Trophy.getProgressSummary();
+    check(`No.${n}の国旗のみ獲得でearnedCountが1増える`, afterFlagOnly.earnedCount === before + 1);
+    Trophy.awardIfNew(`trophy_${n}`, "capital");
+    const afterBoth = Trophy.getProgressSummary();
+    check(`No.${n}の首都も獲得するとearnedCountがさらに1増える(合計+2)`, afterBoth.earnedCount === before + 2);
+    check(`No.${n}の両方獲得後もtotalCountは変わらない(282)`, afterBoth.totalCount === 282);
+  });
 }
 
 // ---- 単一モードの非デュアルトロフィー(例: No.159)は従来どおり1個として数える ----
@@ -131,7 +139,7 @@ function check(name, cond) {
 }
 
 // ---- No.1〜19すべての国旗側だけを獲得した場合、earnedCountは19になり、
-//      totalCountは269のまま変わらないこと ----
+//      totalCountは282のまま変わらないこと ----
 {
   const { Trophy } = freshSandbox();
   for (let n = 1; n <= 19; n++) {
@@ -139,7 +147,7 @@ function check(name, cond) {
   }
   const summary = Trophy.getProgressSummary();
   check("No.1〜19の国旗側19件獲得でearnedCount === 19", summary.earnedCount === 19);
-  check("この状態でもtotalCount === 269のまま", summary.totalCount === 269);
+  check("この状態でもtotalCount === 282のまま", summary.totalCount === 282);
 
   // さらに首都側も全て獲得すると38になること
   for (let n = 1; n <= 19; n++) {
@@ -147,6 +155,20 @@ function check(name, cond) {
   }
   const summaryBoth = Trophy.getProgressSummary();
   check("No.1〜19の国旗・首都38件すべて獲得でearnedCount === 38", summaryBoth.earnedCount === 38);
+}
+
+// ---- 対象32種類すべての国旗・首都を獲得すると、earnedCountが64(32×2)になること ----
+{
+  const { Trophy } = freshSandbox();
+  const splitNumbers = [...Array.from({ length: 19 }, (_, i) => i + 1), 21, 26, 27, ...Array.from({ length: 10 }, (_, i) => 30 + i)];
+  check("対象32種類の件数が32件であること(テストの前提確認)", splitNumbers.length === 32);
+  splitNumbers.forEach((n) => {
+    Trophy.awardIfNew(`trophy_${n}`, "flag");
+    Trophy.awardIfNew(`trophy_${n}`, "capital");
+  });
+  const summary = Trophy.getProgressSummary();
+  check("対象32種類すべての国旗・首都64件獲得でearnedCount === 64", summary.earnedCount === 64);
+  check("totalCountは282のまま変わらない", summary.totalCount === 282);
 }
 
 // ---- 既存の獲得履歴・獲得日時がそのまま保持されること(getEarned経由で確認) ----

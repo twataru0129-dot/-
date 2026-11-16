@@ -1,6 +1,8 @@
 // ==========================================================
-// トロフィー一覧画面: No.1〜19を国旗クイズ・首都クイズの完全に独立した
-// 2枚のカードに分割する表示修正と、集計方式A案(269件)の統合テスト。
+// トロフィー一覧画面: 国旗クイズ・首都クイズを完全に独立した2枚のカードに
+// 分割する表示修正と、集計方式A案の統合テスト。
+// 第1弾(No.1〜19)に続き、追加修正で#21・26・27・30〜39の13種類も対象に
+// 加え、合計32種類・282件(250+32)になった状態を検証する。
 // 実行方法: node tests/playwright_trophy_dual_split_cards.test.js
 // ==========================================================
 const { chromium } = require("playwright");
@@ -85,13 +87,13 @@ async function readProgressCards(page) {
     await openTrophyList(page);
 
     const progressText = await page.textContent("#trophy-progress-summary");
-    check("テスト1: 進捗表示の分母が269件になっている", /\/\s*269\s*件/.test(progressText || ""));
-    check("テスト1: 初期状態の獲得数は0件", /🏆\s*0\s*\/\s*269/.test(progressText || ""));
+    check("テスト1: 進捗表示の分母が282件になっている", /\/\s*282\s*件/.test(progressText || ""));
+    check("テスト1: 初期状態の獲得数は0件", /🏆\s*0\s*\/\s*282/.test(progressText || ""));
 
     await openCategory(page, "progress");
-    const totalSplitCards = await page.$$eval('#trophy-grid .trophy-card-split', (els) => els.length);
+    const totalSplitCards = await page.$$eval('#trophy-grid .trophy-card-split:not(.hidden)', (els) => els.length);
     check("テスト1: 「挑戦の記録」カテゴリーに分割カードが38枚(19組×2)ある", totalSplitCards === 38);
-    const pairCount = await page.$$eval('#trophy-grid .trophy-dual-pair', (els) => els.length);
+    const pairCount = await page.$$eval('#trophy-grid .trophy-dual-pair:not(.hidden)', (els) => els.length);
     check("テスト1: .trophy-dual-pairラッパーが19組ある", pairCount === 19);
 
     const resultCountText = await page.textContent("#trophy-result-count");
@@ -128,7 +130,7 @@ async function readProgressCards(page) {
 
     await openTrophyList(page);
     const progressText = await page.textContent("#trophy-progress-summary");
-    check("テスト2: 獲得数が3件(No.1国旗+No.5両方)になっている", /🏆\s*3\s*\/\s*269/.test(progressText || ""));
+    check("テスト2: 獲得数が3件(No.1国旗+No.5両方)になっている", /🏆\s*3\s*\/\s*282/.test(progressText || ""));
 
     await openCategory(page, "progress");
     const cards = await readProgressCards(page);
@@ -190,26 +192,46 @@ async function readProgressCards(page) {
   }
 
   // ========================================================
-  // テスト3: No.20以降(他のmode==="both"のデュアルトロフィーを含む
-  // 「地域制覇」カテゴリー、#30〜39)は分割されず、従来どおり1枚の
-  // カードに2つの達成マークが並ぶ表示のままであること(回帰確認)
+  // テスト3: 追加修正で対象に加わった13種類(#21・26・27・30〜39)の表示確認
+  // (3-A) 「地域制覇」カテゴリー(#30〜39、10種類すべてがデュアル)は、
+  //       今回の追加修正で全て分割され、従来の.trophy-marks-dual(1枚の
+  //       カードに2つの達成マーク)は残っていないこと
+  // (3-B) 「スピードチャレンジ」カテゴリー(#20〜29)は、分割対象の#21・26・27
+  //       と、対象外(mode==="common")の#20・22〜25・28・29が混在する。
+  //       両方が正しく表示されること
+  // (3-C) 分割対象を含まない「国旗・首都制覇」カテゴリー(#40〜59)には、
+  //       影響が無いこと(回帰確認)
   // ========================================================
   {
     consoleErrors.length = 0;
     const page = await newPage(browser, consoleErrors);
     await page.goto(base, { waitUntil: "load" });
     await openTrophyList(page);
-    await openCategory(page, "region");
 
-    // .trophy-dual-pair自体はNo.1〜19分で常にDOM上に19組存在するため
-    // (カテゴリー絞り込みでは.hiddenが付与されるだけ)、「表示中(非hidden)の
-    // ペアが無いこと」を確認する
-    const visibleDualPairCount = await page.$$eval('#trophy-grid .trophy-dual-pair:not(.hidden)', (els) => els.length);
-    check("テスト3: 「地域制覇」カテゴリーに表示中の分割カード(.trophy-dual-pair)が無い", visibleDualPairCount === 0);
-    const normalCardCount = await page.$$eval('#trophy-grid .trophy-card:not(.hidden)', (els) => els.length);
-    check("テスト3: 「地域制覇」カテゴリーは従来どおり10枚(#30〜39)のまま", normalCardCount === 10);
-    const visibleDualMarksCount = await page.$$eval('#trophy-grid .trophy-card:not(.hidden) .trophy-marks-dual', (els) => els.length);
-    check("テスト3: #30〜39は従来どおり1枚のカードに2つの達成マーク(.trophy-marks-dual)が並ぶ", visibleDualMarksCount === 10);
+    // 3-A: 「地域制覇」(#30〜39)
+    await openCategory(page, "region");
+    const regionPairCount = await page.$$eval('#trophy-grid .trophy-dual-pair:not(.hidden)', (els) => els.length);
+    check("テスト3-A: 「地域制覇」カテゴリーが10組(#30〜39)すべて分割カードになっている", regionPairCount === 10);
+    const regionSplitCardCount = await page.$$eval('#trophy-grid .trophy-card-split:not(.hidden)', (els) => els.length);
+    check("テスト3-A: 「地域制覇」カテゴリーに分割カードが20枚(10組×2)ある", regionSplitCardCount === 20);
+    const regionDualMarksCount = await page.$$eval('#trophy-grid .trophy-card:not(.hidden) .trophy-marks-dual', (els) => els.length);
+    check("テスト3-A: 「地域制覇」カテゴリーに1枚のカードに2つの達成マーク(.trophy-marks-dual)が並ぶ従来表示は残っていない", regionDualMarksCount === 0);
+    const no30 = (await readProgressCards(page)).find((p) => p.sides[0].number === "No.30");
+    check("テスト3-A: No.30(アジアマスター)が国旗/首都の2枚に分割されている", !!no30 && no30.sides[0].modeBadge === "国旗クイズ" && no30.sides[1].modeBadge === "首都クイズ");
+
+    // 3-B: 「スピードチャレンジ」(#20〜29、分割対象と対象外が混在)
+    await openCategory(page, "speed");
+    const speedPairCount = await page.$$eval('#trophy-grid .trophy-dual-pair:not(.hidden)', (els) => els.length);
+    check("テスト3-B: 「スピードチャレンジ」カテゴリーで分割対象(#21・26・27)の3組が分割カードになっている", speedPairCount === 3);
+    const speedNormalCount = await page.$$eval('#trophy-grid .trophy-card:not(.trophy-card-split):not(.hidden)', (els) => els.length);
+    check("テスト3-B: 「スピードチャレンジ」カテゴリーで対象外(#20・22〜25・28・29)の7枚は従来どおり単一カードのまま", speedNormalCount === 7);
+    const speedSplitCardCount = await page.$$eval('#trophy-grid .trophy-card-split:not(.hidden)', (els) => els.length);
+    check("テスト3-B: 「スピードチャレンジ」カテゴリーの分割カードが6枚(3組×2)ある", speedSplitCardCount === 6);
+
+    // 3-C: 分割対象を含まない「国旗・首都制覇」(#40〜59)への回帰確認
+    await openCategory(page, "double");
+    const doublePairCount = await page.$$eval('#trophy-grid .trophy-dual-pair:not(.hidden)', (els) => els.length);
+    check("テスト3-C: 分割対象を含まない「国旗・首都制覇」カテゴリーに分割カードが無い(回帰確認)", doublePairCount === 0);
 
     check("テスト3: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
     await page.close();
@@ -218,7 +240,9 @@ async function readProgressCards(page) {
   // ========================================================
   // テスト4: 320/375/390/430px(スマホ)・768px(iPad)・1280px(PC)の
   // いずれでも、分割カードが横はみ出し・重なりなく表示され、
-  // 2枚の高さが揃っていること
+  // 2枚の高さが揃っていること。No.1〜19(progress)に加え、今回追加した
+  // 13種類を含む「地域制覇」(region、#30〜39)・「スピードチャレンジ」
+  // (speed、分割対象と対象外が混在する#20〜29)でも確認する
   // ========================================================
   const viewports = [
     { width: 320, height: 700, label: "320px" },
@@ -228,17 +252,13 @@ async function readProgressCards(page) {
     { width: 768, height: 1024, label: "iPad" },
     { width: 1280, height: 900, label: "PC" },
   ];
-  for (const vp of viewports) {
-    consoleErrors.length = 0;
-    const page = await newPage(browser, consoleErrors, { width: vp.width, height: vp.height });
-    await page.goto(base, { waitUntil: "load" });
-    await openTrophyList(page);
-    await openCategory(page, "progress");
+  async function checkResponsiveLayout(page, vp, categoryId, categoryLabel) {
+    await openCategory(page, categoryId);
 
     const noHorizontalScroll = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
-    check(`[${vp.label}] ページ全体に横スクロールが発生していない`, noHorizontalScroll);
+    check(`[${vp.label}/${categoryLabel}] ページ全体に横スクロールが発生していない`, noHorizontalScroll);
 
-    const pairMetrics = await page.$$eval('#trophy-grid .trophy-dual-pair', (pairs, viewportWidth) => pairs.map((pair) => {
+    const pairMetrics = await page.$$eval('#trophy-grid .trophy-dual-pair:not(.hidden)', (pairs) => pairs.map((pair) => {
       const pairBox = pair.getBoundingClientRect();
       const sides = Array.from(pair.querySelectorAll('.trophy-card-split')).map((s) => s.getBoundingClientRect());
       return {
@@ -247,16 +267,27 @@ async function readProgressCards(page) {
         sideWidthsSum: sides.reduce((sum, s) => sum + s.width, 0),
         pairWidth: pairBox.width,
       };
-    }), vp.width);
+    }));
+    check(`[${vp.label}/${categoryLabel}] 分割カードのペアが1組以上表示されている(テストの前提確認)`, pairMetrics.length > 0);
 
     const anyOverflow = pairMetrics.some((m) => m.pairRight > vp.width + 1);
-    check(`[${vp.label}] 分割カードのペアが画面右端からはみ出していない`, !anyOverflow);
+    check(`[${vp.label}/${categoryLabel}] 分割カードのペアが画面右端からはみ出していない`, !anyOverflow);
 
     const anyHeightMismatch = pairMetrics.some((m) => Math.abs(m.sideHeights[0] - m.sideHeights[1]) > 1);
-    check(`[${vp.label}] 2枚のカードの高さが揃っている`, !anyHeightMismatch);
+    check(`[${vp.label}/${categoryLabel}] 2枚のカードの高さが揃っている`, !anyHeightMismatch);
 
     const anyWidthOverflow = pairMetrics.some((m) => m.sideWidthsSum > m.pairWidth + 2);
-    check(`[${vp.label}] 2枚合わせた幅がペアの幅に収まっている(重なりなし)`, !anyWidthOverflow);
+    check(`[${vp.label}/${categoryLabel}] 2枚合わせた幅がペアの幅に収まっている(重なりなし)`, !anyWidthOverflow);
+  }
+  for (const vp of viewports) {
+    consoleErrors.length = 0;
+    const page = await newPage(browser, consoleErrors, { width: vp.width, height: vp.height });
+    await page.goto(base, { waitUntil: "load" });
+    await openTrophyList(page);
+
+    await checkResponsiveLayout(page, vp, "progress", "挑戦の記録");
+    await checkResponsiveLayout(page, vp, "region", "地域制覇");
+    await checkResponsiveLayout(page, vp, "speed", "スピードチャレンジ");
 
     check(`[${vp.label}] コンソール/ページエラーが発生していない`, consoleErrors.length === 0);
     await page.close();
