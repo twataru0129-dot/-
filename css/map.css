@@ -244,6 +244,48 @@
 }
 .map-country-label.hidden { display: none; }
 
+/* イギリス4構成国の名称ラベル+指示線(世界地図モード専用)。
+   #map-country-label(単一国用、黒いピル)とは別レイヤーにして、
+   既存の表示・追従処理(onAfterRender)に影響させない */
+.map-uk-region-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 5;
+  overflow: visible;
+}
+.map-uk-region-lines.hidden { display: none; }
+.map-uk-region-line {
+  stroke: rgba(20, 24, 28, 0.75);
+  stroke-width: 1.5;
+}
+.map-uk-region-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 6;
+}
+.map-uk-region-labels.hidden { display: none; }
+.map-uk-region-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: rgba(20, 24, 28, 0.82);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+}
+.map-uk-region-label.hidden { display: none; }
+
 /* 通常の小国ピン(オレンジ)のON/OFFフローティングボタン。
    地球儀表示エリアの右上付近に、検索候補・地域フィルター・情報カードと
    重ならない高さで浮かせる(位置はJS側でコンテナ基準に計算する) */
@@ -410,6 +452,82 @@
   color: var(--color-text-sub);
   line-height: 1.7;
   margin: 0;
+}
+
+/* イギリス4構成国(世界地図モード専用)。country.id === "gb" のときだけ
+   表示される紹介カード内セクション。既存の.map-card-desc/.map-card-
+   encyclopedia-btnのデザイン(余白・角丸・配色)に揃える */
+.map-uk-constituents-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+.map-uk-constituents-section.hidden { display: none; }
+.map-uk-constituents-heading {
+  margin: 0 0 10px;
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+/* スマホ: 2列×2行。PC/タブレット(.map-info-cardが右パネルになる
+   700px以上)でも引き続き2列のままでよい幅がある */
+.map-uk-constituents-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.map-uk-constituent-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 2px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.map-uk-constituent-card:active { transform: scale(0.97); }
+.map-uk-constituent-card.selected {
+  border-color: #ffb100;
+  background: rgba(255, 177, 0, 0.14);
+}
+.map-uk-constituent-flag {
+  width: 30px;
+  height: 22px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+/* 北アイルランドは単一の公式な地域旗が無いため、国旗画像の代わりに
+   丸いバッジ(中立的なアイコン+頭文字)を表示する */
+.map-uk-constituent-badge {
+  width: 30px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-card, #fff);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.64rem;
+  font-weight: 800;
+  color: var(--color-text-sub);
+}
+.map-uk-constituent-text { min-width: 0; }
+.map-uk-constituent-name {
+  font-weight: 800;
+  font-size: 0.82rem;
+  overflow-wrap: break-word;
+}
+.map-uk-constituent-capital {
+  font-size: 0.72rem;
+  color: var(--color-text-sub);
+  overflow-wrap: break-word;
 }
 
 /* 世界図鑑との連携(第2段階): 現在選択中の国・地域を図鑑の詳細画面で見る */

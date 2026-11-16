@@ -49,6 +49,26 @@ const MapModule = (() => {
   // 不正解だった国・地域(quizWrongHighlightId)は赤で、クイズ中だけ強調する
   let quizCorrectHighlightId = null;
   let quizWrongHighlightId = null;
+  // ---------- イギリス4構成国(世界地図モード専用の表示機能) ----------
+  // 国旗・首都クイズ・「世界の国どこかな？」とは完全に無関係な、表示専用の
+  // 状態。isUkOverlayActive()が唯一の有効化条件で、「通常の世界地図探索
+  // モードで、かつイギリス(id:"gb")が選択されている」ときだけtrueになる。
+  // tapResultHandlerが設定されている間(=「世界の国どこかな？」のプレイ中、
+  // 正解発表のselectCountryForQuiz()呼び出しを含む全期間)は、selectedCountryId
+  // が"gb"になっていても必ずfalseを返す(明示的にモードを判定できない場合も
+  // 無効にする設計)。この条件を満たす場所だけがUK_CONSTITUENT_REGIONSを
+  // 参照してよく、他のどこからも参照しない
+  function isUkOverlayActive() {
+    return selectedCountryId === "gb" && !tapResultHandler;
+  }
+  // 4構成国のうち、紹介カードのカードがタップされて個別に強調表示されている
+  // ものの key("england"等)。null なら「4つとも同じ色(イギリス全体の選択色)」
+  let selectedUkConstituentKey = null;
+  // 直近に.polygonsData()へ渡した「分割表示中かどうか」を覚えておき、
+  // 状態が変わった(分割開始/終了)ときだけポリゴンデータを再設定する。
+  // refreshPolygonStyles()は色分け変更のたびに呼ばれるため、ここで毎回
+  // polygonsData()を呼び直すと不要な再構築・ちらつきが起きるのを防ぐ
+  let lastAppliedUkOverlayActive = false;
   let selectRequestSeq = 0; // open()/retryMapLoad()呼び出しごとに増やし、古い非同期の選択リクエストが後から発火しても無視できるようにする
   let pendingSelectId = null; // 今回のopen()呼び出しで選択すべき国・地域のid(無ければnull)
   // 「世界の国どこかな？」が新しいゲームを開始する際に使う、地球儀構築完了
@@ -692,6 +712,57 @@ const MapModule = (() => {
     if (c.parentQuizId && c.parentQuizId === selectedCountryId) return true;
     return false;
   }
+  // ---------- イギリス4構成国: 表示専用ポリゴンレイヤー ----------
+  // window.UK_CONSTITUENT_REGIONS(js/map-uk-regions.js)から、globe.glの
+  // polygonsData()に渡せる疑似GeoJSON Feature(4件)を一度だけ組み立てて
+  // キャッシュする。各featureのidは実在のどの国・地域のmapCode/idとも
+  // 衝突しない接頭辞"gb-constituent:"を付け、countryByMapCode.get(feat.id)が
+  // 誤ってこれらを拾うことがないようにする(isUkConstituentFeature()で判定)
+  let ukRegionFeaturesCache = null;
+  function ukRegionFeatures() {
+    if (ukRegionFeaturesCache) return ukRegionFeaturesCache;
+    const defs = typeof UK_CONSTITUENT_REGIONS !== "undefined" ? UK_CONSTITUENT_REGIONS : [];
+    ukRegionFeaturesCache = defs.map((def) => ({
+      type: "Feature",
+      id: `gb-constituent:${def.key}`,
+      properties: { isUkConstituent: true, constituentKey: def.key },
+      geometry: { type: "Polygon", coordinates: [def.ring] },
+    }));
+    return ukRegionFeaturesCache;
+  }
+  function isUkConstituentFeature(feat) {
+    return !!(feat && feat.properties && feat.properties.isUkConstituent);
+  }
+  // 世界地図モードで、かつイギリス(id:"gb")が選択されているときだけtrue。
+  // tapResultHandlerが設定されている間(「世界の国どこかな？」のプレイ中、
+  // 正解発表のselectCountryForQuiz()呼び出しを含む)は、selectedCountryIdが
+  // たまたま"gb"であっても必ずfalseになる(モード判定条件が不明瞭な場合も
+  // 無効にする、という方針どおりの明示的な二重条件)
+  function isUkOverlayActiveNow() {
+    return selectedCountryId === "gb" && !tapResultHandler;
+  }
+  // globeInstance.polygonsData()に実際に渡す配列。通常時は既存のgeoFeatures
+  // そのもの(参照も内容も一切変更しない)を返し、isUkOverlayActiveNow()が
+  // trueのときだけ、"gb"の1件を取り除いて4構成国のfeatureに差し替えた
+  // 「別の配列」を返す。タップ判定(findDirectPolygonHit、countryGeoById/
+  // countryById基準)はこの関数を一切参照しないため、この差し替えの影響を
+  // 受けない(常に実在する"gb"のポリゴン・id基準で判定される)
+  function visualPolygonFeatures() {
+    if (!isUkOverlayActiveNow()) return geoFeatures;
+    const withoutGb = geoFeatures.filter((f) => f.id !== "GBR");
+    return withoutGb.concat(ukRegionFeatures());
+  }
+  // isUkOverlayActiveNow()の状態が前回から変わった(分割表示の開始/終了)
+  // ときだけ、globeInstance.polygonsData()を実際に再設定する。色分け変更の
+  // たびに呼ばれるrefreshPolygonStyles()から毎回呼んでも、同じ配列参照を
+  // 渡すだけの間は不要な再構築・ちらつきを起こさない
+  function refreshUkPolygonLayerIfNeeded() {
+    if (!globeInstance) return;
+    const active = isUkOverlayActiveNow();
+    if (active === lastAppliedUkOverlayActive) return;
+    lastAppliedUkOverlayActive = active;
+    globeInstance.polygonsData(visualPolygonFeatures());
+  }
   // 第4段階「世界の国どこかな？」向け(第3段階)。quizCorrectHighlightId/
   // quizWrongHighlightIdがどちらもnullの間(クイズ中以外は常にこの状態)は
   // 常にnullを返し、既存のisSelected()によるオレンジ表示だけが効く
@@ -711,6 +782,16 @@ const MapModule = (() => {
     return !!c && c.region === currentRegionFilter;
   }
   function polygonCapColor(feat) {
+    // イギリス4構成国(表示専用レイヤー、isUkOverlayActiveNow()が真のときだけ
+    // polygonsData()に含まれる)。国旗・首都クイズ・「世界の国どこかな？」の
+    // どちらでも、この疑似featureがpolygonsData()に渡ること自体が無い
+    // (visualPolygonFeatures()参照)ため、ここに到達するのは世界地図モードで
+    // イギリスが選択されている間だけ
+    if (isUkConstituentFeature(feat)) {
+      const isIndividuallySelected =
+        !!selectedUkConstituentKey && feat.properties.constituentKey === selectedUkConstituentKey;
+      return isIndividuallySelected ? "#ffd54f" : "#ffb100";
+    }
     const quizState = quizHighlightState(feat);
     if (quizState === "wrong") return "#d32f2f";
     if (quizState === "correct") return "#2e7d32";
@@ -738,6 +819,13 @@ const MapModule = (() => {
   // 地図全体の国境が細く自然に見えるようにする
   const BORDER_STROKE_COLOR = "#7E9A8A";
   function polygonStrokeColor(feat) {
+    if (isUkConstituentFeature(feat)) {
+      const isIndividuallySelected =
+        !!selectedUkConstituentKey && feat.properties.constituentKey === selectedUkConstituentKey;
+      // 4構成国の内部境界線は視認性の高い白で統一する。個別選択中の1国だけ、
+      // イギリス単体選択時と同じ濃い縁取り色にして強調を分かりやすくする
+      return isIndividuallySelected ? "#8a5500" : "#ffffff";
+    }
     const quizState = quizHighlightState(feat);
     if (quizState === "wrong") return "#8e0000";
     if (quizState === "correct") return "#1b5e20";
@@ -753,6 +841,9 @@ const MapModule = (() => {
   }
   function refreshPolygonStyles() {
     if (!globeInstance) return;
+    // イギリス4構成国の分割表示レイヤーの要否も、色分け変更と同じタイミングで
+    // 合わせて確認する(状態が変わっていなければ内部で何もしない)
+    refreshUkPolygonLayerIfNeeded();
     globeInstance
       .polygonCapColor(polygonCapColor)
       .polygonSideColor(polygonSideColor)
@@ -1185,6 +1276,7 @@ const MapModule = (() => {
   }
   function onAfterRender() {
     if (trackedCountry) updateLabelPosition(trackedCountry);
+    if (ukRegionLabelsTracking) updateUkRegionLabelPositions();
   }
 
   // ---------- タップ判定(v3、1つの同期処理に統合) ----------
@@ -1727,7 +1819,7 @@ const MapModule = (() => {
       .showAtmosphere(true)
       .atmosphereColor("#bfe4ff")
       .atmosphereAltitude(0.18)
-      .polygonsData(geoFeatures)
+      .polygonsData(visualPolygonFeatures())
       .polygonCapColor(polygonCapColor)
       .polygonSideColor(polygonSideColor)
       .polygonStrokeColor(polygonStrokeColor)
@@ -1929,18 +2021,15 @@ const MapModule = (() => {
   // 程度を占めるような距離を逆算する。
   const AUTO_ZOOM_TARGET_FRACTION = 0.42;
   const AUTO_ZOOM_FALLBACK_SIZE_DEG = 8; // ポリゴン情報が無い場合のみ使う、中規模国相当のデフォルト
-  function computeAutoZoom(country) {
-    if (country.id === "antarctica") {
-      // 南極大陸は極付近を囲む特殊な形状で、sizeDeg(緯度経度の単純な角度幅)が
-      // 実際の見かけの大きさを表さないため、従来どおり専用の広域表示を維持する
-      return { altitude: 2.0, needsMarker: false };
-    }
+  // sizeDeg(対象のバウンディングボックス角度)だけから自動ズームのaltitudeを
+  // 求める核心部分。computeAutoZoom(実在の国・地域)と、イギリス4構成国の
+  // 個別ハイライト時の自動ズーム(focusUkConstituent、表示専用)の両方から
+  // 共通で使う。既存のcomputeAutoZoomの戻り値・計算式は変更していない
+  function computeAutoZoomFromSizeDeg(sizeDeg) {
     const camera = globeInstance && globeInstance.camera();
     const fovRad = ((camera && camera.fov) || 50) * (Math.PI / 180);
     const worldUnitsPerDeg = (GLOBE_RADIUS * Math.PI) / 180;
-    const info = countryGeoById.get(country.id);
-    const sizeDeg = info && info.sizeDeg > 0 ? info.sizeDeg : AUTO_ZOOM_FALLBACK_SIZE_DEG;
-    const objectWorldSize = sizeDeg * worldUnitsPerDeg;
+    const objectWorldSize = (sizeDeg > 0 ? sizeDeg : AUTO_ZOOM_FALLBACK_SIZE_DEG) * worldUnitsPerDeg;
     // altitudeは「地表からの距離 ÷ GLOBE_RADIUS」(pointOfViewの定義、
     // controls.minDistance/maxDistanceが表す「球の中心からの距離」とは異なる)。
     // 見かけの大きさは地表からの距離(GLOBE_RADIUS*altitude)で決まるため、
@@ -1960,6 +2049,16 @@ const MapModule = (() => {
       // 小さい(＝もっと寄りたい)場合、これ以上大きく見せられない「極小」の対象とみなす
       needsMarker: idealAltitude < minAltitude - 0.001,
     };
+  }
+  function computeAutoZoom(country) {
+    if (country.id === "antarctica") {
+      // 南極大陸は極付近を囲む特殊な形状で、sizeDeg(緯度経度の単純な角度幅)が
+      // 実際の見かけの大きさを表さないため、従来どおり専用の広域表示を維持する
+      return { altitude: 2.0, needsMarker: false };
+    }
+    const info = countryGeoById.get(country.id);
+    const sizeDeg = info && info.sizeDeg > 0 ? info.sizeDeg : AUTO_ZOOM_FALLBACK_SIZE_DEG;
+    return computeAutoZoomFromSizeDeg(sizeDeg);
   }
   // 実ポリゴンの代表点(より正確)を優先し、無ければ従来どおりデータ上の
   // 緯度経度にフォールバックする。香港のように、データ上の代表座標が
@@ -2029,6 +2128,14 @@ const MapModule = (() => {
     const moveCamera = !options || options.moveCamera !== false;
     const showInfoCard = !options || options.showInfoCard !== false;
     hasInteracted = true;
+    // イギリスの個別強調(selectedUkConstituentKey)は、「別の国からイギリスへ
+    // 切り替えた」場合だけ初期状態(イギリス全体)に戻す。既にイギリスが
+    // 選択されている状態でイギリスの領域を再タップした場合(スコットランドを
+    // 個別強調したままイングランドの地形を直接タップした場合など)は、
+    // 個別強調を維持する(不自然にリセットされないようにするため)
+    if (country.id !== selectedCountryId) {
+      selectedUkConstituentKey = null;
+    }
     selectedCountryId = country.id;
 
     // 自動ズーム・一時的な目印の要否は、カメラを動かす(検索・ランダム)場合
@@ -2097,6 +2204,18 @@ const MapModule = (() => {
 
     $("map-card-desc").textContent = country.description;
 
+    // イギリス4構成国(世界地図モード専用)。country.id==="gb"のときだけ
+    // セクションを表示し、カードを組み立てる。他の国を選んだときは
+    // 必ず非表示にし、個別強調の状態もリセットする(「6. 他国への切り替え」)
+    if (country.id === "gb") {
+      renderUkConstituentsSection();
+      startUkRegionLabelTracking();
+    } else {
+      selectedUkConstituentKey = null;
+      $("map-uk-constituents-section").classList.add("hidden");
+      stopUkRegionLabelTracking();
+    }
+
     $("map-info-card").classList.remove("hidden");
     // 既にカードが開いている状態で別の国を選んだ場合も、
     // 閉じ直さずそのまま内容だけ切り替わる
@@ -2109,8 +2228,198 @@ const MapModule = (() => {
     selectedShowsLabel = false;
     tempSearchMarkerId = null; // 一時的な目印も選択解除と同時に消す(古い目印を残さない)
     stopLabelTracking();
+    // イギリス4構成国の表示も、情報カードを閉じると同時に解除する
+    selectedUkConstituentKey = null;
+    $("map-uk-constituents-section").classList.add("hidden");
+    stopUkRegionLabelTracking();
     refreshPolygonStyles();
     refreshPinLayer();
+  }
+
+  // ---------- イギリス4構成国: 紹介カードUI・個別ハイライト・自動ズーム ----------
+  // renderInfoCard(country.id==="gb")から呼ばれ、4枚のカードを毎回組み立て
+  // 直す(件数が4件と少ないため、差分更新ではなく単純にinnerHTMLを作り直す)。
+  // 国旗画像(イングランド/スコットランド/ウェールズ)またはバッジ(北アイル
+  // ランド、単一の公式な地域旗が無いため文字表記)+名称+首都を表示し、
+  // クリックでfocusOrClearUkConstituent()を呼ぶ
+  function renderUkConstituentsSection() {
+    const section = $("map-uk-constituents-section");
+    section.classList.remove("hidden");
+    const grid = $("map-uk-constituents-grid");
+    grid.innerHTML = "";
+    const defs = typeof UK_CONSTITUENT_REGIONS !== "undefined" ? UK_CONSTITUENT_REGIONS : [];
+    defs.forEach((def) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "map-uk-constituent-card" + (selectedUkConstituentKey === def.key ? " selected" : "");
+      card.dataset.ukConstituentKey = def.key;
+      card.setAttribute(
+        "aria-pressed",
+        selectedUkConstituentKey === def.key ? "true" : "false"
+      );
+      const media = def.flag
+        ? `<img class="map-uk-constituent-flag" src="${def.flag}" alt="${def.nameJa}の旗">`
+        // 北アイルランドは単一の公式な地域旗が存在しないため、特定の政治的
+        // 立場に結びつく図案(歴史的なアルスター・バナー等)を使わず、
+        // 中立的な文字バッジで代用する
+        : `<span class="map-uk-constituent-badge" aria-hidden="true">NI</span>`;
+      card.innerHTML =
+        media +
+        `<span class="map-uk-constituent-text">` +
+        `<span class="map-uk-constituent-name">${def.nameJa}</span>` +
+        `<span class="map-uk-constituent-capital">首都：${def.capitalJa}</span>` +
+        `</span>`;
+      grid.appendChild(card);
+    });
+  }
+  // カードの見た目(.selected)だけを現在のselectedUkConstituentKeyに
+  // 合わせて更新する。4枚しか無いため作り直してもよいが、タップのたびに
+  // 国旗<img>を再生成しない(ちらつき防止)ほうが自然なのでこちらを使う
+  function updateUkConstituentsSelectionUI() {
+    document.querySelectorAll("#map-uk-constituents-grid .map-uk-constituent-card").forEach((card) => {
+      const selected = card.dataset.ukConstituentKey === selectedUkConstituentKey;
+      card.classList.toggle("selected", selected);
+      card.setAttribute("aria-pressed", selected ? "true" : "false");
+    });
+  }
+  // カードタップ時の本体。同じ国を再度タップすると個別強調を解除する
+  // (「5-3. 選択解除」)。イギリス全体の選択状態(selectedCountryId)・
+  // 境界線・名称ラベルの表示はどちらの場合も維持したままにする
+  function focusOrClearUkConstituent(key) {
+    if (selectedUkConstituentKey === key) {
+      selectedUkConstituentKey = null;
+      updateUkConstituentsSelectionUI();
+      refreshPolygonStyles();
+      return;
+    }
+    selectedUkConstituentKey = key;
+    updateUkConstituentsSelectionUI();
+    refreshPolygonStyles();
+    const def = ukConstituentDefByKey(key);
+    if (!def || !globeInstance) return;
+    // 対象の実際の大きさに応じた自動ズーム(computeAutoZoomFromSizeDeg、
+    // 実在の国・地域向けのcomputeAutoZoomと全く同じ計算式を共有)。
+    // 既に十分な倍率で表示されている場合は、既存のcomputeAutoZoom同様
+    // altitudeの上限(現在の視点の高度)でクランプされるため、
+    // 無理に拡大し続けることはない
+    const zoom = computeAutoZoomFromSizeDeg(def.sizeDeg);
+    const target = cardAvoidanceTarget(def.anchorLat, def.anchorLng, zoom.altitude);
+    const duration = prefersReducedMotion() ? 0 : 900;
+    globeInstance.pointOfView({ lat: target.lat, lng: target.lng, altitude: zoom.altitude }, duration);
+  }
+  function ukConstituentDefByKey(key) {
+    const defs = typeof UK_CONSTITUENT_REGIONS !== "undefined" ? UK_CONSTITUENT_REGIONS : [];
+    return defs.find((d) => d.key === key) || null;
+  }
+
+  // ---------- イギリス4構成国: 名称ラベル+指示線の追従 ----------
+  // 既存の#map-country-label(単一国用、onAfterRender→updateLabelPosition→
+  // trackedCountry)とは完全に別の状態・別のDOM要素を使い、既存の表示・
+  // 追従処理には一切手を加えない。projectLatLngToScreen()(画面座標への
+  // 変換)だけを共通で再利用する
+  let ukRegionLabelsTracking = false;
+  function stopUkRegionLabelTracking() {
+    ukRegionLabelsTracking = false;
+    $("map-uk-region-lines").classList.add("hidden");
+    $("map-uk-region-labels").classList.add("hidden");
+    $("map-uk-region-labels").innerHTML = "";
+    $("map-uk-region-lines").innerHTML = "";
+  }
+  function startUkRegionLabelTracking() {
+    ukRegionLabelsTracking = true;
+    const labelsLayer = $("map-uk-region-labels");
+    const linesLayer = $("map-uk-region-lines");
+    labelsLayer.innerHTML = "";
+    linesLayer.innerHTML = "";
+    const defs = typeof UK_CONSTITUENT_REGIONS !== "undefined" ? UK_CONSTITUENT_REGIONS : [];
+    defs.forEach((def) => {
+      const label = document.createElement("div");
+      label.className = "map-uk-region-label";
+      label.dataset.ukConstituentKey = def.key;
+      label.textContent = def.nameJa;
+      labelsLayer.appendChild(label);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("class", "map-uk-region-line");
+      line.dataset.ukConstituentKey = def.key;
+      linesLayer.appendChild(line);
+    });
+    labelsLayer.classList.remove("hidden");
+    linesLayer.classList.remove("hidden");
+    updateUkRegionLabelPositions();
+  }
+  // 各ラベルを、見出し文字が領域の外にはみ出しても指示線で位置が分かるよう、
+  // アンカーから画面座標で一定方向・距離だけオフセットした位置に置く。
+  // イギリスは地球儀の回転・傾きに関わらず常に北半球の同じ陸塊のため、
+  // 「スコットランドは上、ウェールズ・北アイルランドは左」という画面上の
+  // 相対位置は、南北が反転するほど極端に傾けない通常の操作では崩れない
+  const UK_LABEL_OFFSETS = {
+    england: { dx: 0, dy: 0 },
+    scotland: { dx: 0, dy: -36 },
+    wales: { dx: -52, dy: 14 },
+    northern_ireland: { dx: -8, dy: -16 },
+  };
+  function updateUkRegionLabelPositions() {
+    if (!ukRegionLabelsTracking || !globeInstance) return;
+    const container = $("map-globe-container");
+    const wrap = document.querySelector(".map-wrap");
+    if (!container || !wrap) return;
+    const cRect = container.getBoundingClientRect();
+    const wRect = wrap.getBoundingClientRect();
+    const defs = typeof UK_CONSTITUENT_REGIONS !== "undefined" ? UK_CONSTITUENT_REGIONS : [];
+
+    // 地図を大きく縮小した場合は、重なりを避けるためラベル一式を省略する。
+    // イギリス全体の見かけの大きさ(スコットランド・イングランド両端の
+    // アンカー間の画面距離)を目安にする
+    const scotlandDef = defs.find((d) => d.key === "scotland");
+    const englandDef = defs.find((d) => d.key === "england");
+    let wholeSpanPx = Infinity;
+    if (scotlandDef && englandDef) {
+      const p1 = projectLatLngToScreen(scotlandDef.anchorLat, scotlandDef.anchorLng, PIN_OBJECT_ALTITUDE);
+      const p2 = projectLatLngToScreen(englandDef.anchorLat, englandDef.anchorLng, PIN_OBJECT_ALTITUDE);
+      wholeSpanPx = p1 && p2 ? Math.hypot(p1.x - p2.x, p1.y - p2.y) : 0;
+    }
+    const tooSmallToLabel = wholeSpanPx < 70;
+
+    defs.forEach((def) => {
+      const labelEl = labelsLayer_(def.key);
+      const lineEl = linesLayer_(def.key);
+      if (!labelEl || !lineEl) return;
+      if (tooSmallToLabel) {
+        labelEl.classList.add("hidden");
+        lineEl.classList.add("hidden");
+        return;
+      }
+      const anchorPos = projectLatLngToScreen(def.anchorLat, def.anchorLng, PIN_OBJECT_ALTITUDE);
+      if (!anchorPos) {
+        labelEl.classList.add("hidden");
+        lineEl.classList.add("hidden");
+        return;
+      }
+      labelEl.classList.remove("hidden");
+      const offset = UK_LABEL_OFFSETS[def.key] || { dx: 0, dy: 0 };
+      const labelX = anchorPos.x + offset.dx;
+      const labelY = anchorPos.y + offset.dy;
+      labelEl.style.left = `${cRect.left - wRect.left + labelX}px`;
+      labelEl.style.top = `${cRect.top - wRect.top + labelY}px`;
+      // ラベルがアンカーそのものの位置からある程度離れているときだけ
+      // 指示線を表示する(アンカー直上に表示するイングランドでは出さない)
+      const offsetMagnitude = Math.hypot(offset.dx, offset.dy);
+      if (offsetMagnitude < 10) {
+        lineEl.classList.add("hidden");
+      } else {
+        lineEl.classList.remove("hidden");
+        lineEl.setAttribute("x1", String(cRect.left - wRect.left + anchorPos.x));
+        lineEl.setAttribute("y1", String(cRect.top - wRect.top + anchorPos.y));
+        lineEl.setAttribute("x2", String(cRect.left - wRect.left + labelX));
+        lineEl.setAttribute("y2", String(cRect.top - wRect.top + labelY));
+      }
+    });
+    function labelsLayer_(key) {
+      return document.querySelector(`#map-uk-region-labels .map-uk-region-label[data-uk-constituent-key="${key}"]`);
+    }
+    function linesLayer_(key) {
+      return document.querySelector(`#map-uk-region-lines .map-uk-region-line[data-uk-constituent-key="${key}"]`);
+    }
   }
 
   // ---------- 検索 ----------
@@ -2547,6 +2856,13 @@ const MapModule = (() => {
     updateRandomButtonState();
     updatePinsToggleButton();
     $("map-pins-toggle-btn").addEventListener("click", togglePinsVisible);
+    // イギリス4構成国のカードは4枚しか無く、毎回renderUkConstituentsSection()で
+    // 作り直されるため、個別にリスナーを付けず親要素へのイベント委譲にする
+    $("map-uk-constituents-grid").addEventListener("click", (e) => {
+      const card = e.target.closest(".map-uk-constituent-card");
+      if (!card) return;
+      focusOrClearUkConstituent(card.dataset.ukConstituentKey);
+    });
   }
 
   // REGION_ORDER/REGION_LABELSは世界図鑑モード(js/encyclopedia.js)の地域
