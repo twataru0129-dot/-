@@ -71,6 +71,27 @@ async function readProgressCards(page) {
   });
 }
 
+async function getPairSideRects(page, numberLabel) {
+  return page.evaluate((num) => {
+    const pairs = Array.from(document.querySelectorAll('#trophy-grid .trophy-dual-pair'));
+    const target = pairs.find((p) => {
+      const n = p.querySelector('.trophy-number');
+      return n && n.textContent.trim() === num;
+    });
+    if (!target) return null;
+    const pairRect = target.getBoundingClientRect();
+    const sides = Array.from(target.querySelectorAll('.trophy-card-split'));
+    return {
+      pairLeft: pairRect.left,
+      pairWidth: pairRect.width,
+      sides: sides.map((s) => {
+        const r = s.getBoundingClientRect();
+        return { hidden: s.classList.contains('hidden'), left: r.left, width: r.width };
+      }),
+    };
+  }, numberLabel);
+}
+
 (async () => {
   const consoleErrors = [];
   const browser = await chromium.launch();
@@ -238,7 +259,83 @@ async function readProgressCards(page) {
   }
 
   // ========================================================
-  // テスト4: 320/375/390/430px(スマホ)・768px(iPad)・1280px(PC)の
+  // テスト4: 「獲得済み」「未獲得」フィルターで国旗・首都の片方だけが
+  // 表示対象になった場合も、カード幅・位置が2枚表示時と変わらないこと
+  // (横幅いっぱいに広がらない、左半分に表示され右半分は空白のまま)を、
+  // progress(No.1)・speed(No.21)・region(No.30)の3カテゴリーで確認する
+  // ========================================================
+  {
+    consoleErrors.length = 0;
+    const page = await newPage(browser, consoleErrors);
+    await page.goto(base, { waitUntil: "load" });
+    await openTrophyList(page);
+
+    // 基準幅: 「すべて」フィルターでは獲得状況に関わらず常に2枚とも表示
+    // されるため、このときの1枚の幅を「2枚表示時の幅」の基準値とする
+    await openCategory(page, "progress");
+    const baselineNo1 = await getPairSideRects(page, "No.1");
+    check("テスト4(前提): No.1が2枚とも表示されている(基準値取得)", !!baselineNo1 && !baselineNo1.sides[0].hidden && !baselineNo1.sides[1].hidden);
+    const baselineWidth = baselineNo1.sides[0].width;
+    check("テスト4(前提): 基準幅が0より大きい", baselineWidth > 0);
+
+    // No.1(flag)・No.21(speedのflag)・No.30(regionのcapital)を片方だけ獲得させる
+    await page.evaluate(() => {
+      TrophyModule.awardIfNew("trophy_1", "flag");
+      TrophyModule.awardIfNew("trophy_21", "flag");
+      TrophyModule.awardIfNew("trophy_30", "capital");
+    });
+    await page.reload({ waitUntil: "load" });
+    await openTrophyList(page);
+
+    // 「表示件数」が実際に表示される枚数(片方獲得3枚 + 未獲得側の残り)を
+    // 正しく数えていること(集計・フィルターの既存仕様の回帰確認)
+    await page.click('#trophy-status-filter [data-status="earned"]');
+    await page.waitForTimeout(150);
+    const earnedCountText = await page.textContent("#trophy-result-count");
+    check("テスト4: 「獲得済み」フィルターで獲得した3枚(No.1国旗/No.21国旗/No.30首都)だけが数えられている", earnedCountText.includes("3件"));
+
+    const cases = [
+      { category: "progress", number: "No.1", earnedSideIndex: 0 },
+      { category: "speed", number: "No.21", earnedSideIndex: 0 },
+      { category: "region", number: "No.30", earnedSideIndex: 1 },
+    ];
+    for (const c of cases) {
+      await openCategory(page, c.category);
+
+      // 「獲得済み」: 獲得済み側だけが表示される
+      await page.click('#trophy-status-filter [data-status="earned"]');
+      await page.waitForTimeout(150);
+      const earnedRects = await getPairSideRects(page, c.number);
+      const earnedSide = earnedRects.sides[c.earnedSideIndex];
+      const lockedSide = earnedRects.sides[1 - c.earnedSideIndex];
+      check(`テスト4[${c.number}]: 獲得済みフィルターで未獲得側が非表示`, lockedSide.hidden === true);
+      check(`テスト4[${c.number}]: 獲得済みフィルターで獲得側が表示`, earnedSide.hidden === false);
+      check(`テスト4[${c.number}]: 片方だけの表示でも幅が2枚表示時と同じ(横幅いっぱいに広がらない)`, Math.abs(earnedSide.width - baselineWidth) <= 1);
+      check(`テスト4[${c.number}]: 片方だけの表示でもカードは左半分に表示される`, Math.abs(earnedSide.left - earnedRects.pairLeft) <= 1);
+
+      // 「未獲得」: 反対側(未獲得側)だけが表示される。これも同じく左半分・同じ幅
+      await page.click('#trophy-status-filter [data-status="locked"]');
+      await page.waitForTimeout(150);
+      const lockedRects = await getPairSideRects(page, c.number);
+      const lockedVisibleSide = lockedRects.sides[1 - c.earnedSideIndex];
+      const earnedHiddenSide = lockedRects.sides[c.earnedSideIndex];
+      check(`テスト4[${c.number}]: 未獲得フィルターで獲得側が非表示`, earnedHiddenSide.hidden === true);
+      check(`テスト4[${c.number}]: 未獲得フィルターで未獲得側が表示`, lockedVisibleSide.hidden === false);
+      check(`テスト4[${c.number}]: 未獲得側だけの表示でも幅が2枚表示時と同じ`, Math.abs(lockedVisibleSide.width - baselineWidth) <= 1);
+      check(`テスト4[${c.number}]: 未獲得側だけの表示でもカードは左半分に表示される`, Math.abs(lockedVisibleSide.left - lockedRects.pairLeft) <= 1);
+
+      await page.click('#trophy-status-filter [data-status="all"]');
+      await page.waitForTimeout(150);
+    }
+
+    const noHorizontalScroll4 = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+    check("テスト4: 片方表示を一通り確認した後も横スクロールが発生していない", noHorizontalScroll4);
+    check("テスト4: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
+    await page.close();
+  }
+
+  // ========================================================
+  // テスト5: 320/375/390/430px(スマホ)・768px(iPad)・1280px(PC)の
   // いずれでも、分割カードが横はみ出し・重なりなく表示され、
   // 2枚の高さが揃っていること。No.1〜19(progress)に加え、今回追加した
   // 13種類を含む「地域制覇」(region、#30〜39)・「スピードチャレンジ」
@@ -279,15 +376,39 @@ async function readProgressCards(page) {
     const anyWidthOverflow = pairMetrics.some((m) => m.sideWidthsSum > m.pairWidth + 2);
     check(`[${vp.label}/${categoryLabel}] 2枚合わせた幅がペアの幅に収まっている(重なりなし)`, !anyWidthOverflow);
   }
+  // テスト4でNo.1は国旗のみ獲得済みにしているため、ここでも各ビューポートで
+  // 「獲得済み」フィルター時に片方(国旗)だけが表示される幅が、「すべて」
+  // フィルター(2枚表示)時の幅と変わらないことを確認する
+  async function checkSingleSideWidthAtViewport(page, vp) {
+    await openCategory(page, "progress");
+    const baseline = await getPairSideRects(page, "No.1");
+    check(`[${vp.label}] No.1(前提): 「すべて」フィルターで2枚とも表示されている`, !!baseline && !baseline.sides[0].hidden && !baseline.sides[1].hidden);
+    const baselineWidth = baseline.sides[0].width;
+
+    await page.click('#trophy-status-filter [data-status="earned"]');
+    await page.waitForTimeout(150);
+    const earned = await getPairSideRects(page, "No.1");
+    check(`[${vp.label}] 「獲得済み」フィルターでNo.1の国旗側だけが表示される`, !!earned && earned.sides[0].hidden === false && earned.sides[1].hidden === true);
+    check(`[${vp.label}] 片方だけの表示でも幅が2枚表示時と同じ`, !!earned && Math.abs(earned.sides[0].width - baselineWidth) <= 1);
+    check(`[${vp.label}] 片方だけの表示でも左半分に表示される`, !!earned && Math.abs(earned.sides[0].left - earned.pairLeft) <= 1);
+
+    await page.click('#trophy-status-filter [data-status="all"]');
+    await page.waitForTimeout(150);
+  }
   for (const vp of viewports) {
     consoleErrors.length = 0;
     const page = await newPage(browser, consoleErrors, { width: vp.width, height: vp.height });
     await page.goto(base, { waitUntil: "load" });
+    // 各ビューポートは独立したブラウザコンテキストのため、片方だけ獲得済みの
+    // 状態をこのページ用に用意してからcheckSingleSideWidthAtViewportを呼ぶ
+    await page.evaluate(() => { TrophyModule.awardIfNew("trophy_1", "flag"); });
+    await page.reload({ waitUntil: "load" });
     await openTrophyList(page);
 
     await checkResponsiveLayout(page, vp, "progress", "挑戦の記録");
     await checkResponsiveLayout(page, vp, "region", "地域制覇");
     await checkResponsiveLayout(page, vp, "speed", "スピードチャレンジ");
+    await checkSingleSideWidthAtViewport(page, vp);
 
     check(`[${vp.label}] コンソール/ページエラーが発生していない`, consoleErrors.length === 0);
     await page.close();
