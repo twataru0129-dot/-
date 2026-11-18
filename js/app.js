@@ -1760,6 +1760,7 @@ function initApp() {
   initMemorialScreen();
   initMapEncyclopediaLink();
   FindCountryModule.initEvents();
+  PuzzleModule.initEvents();
   showScreen("screen-top");
 }
 

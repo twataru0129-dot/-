@@ -1,0 +1,386 @@
+/* ==========================================================
+   謎への挑戦: 国旗選択画面(第1段階) 専用スタイル
+   既存のCSS変数(--color-primary 等、css/style.cssで定義)をそのまま
+   再利用し、アプリ全体のデザインとの統一感を保つ。
+   世界図鑑(css/encyclopedia.css)とは異なり、この画面は「国旗を素早く
+   探して選ぶ」ことを最優先にしたコンパクトなグリッド表示にする。
+   ========================================================== */
+
+/* 画面全体: js/map.jsの#screen-map.activeと同じ考え方で、ページ自体は
+   上下にスクロールさせず、国旗一覧(.puzzle-grid)だけをスクロールさせる。
+   100dvhを使うことで、iPhone Safariでアドレスバーの出し引きや
+   検索入力時のソフトキーボード表示があっても高さが追従する */
+#screen-puzzle-flag-select.active {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  padding: 0;
+}
+
+.puzzle-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 1100px;
+  height: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+}
+
+.puzzle-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: calc(12px + env(safe-area-inset-top)) 14px 8px calc(14px + env(safe-area-inset-left));
+}
+/* 既存の.btn-back(css/style.css)はposition: absoluteで、.panel内で
+   浮かせて使う前提になっている。この画面のヘッダーでは通常のflex
+   アイテムとして並べたいので、css/style.cssの.trophy-list-header
+   .btn-backと同じ考え方でこの画面の中だけ上書きする
+   (グローバルな.btn-backのルール自体は変更しない) */
+.puzzle-topbar .btn-back {
+  position: static;
+  flex-shrink: 0;
+  margin: 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.puzzle-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+/* ---------- 問題文表示エリア(将来、問題IDに応じた本文に差し替える) ---------- */
+.puzzle-question-wrap {
+  flex-shrink: 0;
+  margin: 0 14px 8px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+.puzzle-question-text {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--color-text);
+  /* 2行で折りたたみ、長い問題文でも国旗一覧の表示領域を圧迫しない。
+     実際に折りたたみが必要な長さかどうかはJS側でscrollHeightを見て判定し、
+     不要なら「続きを読む」ボタン自体を隠す */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.puzzle-question-text.expanded {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.puzzle-question-toggle {
+  display: block;
+  margin-top: 4px;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+/* ---------- 検索 ---------- */
+.puzzle-search-wrap {
+  flex-shrink: 0;
+  position: relative;
+  margin: 0 14px 8px;
+}
+.puzzle-search-input {
+  width: 100%;
+  padding: 10px 36px 10px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+.puzzle-search-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+.puzzle-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  color: var(--color-text-sub);
+  cursor: pointer;
+}
+
+/* ---------- 地域フィルター(横スクロールのタブ) ---------- */
+.puzzle-region-tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 14px 8px;
+  scrollbar-width: thin;
+}
+.puzzle-region-tab {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text-sub);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  min-height: 32px;
+}
+.puzzle-region-tab.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.puzzle-result-count {
+  flex-shrink: 0;
+  margin: 0 16px 4px;
+  font-size: 0.76rem;
+  color: var(--color-text-sub);
+}
+
+/* ---------- 国旗一覧(この画面で唯一スクロールする領域) ----------
+   列数は端末名ではなく実際の表示幅(メディアクエリ)で決める。
+   スマホ4列・タブレット6列・PC8列を目安に、幅に応じて滑らかに増減させる */
+.puzzle-grid {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 14px 12px;
+  align-content: start;
+  /* align-items(既定のnormal=stretch)のままだと、カード(.puzzle-flag-card)
+     の中身(国旗画像+国名)が本来必要とする高さより先に行の高さが決まって
+     しまい、はみ出した国名がつぶれて見えなくなる現象を確認したため、
+     行の高さをカード自身の内容に委ねるstartに変更する */
+  align-items: start;
+}
+@media (max-width: 359px) {
+  /* 画面幅が非常に狭い端末では操作性を優先して列数を減らす */
+  .puzzle-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 480px) {
+  .puzzle-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (min-width: 640px) {
+  .puzzle-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+@media (min-width: 900px) {
+  .puzzle-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+@media (min-width: 1200px) {
+  .puzzle-grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+
+/* タップ領域(44x44 CSS px以上)について: 明示的なmin-heightは付けない。
+   .puzzle-grid内でmin-heightを付けた状態でalign-items: stretchの影響を
+   受けると、行の高さがmin-heightの値だけに縮んでしまい、国名(.puzzle-flag-name)
+   がつぶれて見えなくなる現象を確認したため(.puzzle-gridのalign-items: startで
+   根本原因には対処済みだが、念のためここでは付けない)。国旗画像
+   (アスペクト比4:3)+国名2行分の実際の高さは、どの列数でも44pxを
+   十分に超えるため、タップ領域の要件はこの実寸で満たされる */
+.puzzle-flag-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 4px 8px;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  cursor: pointer;
+  min-width: 0;
+  transition: border-color .15s ease, transform .1s ease;
+}
+.puzzle-flag-card:active { transform: scale(0.95); }
+.puzzle-flag-card:hover { border-color: var(--color-primary); }
+.puzzle-flag-img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+.puzzle-flag-name {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--color-text);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  /* display: -webkit-box + -webkit-line-clampによる省略記号表示は
+     環境によって高さが0として計算されてしまう問題を確認したため
+     採用しない。display: blockのmax-heightで2行分の高さに確実に
+     収め、それを超える分はoverflow: hiddenで隠すだけのシンプルな
+     方式にする(省略記号「…」は付かないが、サイズ崩れの心配がない) */
+  max-height: calc(1.25em * 2);
+  overflow: hidden;
+}
+
+.puzzle-empty {
+  text-align: center;
+  color: var(--color-text-sub);
+  padding: 32px 16px;
+}
+
+/* ---------- 選択済み国旗+回答確定(画面下部に固定) ----------
+   選択数が増えても大部分を占有しないよう、選択済み一覧自体は
+   横スクロール式にする(縦には伸ばさない) */
+.puzzle-answer-bar {
+  flex-shrink: 0;
+  background: #fff;
+  border-top: 1px solid var(--color-border);
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left));
+  box-shadow: 0 -4px 16px rgba(30, 40, 60, 0.08);
+}
+.puzzle-answer-bar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.puzzle-answer-count {
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+.puzzle-answer-clear {
+  border: none;
+  background: none;
+  color: var(--color-text-sub);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.puzzle-answer-clear:disabled {
+  color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.puzzle-answer-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 2px 6px;
+  min-height: 44px;
+  align-items: center;
+}
+.puzzle-answer-empty-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-sub);
+  white-space: nowrap;
+}
+.puzzle-answer-chip {
+  position: relative;
+  flex-shrink: 0;
+  width: 44px;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+.puzzle-answer-chip-num {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.puzzle-answer-chip-flag {
+  width: 38px;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-bg);
+}
+
+.puzzle-answer-message {
+  margin: 2px 0 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  text-align: center;
+}
+
+.puzzle-answer-submit {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.puzzle-answer-submit:active:not(:disabled) { transform: scale(0.98); }
+.puzzle-answer-submit:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* ---------- 開発用・一時的な入口(本番非公開) ----------
+   トロフィー一覧画面のヘッダーに表示する仮ボタン。
+   js/puzzle.jsのPUZZLE_DEV_ENTRY_ENABLEDがfalseの間は.hiddenのまま */
+.btn-dev-puzzle-entry {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border: 1px dashed var(--color-text-sub);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-text-sub);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .puzzle-flag-card, .puzzle-answer-submit { transition-duration: 0.001ms; }
+}
