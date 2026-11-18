@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="./css/map.css">
 <link rel="stylesheet" href="./css/encyclopedia.css">
 <link rel="stylesheet" href="./css/findcountry.css">
+<link rel="stylesheet" href="./css/puzzle.css">
 </head>
 <body>
 
@@ -351,6 +352,14 @@
     <div class="trophy-list-header">
       <button class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
       <h2 class="screen-title">🏆 トロフィー一覧</h2>
+      <!-- ============ 開発用・一時的な入口(本番非公開) ============
+           謎解きトロフィー専用「国旗選択画面」(screen-puzzle-flag-select)の
+           動作確認用。正式には各謎解きトロフィーの詳細画面の「この謎に挑む」
+           ボタンから開く予定で、実装され次第この仮ボタンごと削除する。
+           通常のURL(クエリパラメータなし)では常に非表示。開発・動作確認時は
+           URLの末尾に "?puzzleDev=1" を付けてアクセスすると表示される
+           (js/puzzle.jsのisPuzzleDevEntryRequested()参照) ============ -->
+      <button id="btn-dev-puzzle-entry" class="btn-dev-puzzle-entry hidden" type="button">🧩謎(開発用)</button>
     </div>
     <p id="trophy-progress-summary" class="trophy-progress-summary"></p>
 
@@ -595,6 +604,50 @@
   </div>
 </section>
 
+<!-- ============ 謎への挑戦: 国旗選択画面(第1段階) ============
+     将来実装予定の「世界図鑑×謎解きトロフィー」(企画段階の目安は32問だが、
+     将来40問・50問・100問以上に増える可能性がある)で共通利用する、
+     国旗選択専用の画面。この段階では選択操作のみを実装し、正解判定・
+     トロフィー獲得処理・実際の問題データとの連動は行わない。
+     js/countries.js(COUNTRIES、198件)をそのまま参照するだけで、
+     別データを複製しない。既存の世界図鑑・国旗/首都クイズ・トロフィーの
+     画面やデータ、国旗クイズ/首都クイズの出題対象には一切影響しない ============ -->
+<section id="screen-puzzle-flag-select" class="screen">
+  <div class="puzzle-wrap">
+    <div class="puzzle-topbar">
+      <button id="btn-puzzle-back" class="btn-back" data-back="screen-top" aria-label="戻る">← 戻る</button>
+      <h2 class="puzzle-title">謎への挑戦</h2>
+    </div>
+
+    <div class="puzzle-question-wrap">
+      <p id="puzzle-question-text" class="puzzle-question-text"></p>
+      <button id="puzzle-question-toggle" class="puzzle-question-toggle hidden" type="button">続きを読む</button>
+    </div>
+
+    <div class="puzzle-search-wrap">
+      <input id="puzzle-search-input" class="puzzle-search-input" type="text" placeholder="🔍 国名で検索" autocomplete="off">
+      <button id="puzzle-search-clear" class="puzzle-search-clear hidden" aria-label="検索をクリア" type="button">×</button>
+    </div>
+
+    <div id="puzzle-region-tabs" class="puzzle-region-tabs" role="tablist" aria-label="地域で絞り込み"></div>
+
+    <p id="puzzle-result-count" class="puzzle-result-count"></p>
+
+    <div id="puzzle-grid" class="puzzle-grid"></div>
+    <p id="puzzle-empty" class="puzzle-empty hidden">見つかりませんでした</p>
+
+    <div class="puzzle-answer-bar">
+      <div class="puzzle-answer-bar-top">
+        <span id="puzzle-answer-count" class="puzzle-answer-count">0 / 10</span>
+        <button id="puzzle-answer-clear" class="puzzle-answer-clear" type="button" disabled>すべて消す</button>
+      </div>
+      <div id="puzzle-answer-list" class="puzzle-answer-list"></div>
+      <p id="puzzle-answer-message" class="puzzle-answer-message hidden"></p>
+      <button id="puzzle-answer-submit" class="puzzle-answer-submit" type="button" disabled>謎を解き明かす！</button>
+    </div>
+  </div>
+</section>
+
 <!-- ============ メダル・賞状作成画面 ============ -->
 <section id="screen-memorial" class="screen">
   <div class="panel">
@@ -696,6 +749,7 @@
 <script src="./js/encyclopedia.js"></script>
 <script src="./js/review.js"></script>
 <script src="./js/findcountry.js"></script>
+<script src="./js/puzzle.js"></script>
 <script src="./js/app.js"></script>
 </body>
 </html>
