@@ -10,7 +10,14 @@ const MapModule = (() => {
   // globe.gl本体(1.9MB)とGeoJSON(約250KB)は、このモードを開いた
   // タイミングで初めて読み込む(国旗/首都クイズの初期表示を重くしないため)
   const GLOBE_LIB_URL = "./assets/vendor/globe.gl.min.js";
-  const GEOJSON_URL = "./assets/map/world-countries.geojson";
+  // world-countries.geojsonの内容を変更するたびにこの値を更新する。
+  // クエリ文字列を付けずに固定パスでfetchすると、ブラウザやCDNの
+  // キャッシュにより、GitHub Pages側を更新しても利用者の端末で古い
+  // 国境データが表示され続けることがある(キャッシュ有効期限が切れる
+  // まで)。バージョン値を変えることでURLそのものが変わり、更新を
+  // 確実に反映させる。
+  const GEOJSON_DATA_VERSION = "2026-11-18-02";
+  const GEOJSON_URL = `./assets/map/world-countries.geojson?v=${GEOJSON_DATA_VERSION}`;
 
   let globeInstance = null;
   let geoFeatures = [];
