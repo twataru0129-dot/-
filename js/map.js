@@ -2243,12 +2243,14 @@ const MapModule = (() => {
     refreshPinLayer();
   }
 
-  // ---------- イギリス4構成国: 紹介カードUI・個別ハイライト・自動ズーム ----------
+  // ---------- イギリス4構成国: 紹介カードUI・個別ハイライト ----------
   // renderInfoCard(country.id==="gb")から呼ばれ、4枚のカードを毎回組み立て
   // 直す(件数が4件と少ないため、差分更新ではなく単純にinnerHTMLを作り直す)。
-  // 国旗画像(イングランド/スコットランド/ウェールズ)またはバッジ(北アイル
-  // ランド、単一の公式な地域旗が無いため文字表記)+名称+首都を表示し、
-  // クリックでfocusOrClearUkConstituent()を呼ぶ
+  // 1段目に旗アイコン+名称、2段目に首都を分けて表示し(読みやすさのため、
+  // 国名と首都を同じ行に詰め込まない)、クリックでfocusOrClearUkConstituent()
+  // を呼ぶ。北アイルランドの歴史的な旗(アルスター・バナー)についての
+  // 補足は、カードごとではなくセクション共通の注記(index.html側の
+  // .map-uk-constituents-note)で一度だけ表示する
   function renderUkConstituentsSection() {
     const section = $("map-uk-constituents-section");
     section.classList.remove("hidden");
@@ -2264,18 +2266,13 @@ const MapModule = (() => {
         "aria-pressed",
         selectedUkConstituentKey === def.key ? "true" : "false"
       );
-      const media = def.flag
-        ? `<img class="map-uk-constituent-flag" src="${def.flag}" alt="${def.nameJa}の旗">`
-        // 北アイルランドは単一の公式な地域旗が存在しないため、特定の政治的
-        // 立場に結びつく図案(歴史的なアルスター・バナー等)を使わず、
-        // 中立的な文字バッジで代用する
-        : `<span class="map-uk-constituent-badge" aria-hidden="true">NI</span>`;
+      const flagAlt = def.flagHistorical ? `${def.nameJa}の歴史的な旗(アルスター・バナー)` : `${def.nameJa}の旗`;
       card.innerHTML =
-        media +
-        `<span class="map-uk-constituent-text">` +
+        `<span class="map-uk-constituent-row1">` +
+        `<img class="map-uk-constituent-flag" src="${def.flag}" alt="${flagAlt}">` +
         `<span class="map-uk-constituent-name">${def.nameJa}</span>` +
-        `<span class="map-uk-constituent-capital">首都：${def.capitalJa}</span>` +
-        `</span>`;
+        `</span>` +
+        `<span class="map-uk-constituent-capital">首都：${def.capitalJa}</span>`;
       grid.appendChild(card);
     });
   }
@@ -2291,7 +2288,15 @@ const MapModule = (() => {
   }
   // カードタップ時の本体。同じ国を再度タップすると個別強調を解除する
   // (「5-3. 選択解除」)。イギリス全体の選択状態(selectedCountryId)・
-  // 境界線・名称ラベルの表示はどちらの場合も維持したままにする
+  // 境界線・名称ラベルの表示はどちらの場合も維持したままにする。
+  //
+  // 以前はここで対象の大きさに応じた自動ズーム・移動(computeAutoZoomFromSizeDeg
+  // + pointOfView)を行っていたが、ウェールズ・北アイルランドなどで
+  // 過剰に拡大され、イギリス全体の位置関係が分からなくなるとの指摘を受けて
+  // 廃止した。カード選択はカメラを一切動かさず、強調表示(capColor/
+  // strokeColor、refreshPolygonStyles経由)だけを切り替える。ユーザーが
+  // 手動でズーム・回転・移動した後にカードを選択しても、現在のカメラ
+  // 状態(位置・角度・倍率)はそのまま維持される
   function focusOrClearUkConstituent(key) {
     if (selectedUkConstituentKey === key) {
       selectedUkConstituentKey = null;
@@ -2302,21 +2307,6 @@ const MapModule = (() => {
     selectedUkConstituentKey = key;
     updateUkConstituentsSelectionUI();
     refreshPolygonStyles();
-    const def = ukConstituentDefByKey(key);
-    if (!def || !globeInstance) return;
-    // 対象の実際の大きさに応じた自動ズーム(computeAutoZoomFromSizeDeg、
-    // 実在の国・地域向けのcomputeAutoZoomと全く同じ計算式を共有)。
-    // 既に十分な倍率で表示されている場合は、既存のcomputeAutoZoom同様
-    // altitudeの上限(現在の視点の高度)でクランプされるため、
-    // 無理に拡大し続けることはない
-    const zoom = computeAutoZoomFromSizeDeg(def.sizeDeg);
-    const target = cardAvoidanceTarget(def.anchorLat, def.anchorLng, zoom.altitude);
-    const duration = prefersReducedMotion() ? 0 : 900;
-    globeInstance.pointOfView({ lat: target.lat, lng: target.lng, altitude: zoom.altitude }, duration);
-  }
-  function ukConstituentDefByKey(key) {
-    const defs = typeof UK_CONSTITUENT_REGIONS !== "undefined" ? UK_CONSTITUENT_REGIONS : [];
-    return defs.find((d) => d.key === key) || null;
   }
 
   // ---------- イギリス4構成国: 名称ラベル+指示線の追従 ----------
@@ -2365,6 +2355,41 @@ const MapModule = (() => {
     wales: { dx: -52, dy: 14 },
     northern_ireland: { dx: -8, dy: -16 },
   };
+  // 上部の検索欄・地域フィルター(.map-topbar/.map-toolbar-row2)と下部の
+  // 紹介カード(#map-info-card)に重ならない「安全領域」を、.map-wrap基準の
+  // 座標で計算する。#map-globe-containerはflexレイアウト上すでに上の
+  // 2段のツールバーの下から始まるため、上端はコンテナ自身の上端をそのまま
+  // 使える。紹介カードは、スマホでは画面下からのシート(カードの上端が
+  // 下側の境界)、PC/タブレット(700px以上)では右側の固定パネル(カードの
+  // 左端が右側の境界)になる。.openが付いていない間はカードは画面外に
+  // 隠れているため、安全領域の計算に含めない
+  function ukLabelSafeRect(cRect, wRect) {
+    const margin = 8;
+    const containerLeft = cRect.left - wRect.left;
+    const containerTop = cRect.top - wRect.top;
+    let rect = {
+      left: containerLeft + margin,
+      right: containerLeft + cRect.width - margin,
+      top: containerTop + margin,
+      bottom: containerTop + cRect.height - margin,
+    };
+    const card = $("map-info-card");
+    if (card && card.classList.contains("open")) {
+      const cardRect = card.getBoundingClientRect();
+      let isDesktopLayout = false;
+      try {
+        isDesktopLayout = window.matchMedia("(min-width: 700px)").matches;
+      } catch (e) {
+        // matchMediaが使えない環境ではモバイル(下シート)扱いのままにする
+      }
+      if (isDesktopLayout) {
+        rect.right = Math.min(rect.right, cardRect.left - wRect.left - margin);
+      } else {
+        rect.bottom = Math.min(rect.bottom, cardRect.top - wRect.top - margin);
+      }
+    }
+    return rect;
+  }
   function updateUkRegionLabelPositions() {
     if (!ukRegionLabelsTracking || !globeInstance) return;
     const container = $("map-globe-container");
@@ -2373,6 +2398,7 @@ const MapModule = (() => {
     const cRect = container.getBoundingClientRect();
     const wRect = wrap.getBoundingClientRect();
     const defs = typeof UK_CONSTITUENT_REGIONS !== "undefined" ? UK_CONSTITUENT_REGIONS : [];
+    const safeRect = ukLabelSafeRect(cRect, wRect);
 
     // 地図を大きく縮小した場合は、重なりを避けるためラベル一式を省略する。
     // イギリス全体の見かけの大きさ(スコットランド・イングランド両端の
@@ -2396,6 +2422,9 @@ const MapModule = (() => {
         lineEl.classList.add("hidden");
         return;
       }
+      // 対象自体が今見えている範囲の外(画面から大きく外れた位置、または
+      // 地球儀の裏側)にあるときは、ラベルを画面端に固定表示したりせず、
+      // 単純に非表示にする(projectLatLngToScreenが自前でこの判定を行う)
       const anchorPos = projectLatLngToScreen(def.anchorLat, def.anchorLng, PIN_OBJECT_ALTITUDE);
       if (!anchorPos) {
         labelEl.classList.add("hidden");
@@ -2404,21 +2433,38 @@ const MapModule = (() => {
       }
       labelEl.classList.remove("hidden");
       const offset = UK_LABEL_OFFSETS[def.key] || { dx: 0, dy: 0 };
-      const labelX = anchorPos.x + offset.dx;
-      const labelY = anchorPos.y + offset.dy;
-      labelEl.style.left = `${cRect.left - wRect.left + labelX}px`;
-      labelEl.style.top = `${cRect.top - wRect.top + labelY}px`;
-      // ラベルがアンカーそのものの位置からある程度離れているときだけ
-      // 指示線を表示する(アンカー直上に表示するイングランドでは出さない)
-      const offsetMagnitude = Math.hypot(offset.dx, offset.dy);
+      const anchorXWrap = cRect.left - wRect.left + anchorPos.x;
+      const anchorYWrap = cRect.top - wRect.top + anchorPos.y;
+      let labelX = anchorXWrap + offset.dx;
+      let labelY = anchorYWrap + offset.dy;
+      // ラベル本体(.map-uk-region-labelのtransform: translate(-50%,-100%)
+      // により、left/topはラベルの下辺中央にあたる)の実際の大きさを使い、
+      // 上部ツールバー・下部紹介カードに重ならず、左右の地図コンテナ範囲内に
+      // 収まるよう位置を補正する。固定ピクセル値に画面端へ張り付けるのではなく、
+      // ラベル自身の幅・高さを引いた位置まで戻すことで、ラベルの文字が
+      // 必ず安全領域の内側に収まるようにする
+      const labelWidth = labelEl.offsetWidth || 0;
+      const labelHeight = labelEl.offsetHeight || 0;
+      const halfW = labelWidth / 2;
+      if (labelX - halfW < safeRect.left) labelX = safeRect.left + halfW;
+      if (labelX + halfW > safeRect.right) labelX = safeRect.right - halfW;
+      if (labelY - labelHeight < safeRect.top) labelY = safeRect.top + labelHeight;
+      if (labelY > safeRect.bottom) labelY = safeRect.bottom;
+      labelEl.style.left = `${labelX}px`;
+      labelEl.style.top = `${labelY}px`;
+      // ラベルが(配置オフセットだけでなく、上の安全領域クランプによっても)
+      // アンカーの位置からある程度離れているときだけ指示線を表示する
+      // (アンカー直上にそのまま表示できているイングランドでは出さない)。
+      // 指示線の終点は、クランプ後の実際のラベル位置に必ず追従させる
+      const offsetMagnitude = Math.hypot(labelX - anchorXWrap, labelY - anchorYWrap);
       if (offsetMagnitude < 10) {
         lineEl.classList.add("hidden");
       } else {
         lineEl.classList.remove("hidden");
-        lineEl.setAttribute("x1", String(cRect.left - wRect.left + anchorPos.x));
-        lineEl.setAttribute("y1", String(cRect.top - wRect.top + anchorPos.y));
-        lineEl.setAttribute("x2", String(cRect.left - wRect.left + labelX));
-        lineEl.setAttribute("y2", String(cRect.top - wRect.top + labelY));
+        lineEl.setAttribute("x1", String(anchorXWrap));
+        lineEl.setAttribute("y1", String(anchorYWrap));
+        lineEl.setAttribute("x2", String(labelX));
+        lineEl.setAttribute("y2", String(labelY));
       }
     });
     function labelsLayer_(key) {
