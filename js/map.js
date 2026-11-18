@@ -2430,45 +2430,58 @@ const MapModule = (() => {
       return;
     }
 
-    // 1段目: 対象の陸地(代表座標)が実際に地球儀コンテナの表示範囲内に
+    // 1段目: 対象の陸地(代表座標)が、ユーザーに実際に見えている範囲に
     // 投影されているものだけを「見えている」とみなす。projectLatLngToScreen
     // 自体は(通常ピン用に)画面外±15%までを許容するゆるい判定のため、
-    // それだけでは「地図を動かして陸地が画面外に出た」ケースを拾いきれず、
-    // 以前はラベルが安全領域クランプによって画面端に押し込まれたまま
-    // 残ってしまっていた。ここではコンテナの実際の矩形(わずかな余白のみ
-    // 許容)を基準に判定し直す。地球儀の裏側にある対象はprojectLatLngToScreen
-    // 自体がnullを返すため、ここでも自然に非表示になる
+    // それだけでは「地図を動かして陸地が画面外に出た」ケースを拾いきれない。
+    // また、コンテナの矩形だけを基準にすると、陸地が下部の紹介カード(や
+    // 上部ツールバー)の裏側に隠れている場合でも「コンテナ内=見えている」
+    // と誤判定してしまい、安全領域クランプでラベルだけがカードの上端に
+    // 押し込まれて残る不具合が起きる。そのため、ここではukLabelSafeRect()
+    // が返す「実際に見えている(ツールバー・紹介カードに覆われていない)
+    // 範囲」そのものを可視判定の基準として使う。地球儀の裏側にある対象は
+    // projectLatLngToScreenがnullを返すため、ここでも自然に非表示になる。
+    // ただし代表座標(アンカー)はあくまで各構成国を代表する1点に過ぎず、
+    // 実際の陸地(ポリゴン)はその周囲にも広がっているため、アンカーが
+    // safeRectの境界からわずかに(edgeMargin以内)はみ出しているだけの
+    // 場合は、陸地の一部はまだ見えている可能性が高いとみなし表示を維持
+    // する。この許容量を超えてはみ出している場合は、陸地はほぼ確実に
+    // 見えていない(紹介カードの裏側や画面外に完全に隠れている)と
+    // 判断し、ラベル・指示線を非表示にする
     const edgeMargin = 24;
     const visible = [];
     defs.forEach((def) => {
       const anchorPos = projectLatLngToScreen(def.anchorLat, def.anchorLng, PIN_OBJECT_ALTITUDE);
+      if (!anchorPos) {
+        hideBoth(def.key);
+        return;
+      }
+      const anchorXWrap = cRect.left - wRect.left + anchorPos.x;
+      const anchorYWrap = cRect.top - wRect.top + anchorPos.y;
       const onScreen =
-        !!anchorPos &&
-        anchorPos.x >= -edgeMargin &&
-        anchorPos.x <= cRect.width + edgeMargin &&
-        anchorPos.y >= -edgeMargin &&
-        anchorPos.y <= cRect.height + edgeMargin;
+        anchorXWrap >= safeRect.left - edgeMargin &&
+        anchorXWrap <= safeRect.right + edgeMargin &&
+        anchorYWrap >= safeRect.top - edgeMargin &&
+        anchorYWrap <= safeRect.bottom + edgeMargin;
       if (!onScreen) {
         hideBoth(def.key);
         return;
       }
-      visible.push({ def, anchorPos });
+      visible.push({ def, anchorPos, anchorXWrap, anchorYWrap });
     });
     if (!visible.length) return;
 
     // 2段目: 見えている対象だけ、安全領域(上部ツールバー・下部紹介カードを
-    // 避ける範囲)に収まるようラベル位置を補正する。対象自体が画面内に
-    // あることは上で確認済みのため、この補正はあくまで数十px程度の
-    // 微調整にとどまる
+    // 避ける範囲、1段目と同じsafeRect)に収まるようラベル位置を補正する。
+    // 対象の代表座標自体がsafeRect内にあることは上で確認済みのため、この
+    // 補正はラベル表示用オフセット分(数十px程度)の微調整にとどまる
     visible.forEach((v) => {
-      const { def, anchorPos } = v;
+      const { def, anchorXWrap, anchorYWrap } = v;
       const labelEl = labelsLayer_(def.key);
       const lineEl = linesLayer_(def.key);
       if (!labelEl || !lineEl) return;
       labelEl.classList.remove("hidden");
       const offset = UK_LABEL_OFFSETS[def.key] || { dx: 0, dy: 0 };
-      const anchorXWrap = cRect.left - wRect.left + anchorPos.x;
-      const anchorYWrap = cRect.top - wRect.top + anchorPos.y;
       let labelX = anchorXWrap + offset.dx;
       let labelY = anchorYWrap + offset.dy;
       // ラベル本体(.map-uk-region-labelのtransform: translate(-50%,-100%)
@@ -2486,8 +2499,6 @@ const MapModule = (() => {
       v.labelY = labelY;
       v.labelWidth = labelWidth;
       v.labelHeight = labelHeight;
-      v.anchorXWrap = anchorXWrap;
-      v.anchorYWrap = anchorYWrap;
     });
 
     // 3段目: 見えている対象同士でラベルの矩形が重なる場合、優先順位の

@@ -28,6 +28,24 @@
 // 6. ズームインした状態でも同様にオフスクリーンで消える。
 // 7. 一部の構成国だけが画面内にあるとき、画面内のものだけが表示される。
 //
+// --- 2回目の修正(カードの裏側に隠れるケース) ---
+// 上記の修正後も、iPhone実機での再確認で別の不具合が報告された:
+// 地図コンテナ(#map-globe-container)は下部の白い紹介カードの裏側まで
+// 含めた全高を持ち(カードは position: absolute で上に重なっているだけ)、
+// 1回目の修正のonScreen判定はこのコンテナ全体の矩形を基準にしていた。
+// そのため、構成国の代表座標が紹介カードの裏側(=実際にはユーザーから
+// 見えない領域)にあっても「コンテナ内=見えている」と誤判定され、
+// 続く安全領域クランプでラベルだけがカードの上端に押し込まれて
+// 残ってしまっていた(指示線が実際には見えない位置を指したまま)。
+// 2回目の修正では、onScreen判定の基準をコンテナ全体の矩形から
+// ukLabelSafeRect()(紹介カード・上部ツールバーに覆われていない、
+// 実際に見えている範囲)に変更した。
+//
+// 8. 構成国の代表座標が紹介カードの裏側に入ったとき、ラベル・指示線が
+//    カードの上端に張り付かず、両方とも非表示になる(2回目の修正の核心)。
+// 9. 横画面(iPhoneランドスケープ、紹介カードが右側パネルになるレイアウト)
+//    でも、全体表示・画面外・復帰が正しく動作する。
+//
 // 実行方法: node tests/playwright_map_uk_labels_visibility.test.js
 // ==========================================================
 const { chromium } = require("playwright");
@@ -236,6 +254,96 @@ async function labelLineState(page) {
     );
 
     check("テスト7: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
+    await page.close();
+  }
+
+  // ========================================================
+  // テスト8(2回目の修正の核心): 構成国の代表座標を紹介カードの裏側
+  // まで動かしたとき、ラベル・指示線がカード上端に張り付かず、両方
+  // 非表示になる。#map-globe-containerはカードの裏側まで含めた全高を
+  // 持つため、コンテナ矩形だけを基準にした1回目の判定ではこのケースを
+  // 検出できなかった(実際に修正前のコードでこの手順を再現すると、
+  // イングランド・ウェールズのラベルがカード上端にclassList非表示に
+  // ならないまま残ることを確認済み)。
+  // ========================================================
+  {
+    const page = await newPage(browser, consoleErrors);
+    await openMapAndSelectUk(page, base);
+    const canvas = await page.$("#map-globe-container canvas");
+
+    // 上部寄り(カードに重ならない位置)でドラッグし、イギリスをカードの
+    // 裏側へ向けて少しずつ押し下げる。途中経過も含め、カード上端付近に
+    // ラベル・指示線が「消え残る」瞬間がないことを確認する
+    let stuckAboveCard = false;
+    for (const dy of [60, 100, 140, 180]) {
+      await dragRotate(page, canvas, 0, dy, { steps: 40, stepDelay: 20, yOffset: -250 });
+      const state = await page.evaluate(() => {
+        const card = document.getElementById("map-info-card");
+        const cardRect = card.getBoundingClientRect();
+        const labels = Array.from(document.querySelectorAll("#map-uk-region-labels .map-uk-region-label:not(.hidden)"));
+        const lines = Array.from(document.querySelectorAll("#map-uk-region-lines .map-uk-region-line:not(.hidden)"));
+        return {
+          visibleLabelCount: labels.length,
+          visibleLineCount: lines.length,
+          cardTop: cardRect.top,
+          labelTops: labels.map((el) => parseFloat(el.style.top || "NaN")),
+        };
+      });
+      // カード上端ぎりぎり(15px以内)に張り付いたまま表示されているラベルが
+      // あれば、それは陸地が実際には見えていないのに残っている疑いが強い
+      const nearCardTop = state.labelTops.some((t) => Number.isFinite(t) && Math.abs(t - state.cardTop) < 15);
+      if (state.visibleLabelCount > 0 && nearCardTop) stuckAboveCard = true;
+    }
+    check("テスト8: ドラッグでイギリスをカードの裏側へ動かしても、ラベルがカード上端に張り付いたまま残らない", !stuckAboveCard);
+
+    // 最終的に、紹介カードの裏側まで押し下げた状態では、見えている構成国が
+    // ない(=ラベル・指示線とも全て非表示)ことを確認する
+    const finalState = await labelLineState(page);
+    check("テスト8: カードの裏側まで押し下げた最終状態で、ラベルがすべて非表示になる", finalState.visibleLabelKeys.length === 0);
+    check("テスト8: カードの裏側まで押し下げた最終状態で、指示線もすべて非表示になる(ラベルだけ消えて線が残らない)", finalState.visibleLineKeys.length === 0);
+
+    // 元に戻すと復活する
+    await dragRotate(page, canvas, 0, -480, { steps: 60, stepDelay: 20, yOffset: -250 });
+    const restoredFromCard = await labelLineState(page);
+    check("テスト8: 元の位置までドラッグで戻すと、ラベルが再表示される", restoredFromCard.visibleLabelKeys.length > 0);
+
+    check("テスト8: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
+    await page.close();
+  }
+
+  // ========================================================
+  // テスト9: 横画面(iPhoneランドスケープ、紹介カードが右側パネルに
+  // なる700px以上のレイアウト)でも、画面外・復帰が正しく動作する。
+  // なお、この横画面(844x390)はコンテナの縦幅が274pxしかなく、既存の
+  // 「地図を大きく縮小した場合はラベル一式を省略する」ロジック
+  // (wholeSpanPx<70)により、検索直後の既定カメラ位置ではラベルが
+  // そもそも1件も表示されない(この挙動は本修正前のmainブランチでも
+  // 同一であることを確認済みで、カメラ位置・ズームには一切手を
+  // 加えていないため、本修正の対象外の既存挙動)。そのため、このテストは
+  // 既存パターン(テスト6)と同様にホイールでズームインしてから検証する。
+  // ========================================================
+  {
+    const page = await newPage(browser, consoleErrors, { width: 844, height: 390 });
+    await openMapAndSelectUk(page, base);
+
+    const canvas = await page.$("#map-globe-container canvas");
+    const box = await canvas.boundingBox();
+    await page.mouse.move(box.x + box.width / 2 - 150, box.y + box.height / 2);
+    await page.mouse.wheel(0, -600);
+    await page.waitForTimeout(1200);
+
+    const initial = await labelLineState(page);
+    check("テスト9(横画面): ズームイン後、構成国のラベルが表示されている", initial.visibleLabelKeys.length > 0);
+
+    await dragRotate(page, canvas, -1600, 0, { steps: 50, stepDelay: 20, yOffset: 0 });
+    const offscreen = await labelLineState(page);
+    check("テスト9(横画面): ドラッグで画面外へ出すとラベル・指示線がすべて非表示になる", offscreen.visibleLabelKeys.length === 0 && offscreen.visibleLineKeys.length === 0);
+
+    await dragRotate(page, canvas, 1600, 0, { steps: 50, stepDelay: 20, yOffset: 0 });
+    const restored = await labelLineState(page);
+    check("テスト9(横画面): ドラッグで画面内へ戻すとラベルが復活する", restored.visibleLabelKeys.length > 0);
+
+    check("テスト9(横画面): コンソール/ページエラーが発生していない", consoleErrors.length === 0);
     await page.close();
   }
 
