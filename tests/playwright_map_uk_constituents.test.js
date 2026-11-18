@@ -118,12 +118,20 @@ async function openMapAndSelectUk(page) {
         capitalTexts.some((t) => t.includes("カーディフ")) &&
         capitalTexts.some((t) => t.includes("ベルファスト"))
     );
-    // 北アイルランドは単一の公式な地域旗が無いため、国旗画像ではなく
-    // 中立的なバッジ(アルスター・バナー等は使わない)で表示される
-    const niBadge = await page.$('#map-uk-constituents-grid .map-uk-constituent-card[data-uk-constituent-key="northern_ireland"] .map-uk-constituent-badge');
-    check("テスト2: 北アイルランドは旗画像の代わりに中立的なバッジで表示される", !!niBadge);
+    // 北アイルランドには現在、独自の単一の公式な地域旗が無いため、歴史的な
+    // アルスター・バナー(assets/flags/gb-nir-ulster-banner.svg)を、現在の
+    // 公式旗ではないことを明記したうえで表示する
     const niFlagImg = await page.$('#map-uk-constituents-grid .map-uk-constituent-card[data-uk-constituent-key="northern_ireland"] .map-uk-constituent-flag');
-    check("テスト2: 北アイルランドに旗画像(<img>)は無い", !niFlagImg);
+    check("テスト2: 北アイルランドも旗画像(<img>)で表示される", !!niFlagImg);
+    const niFlagSrc = niFlagImg ? await niFlagImg.getAttribute("src") : "";
+    check("テスト2: 北アイルランドの旗はアルスター・バナーのSVG", niFlagSrc.includes("gb-nir-ulster-banner.svg"));
+    const niFlagAlt = niFlagImg ? await niFlagImg.getAttribute("alt") : "";
+    check("テスト2: 北アイルランドの旗のalt文言に「歴史的」が含まれる(現在の公式旗ではないことの明示)", niFlagAlt.includes("歴史的"));
+    const ukNote = await page.$eval(".map-uk-constituents-note", (el) => el.textContent);
+    check(
+      "テスト2: アルスター・バナーについての補足説明が表示される",
+      ukNote.includes("現在") && ukNote.includes("公式旗") && ukNote.includes("アルスター・バナー") && ukNote.includes("歴史的")
+    );
 
     // イギリス自体の基本情報(国旗・国名・首都・解説・図鑑ボタン)は
     // 既存どおり表示されている(今回の追加で消えていないことの回帰確認)

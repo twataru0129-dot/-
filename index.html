@@ -470,6 +470,10 @@
       <div id="map-uk-constituents-section" class="map-uk-constituents-section hidden">
         <p class="map-uk-constituents-heading">🇬🇧 イギリスを構成する4つの国</p>
         <div id="map-uk-constituents-grid" class="map-uk-constituents-grid"></div>
+        <!-- 北アイルランドのカードに表示するアルスター・バナーについての
+             補足。政治的背景のある歴史的な旗であり、現在の公式旗ではない
+             ことを必ず併記する(js/map-uk-regions.jsのコメント参照) -->
+        <p class="map-uk-constituents-note">※北アイルランドには現在、独自の単一の公式旗はありません。アルスター・バナーは歴史的な旗です。</p>
       </div>
 
       <button id="map-card-encyclopedia-btn" class="map-card-encyclopedia-btn" type="button">📖 世界図鑑で見る</button>
@@ -571,6 +575,18 @@
 
     <p id="ency-detail-desc" class="ency-detail-desc"></p>
     <p id="ency-detail-note" class="ency-detail-note hidden"></p>
+
+    <!-- ============ イギリスを構成する4つの国(世界図鑑専用)
+         entry.id === "gb" のときだけ.hiddenを外す。js/map-uk-regions.jsの
+         UK_CONSTITUENT_REGIONSをそのまま使い、世界地図モードの紹介カード
+         (#map-uk-constituents-section)と表示内容(国名・首都・旗)が
+         食い違わないようにする。198件の登録数・既存IDには一切影響しない
+         (あくまでイギリス1件の詳細画面内の補足情報) ============ -->
+    <div id="ency-detail-uk-constituents" class="ency-detail-uk-constituents hidden">
+      <p class="ency-detail-uk-heading">イギリスを構成する4つの国</p>
+      <div id="ency-detail-uk-grid" class="ency-detail-uk-grid"></div>
+      <p class="ency-detail-uk-note">※北アイルランドには現在、独自の単一の公式旗はありません。アルスター・バナーは歴史的な旗です。</p>
+    </div>
 
     <div class="ency-detail-nav">
       <button id="ency-detail-prev" class="ency-detail-nav-btn" type="button">← 前へ</button>

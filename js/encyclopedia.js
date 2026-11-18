@@ -308,6 +308,30 @@ const EncyclopediaModule = (() => {
     }
   }
 
+  // イギリスを構成する4つの国(世界図鑑専用)の一覧を組み立てる。
+  // js/map-uk-regions.js(UK_CONSTITUENT_REGIONS)をそのまま参照する
+  // ことで、世界地図モードの紹介カード(js/map.js)と国名・首都・旗が
+  // 食い違わないようにする(どちらも同じデータを表示に使うだけの
+  // 単一の情報源)。図鑑側はタップ操作・個別強調・カメラ移動を持たない、
+  // 読むだけの一覧でよいため、画像+国名+首都のみを並べる
+  function renderUkConstituentsInfo() {
+    const grid = $("ency-detail-uk-grid");
+    grid.innerHTML = "";
+    const defs = typeof UK_CONSTITUENT_REGIONS !== "undefined" ? UK_CONSTITUENT_REGIONS : [];
+    defs.forEach((def) => {
+      const item = document.createElement("div");
+      item.className = "ency-detail-uk-item";
+      const flagAlt = def.flagHistorical ? `${def.nameJa}の歴史的な旗(アルスター・バナー)` : `${def.nameJa}の旗`;
+      item.innerHTML =
+        `<span class="ency-detail-uk-item-row1">` +
+        `<img class="ency-detail-uk-flag" src="${def.flag}" alt="${flagAlt}">` +
+        `<span class="ency-detail-uk-name">${def.nameJa}</span>` +
+        `</span>` +
+        `<span class="ency-detail-uk-capital">首都：${def.capitalJa}</span>`;
+      grid.appendChild(item);
+    });
+  }
+
   // ---------- 詳細画面 ----------
   function renderDetail(id) {
     const entry = entriesFor(category).find((e) => e.id === id) || COUNTRIES.find((e) => e.id === id) || MAP_ONLY_REGIONS.find((e) => e.id === id);
@@ -349,6 +373,16 @@ const EncyclopediaModule = (() => {
     } else {
       noteEl.textContent = "";
       noteEl.classList.add("hidden");
+    }
+
+    // イギリスを構成する4つの国(世界図鑑専用)。entry.id==="gb"のときだけ
+    // 表示し、他の国・地域では必ず非表示にする
+    const ukSection = $("ency-detail-uk-constituents");
+    if (entry.id === "gb") {
+      renderUkConstituentsInfo();
+      ukSection.classList.remove("hidden");
+    } else {
+      ukSection.classList.add("hidden");
     }
 
     // 前へ/次への有効・無効は、一覧画面自体の状態(currentListIds)ではなく、

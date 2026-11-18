@@ -475,10 +475,14 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+/* 1段目(旗アイコン+構成国名)・2段目(首都)の2段構成。国名と首都を
+   はっきり別の行に分け、横幅の狭いiPhoneでも首都名が不自然な位置で
+   折り返されないようにする */
 .map-uk-constituent-card {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
   min-width: 0;
   padding: 8px 10px;
   border: 2px solid var(--color-border);
@@ -494,6 +498,18 @@
   border-color: #ffb100;
   background: rgba(255, 177, 0, 0.14);
 }
+/* PC/タブレット(紹介カードが幅320pxの固定パネルになる)では、カード1枚
+   あたりの横幅がスマホより狭くなり、「北アイルランド」のような長い国名が
+   旗の隣に並べると収まらないことがある。flex-wrapで、その場合は国名を
+   旗の下に折り返す(国名という1つの単語の途中で文字単位に割れるのではなく、
+   単語ごと次の行に送る)ことで、不自然な文字単位の折り返しを避ける */
+.map-uk-constituent-row1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
 .map-uk-constituent-flag {
   width: 30px;
   height: 22px;
@@ -502,32 +518,26 @@
   border: 1px solid var(--color-border);
   flex-shrink: 0;
 }
-/* 北アイルランドは単一の公式な地域旗が無いため、国旗画像の代わりに
-   丸いバッジ(中立的なアイコン+頭文字)を表示する */
-.map-uk-constituent-badge {
-  width: 30px;
-  height: 22px;
-  border-radius: 4px;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-card, #fff);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.64rem;
-  font-weight: 800;
-  color: var(--color-text-sub);
-}
-.map-uk-constituent-text { min-width: 0; }
 .map-uk-constituent-name {
+  display: block;
+  min-width: 0;
+  flex: 1 1 auto;
   font-weight: 800;
   font-size: 0.82rem;
   overflow-wrap: break-word;
+  word-break: keep-all;
 }
 .map-uk-constituent-capital {
+  display: block;
   font-size: 0.72rem;
   color: var(--color-text-sub);
   overflow-wrap: break-word;
+}
+.map-uk-constituents-note {
+  margin: 8px 0 0;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: var(--color-text-sub);
 }
 
 /* 世界図鑑との連携(第2段階): 現在選択中の国・地域を図鑑の詳細画面で見る */
