@@ -28,11 +28,25 @@
 const PuzzleModule = (() => {
   // ============ 開発用・一時的な設定(本番非公開) ============
   // この画面はまだ正式な入口(各謎解きトロフィーの詳細画面の「この謎に挑む」
-  // ボタン)を持たない。trueの間だけ、トロフィー一覧画面のヘッダーに
-  // 開発確認用の仮ボタン(#btn-dev-puzzle-entry)を表示する。
-  // 正式な入口を実装したら、この定数とボタンのHTML(index.html内の
-  // 該当コメント参照)をまとめて削除してよい。本番公開前は必ずfalseにする
-  const PUZZLE_DEV_ENTRY_ENABLED = true;
+  // ボタン)を持たない。開発確認用の仮ボタン(#btn-dev-puzzle-entry)は、
+  // 一般利用者には常に非表示にしつつ、開発・動作確認のときだけ安全に
+  // 表示できるよう、この定数ではなくURLのクエリパラメータで制御する
+  // (isPuzzleDevEntryRequested()参照)。
+  // 正式な入口を実装したら、この定数・isPuzzleDevEntryRequested()・
+  // ボタンのHTML(index.html内の該当コメント参照)をまとめて削除してよい。
+  const PUZZLE_DEV_ENTRY_ENABLED = false;
+
+  // 通常のURL(クエリパラメータなし)でアクセスした一般利用者には、
+  // 開発用ボタンを絶対に表示しない。開発・動作確認時だけ、URLの末尾に
+  // "?puzzleDev=1" を付けてアクセスすることで、そのページ表示に限り
+  // 開発用ボタンを表示できる(コードの変更・再公開は不要)。
+  function isPuzzleDevEntryRequested() {
+    try {
+      return new URLSearchParams(window.location.search).get("puzzleDev") === "1";
+    } catch (e) {
+      return false;
+    }
+  }
 
   // 1問あたりの国旗選択数の上限。将来15回・20回等に変更する場合は
   // この定数だけを変更すればよい
@@ -294,7 +308,7 @@ const PuzzleModule = (() => {
 
     // ============ 開発用・一時的な入口(本番非公開) ============
     const devEntryBtn = $("btn-dev-puzzle-entry");
-    if (devEntryBtn && PUZZLE_DEV_ENTRY_ENABLED) {
+    if (devEntryBtn && (PUZZLE_DEV_ENTRY_ENABLED || isPuzzleDevEntryRequested())) {
       devEntryBtn.classList.remove("hidden");
       devEntryBtn.addEventListener("click", () => {
         open();

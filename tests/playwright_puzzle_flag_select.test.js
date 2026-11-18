@@ -59,11 +59,13 @@ async function newPage(browser, consoleErrors, viewport) {
   return page;
 }
 
-// 本番では公開しない開発確認用の仮入口(#btn-dev-puzzle-entry、
-// js/puzzle.jsのPUZZLE_DEV_ENTRY_ENABLED)経由で画面を開く。
+// 本番では公開しない開発確認用の仮入口(#btn-dev-puzzle-entry)経由で画面を開く。
+// 一般利用者向けの通常URLでは常に非表示のため、URLに"?puzzleDev=1"を付けて
+// アクセスし、開発・動作確認時だけ表示されることを利用する
+// (js/puzzle.jsのisPuzzleDevEntryRequested()参照)。
 // 正式な「この謎に挑む」導線ができたら、この起動方法を差し替える
 async function openPuzzleScreen(page, base) {
-  await page.goto(base, { waitUntil: "load" });
+  await page.goto(`${base}?puzzleDev=1`, { waitUntil: "load" });
   await page.click("#btn-trophy-list");
   await page.waitForSelector("#btn-dev-puzzle-entry:not(.hidden)", { timeout: 5000 });
   await page.click("#btn-dev-puzzle-entry");
@@ -331,13 +333,18 @@ async function answerState(page) {
   // ========================================================
   {
     const page = await newPage(browser, consoleErrors);
-    await page.goto(base, { waitUntil: "load" });
+    await page.goto(base, { waitUntil: "load" }); // クエリパラメータなしの通常URL
 
     // トロフィー一覧画面が従来どおり開ける(開発用ボタンが追加されているだけ)
     await page.click("#btn-trophy-list");
     await page.waitForSelector("#screen-trophy-list.active");
     const trophyGridCount = await page.$$eval("#trophy-grid > *", (els) => els.length);
     check("テスト9: トロフィー一覧画面が従来どおり描画される(カードが存在する)", trophyGridCount > 0);
+
+    // 一般利用者向けの通常URL(?puzzleDev=1なし)では、開発確認用の仮ボタンが表示されない
+    const devBtnHiddenForGeneralUsers = await page.$eval("#btn-dev-puzzle-entry", (el) => el.classList.contains("hidden"));
+    check("テスト9: 通常URLでは開発用の仮入口ボタンが表示されない(一般利用者には非公開)", devBtnHiddenForGeneralUsers === true);
+
     await page.click("#screen-trophy-list .btn-back");
     await page.waitForSelector("#screen-top.active");
 
@@ -354,6 +361,43 @@ async function answerState(page) {
     await page.waitForSelector("#screen-select.active");
 
     check("テスト9: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
+    await page.close();
+  }
+
+  // ========================================================
+  // テスト10: 開発確認用の仮入口は"?puzzleDev=1"がある場合だけ表示され、
+  // それ以外(通常URル・無関係なクエリパラメータ)では表示されない
+  // ========================================================
+  {
+    const page = await newPage(browser, consoleErrors);
+
+    // 10-1: 通常URL(クエリパラメータなし)
+    await page.goto(base, { waitUntil: "load" });
+    await page.click("#btn-trophy-list");
+    await page.waitForSelector("#screen-trophy-list.active");
+    const hiddenNoQuery = await page.$eval("#btn-dev-puzzle-entry", (el) => el.classList.contains("hidden"));
+    check("テスト10: クエリパラメータなしでは開発用ボタンが非表示", hiddenNoQuery === true);
+    await page.click("#screen-trophy-list .btn-back");
+    await page.waitForSelector("#screen-top.active");
+
+    // 10-2: 無関係なクエリパラメータだけでは表示されない(誤って表示されないことの確認)
+    await page.goto(`${base}?foo=1`, { waitUntil: "load" });
+    await page.click("#btn-trophy-list");
+    await page.waitForSelector("#screen-trophy-list.active");
+    const hiddenWrongQuery = await page.$eval("#btn-dev-puzzle-entry", (el) => el.classList.contains("hidden"));
+    check("テスト10: 無関係なクエリパラメータでは開発用ボタンが非表示", hiddenWrongQuery === true);
+    await page.click("#screen-trophy-list .btn-back");
+    await page.waitForSelector("#screen-top.active");
+
+    // 10-3: "?puzzleDev=1"を付けた場合だけ表示され、実際に画面を開けること
+    await page.goto(`${base}?puzzleDev=1`, { waitUntil: "load" });
+    await page.click("#btn-trophy-list");
+    await page.waitForSelector("#btn-dev-puzzle-entry:not(.hidden)", { timeout: 5000 });
+    await page.click("#btn-dev-puzzle-entry");
+    await page.waitForSelector("#screen-puzzle-flag-select.active");
+    check("テスト10: \"?puzzleDev=1\"を付けた場合は開発用ボタンが表示され、画面を開ける", true);
+
+    check("テスト10: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
     await page.close();
   }
 

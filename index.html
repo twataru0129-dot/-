@@ -356,7 +356,9 @@
            謎解きトロフィー専用「国旗選択画面」(screen-puzzle-flag-select)の
            動作確認用。正式には各謎解きトロフィーの詳細画面の「この謎に挑む」
            ボタンから開く予定で、実装され次第この仮ボタンごと削除する。
-           PUZZLE_DEV_ENTRY_ENABLED(js/puzzle.js)がfalseの間は常に非表示 ============ -->
+           通常のURL(クエリパラメータなし)では常に非表示。開発・動作確認時は
+           URLの末尾に "?puzzleDev=1" を付けてアクセスすると表示される
+           (js/puzzle.jsのisPuzzleDevEntryRequested()参照) ============ -->
       <button id="btn-dev-puzzle-entry" class="btn-dev-puzzle-entry hidden" type="button">🧩謎(開発用)</button>
     </div>
     <p id="trophy-progress-summary" class="trophy-progress-summary"></p>
