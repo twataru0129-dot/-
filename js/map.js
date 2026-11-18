@@ -2390,6 +2390,8 @@ const MapModule = (() => {
     }
     return rect;
   }
+  // 優先順位(重なったときに残す側)。定義順をそのまま使う
+  const UK_LABEL_PRIORITY = ["england", "scotland", "wales", "northern_ireland"];
   function updateUkRegionLabelPositions() {
     if (!ukRegionLabelsTracking || !globeInstance) return;
     const container = $("map-globe-container");
@@ -2413,24 +2415,56 @@ const MapModule = (() => {
     }
     const tooSmallToLabel = wholeSpanPx < 70;
 
+    // ラベル・指示線は必ずセットで表示/非表示にする(どちらかだけが残る
+    // 状態を作らない)。地図を動かして対象の陸地が再び見えるようになれば、
+    // 次のフレームでこの関数がまた呼ばれて自動的に再表示される
+    function hideBoth(key) {
+      const labelEl = labelsLayer_(key);
+      const lineEl = linesLayer_(key);
+      if (labelEl) labelEl.classList.add("hidden");
+      if (lineEl) lineEl.classList.add("hidden");
+    }
+
+    if (tooSmallToLabel) {
+      defs.forEach((def) => hideBoth(def.key));
+      return;
+    }
+
+    // 1段目: 対象の陸地(代表座標)が実際に地球儀コンテナの表示範囲内に
+    // 投影されているものだけを「見えている」とみなす。projectLatLngToScreen
+    // 自体は(通常ピン用に)画面外±15%までを許容するゆるい判定のため、
+    // それだけでは「地図を動かして陸地が画面外に出た」ケースを拾いきれず、
+    // 以前はラベルが安全領域クランプによって画面端に押し込まれたまま
+    // 残ってしまっていた。ここではコンテナの実際の矩形(わずかな余白のみ
+    // 許容)を基準に判定し直す。地球儀の裏側にある対象はprojectLatLngToScreen
+    // 自体がnullを返すため、ここでも自然に非表示になる
+    const edgeMargin = 24;
+    const visible = [];
     defs.forEach((def) => {
+      const anchorPos = projectLatLngToScreen(def.anchorLat, def.anchorLng, PIN_OBJECT_ALTITUDE);
+      const onScreen =
+        !!anchorPos &&
+        anchorPos.x >= -edgeMargin &&
+        anchorPos.x <= cRect.width + edgeMargin &&
+        anchorPos.y >= -edgeMargin &&
+        anchorPos.y <= cRect.height + edgeMargin;
+      if (!onScreen) {
+        hideBoth(def.key);
+        return;
+      }
+      visible.push({ def, anchorPos });
+    });
+    if (!visible.length) return;
+
+    // 2段目: 見えている対象だけ、安全領域(上部ツールバー・下部紹介カードを
+    // 避ける範囲)に収まるようラベル位置を補正する。対象自体が画面内に
+    // あることは上で確認済みのため、この補正はあくまで数十px程度の
+    // 微調整にとどまる
+    visible.forEach((v) => {
+      const { def, anchorPos } = v;
       const labelEl = labelsLayer_(def.key);
       const lineEl = linesLayer_(def.key);
       if (!labelEl || !lineEl) return;
-      if (tooSmallToLabel) {
-        labelEl.classList.add("hidden");
-        lineEl.classList.add("hidden");
-        return;
-      }
-      // 対象自体が今見えている範囲の外(画面から大きく外れた位置、または
-      // 地球儀の裏側)にあるときは、ラベルを画面端に固定表示したりせず、
-      // 単純に非表示にする(projectLatLngToScreenが自前でこの判定を行う)
-      const anchorPos = projectLatLngToScreen(def.anchorLat, def.anchorLng, PIN_OBJECT_ALTITUDE);
-      if (!anchorPos) {
-        labelEl.classList.add("hidden");
-        lineEl.classList.add("hidden");
-        return;
-      }
       labelEl.classList.remove("hidden");
       const offset = UK_LABEL_OFFSETS[def.key] || { dx: 0, dy: 0 };
       const anchorXWrap = cRect.left - wRect.left + anchorPos.x;
@@ -2440,9 +2474,7 @@ const MapModule = (() => {
       // ラベル本体(.map-uk-region-labelのtransform: translate(-50%,-100%)
       // により、left/topはラベルの下辺中央にあたる)の実際の大きさを使い、
       // 上部ツールバー・下部紹介カードに重ならず、左右の地図コンテナ範囲内に
-      // 収まるよう位置を補正する。固定ピクセル値に画面端へ張り付けるのではなく、
-      // ラベル自身の幅・高さを引いた位置まで戻すことで、ラベルの文字が
-      // 必ず安全領域の内側に収まるようにする
+      // 収まるよう位置を補正する
       const labelWidth = labelEl.offsetWidth || 0;
       const labelHeight = labelEl.offsetHeight || 0;
       const halfW = labelWidth / 2;
@@ -2450,23 +2482,66 @@ const MapModule = (() => {
       if (labelX + halfW > safeRect.right) labelX = safeRect.right - halfW;
       if (labelY - labelHeight < safeRect.top) labelY = safeRect.top + labelHeight;
       if (labelY > safeRect.bottom) labelY = safeRect.bottom;
-      labelEl.style.left = `${labelX}px`;
-      labelEl.style.top = `${labelY}px`;
+      v.labelX = labelX;
+      v.labelY = labelY;
+      v.labelWidth = labelWidth;
+      v.labelHeight = labelHeight;
+      v.anchorXWrap = anchorXWrap;
+      v.anchorYWrap = anchorYWrap;
+    });
+
+    // 3段目: 見えている対象同士でラベルの矩形が重なる場合、優先順位の
+    // 低い方を非表示にする(指示線も含めてセットで消す)。表示件数は
+    // 最大4件なので、総当たりで比較しても負荷は小さい
+    const hiddenByOverlap = new Set();
+    for (let i = 0; i < visible.length; i++) {
+      for (let j = i + 1; j < visible.length; j++) {
+        const a = visible[i];
+        const b = visible[j];
+        if (hiddenByOverlap.has(a.def.key) || hiddenByOverlap.has(b.def.key)) continue;
+        const aLeft = a.labelX - a.labelWidth / 2;
+        const aRight = a.labelX + a.labelWidth / 2;
+        const aTop = a.labelY - a.labelHeight;
+        const aBottom = a.labelY;
+        const bLeft = b.labelX - b.labelWidth / 2;
+        const bRight = b.labelX + b.labelWidth / 2;
+        const bTop = b.labelY - b.labelHeight;
+        const bBottom = b.labelY;
+        const overlaps = aLeft < bRight && bLeft < aRight && aTop < bBottom && bTop < aBottom;
+        if (!overlaps) continue;
+        const aPriority = UK_LABEL_PRIORITY.indexOf(a.def.key);
+        const bPriority = UK_LABEL_PRIORITY.indexOf(b.def.key);
+        hiddenByOverlap.add(aPriority <= bPriority ? b.def.key : a.def.key);
+      }
+    }
+
+    visible.forEach((v) => {
+      const { def } = v;
+      if (hiddenByOverlap.has(def.key)) {
+        hideBoth(def.key);
+        return;
+      }
+      const labelEl = labelsLayer_(def.key);
+      const lineEl = linesLayer_(def.key);
+      if (!labelEl || !lineEl) return;
+      labelEl.style.left = `${v.labelX}px`;
+      labelEl.style.top = `${v.labelY}px`;
       // ラベルが(配置オフセットだけでなく、上の安全領域クランプによっても)
       // アンカーの位置からある程度離れているときだけ指示線を表示する
       // (アンカー直上にそのまま表示できているイングランドでは出さない)。
       // 指示線の終点は、クランプ後の実際のラベル位置に必ず追従させる
-      const offsetMagnitude = Math.hypot(labelX - anchorXWrap, labelY - anchorYWrap);
+      const offsetMagnitude = Math.hypot(v.labelX - v.anchorXWrap, v.labelY - v.anchorYWrap);
       if (offsetMagnitude < 10) {
         lineEl.classList.add("hidden");
       } else {
         lineEl.classList.remove("hidden");
-        lineEl.setAttribute("x1", String(anchorXWrap));
-        lineEl.setAttribute("y1", String(anchorYWrap));
-        lineEl.setAttribute("x2", String(labelX));
-        lineEl.setAttribute("y2", String(labelY));
+        lineEl.setAttribute("x1", String(v.anchorXWrap));
+        lineEl.setAttribute("y1", String(v.anchorYWrap));
+        lineEl.setAttribute("x2", String(v.labelX));
+        lineEl.setAttribute("y2", String(v.labelY));
       }
     });
+
     function labelsLayer_(key) {
       return document.querySelector(`#map-uk-region-labels .map-uk-region-label[data-uk-constituent-key="${key}"]`);
     }
