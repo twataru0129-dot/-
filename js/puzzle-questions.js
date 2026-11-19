@@ -16,6 +16,19 @@
 // 中国=cn、トルコ=tr、インド=in、インドネシア=id、モナコ=mc)を使う。
 // 198か国・地域のデータ自体(js/countries.js)には一切手を加えていない。
 //
+// number と trophyNumber は別の概念(謎解きトロフィー第3段階以降の修正)。
+//   number: プレイヤー向けの問題番号(「No.01」等)。開発用問題選択一覧
+//     (js/puzzle.js)の表示にのみ使う。
+//   trophyNumber: js/trophy.jsがトロフィー一覧の通し番号(#256〜)として
+//     使う、恒久的に固定したトロフィー管理番号。一度割り振った後は、
+//     この配列の並び順を変更しても、この配列に新しい問題を追加しても、
+//     この問題を削除しても絶対に変更・再利用しない(既存の獲得記録が
+//     trophy_<trophyNumber>というidで保存されているため、番号が変わると
+//     その記録を読み込めなくなる)。新しい問題を追加するときは、既存の
+//     どのtrophyNumberとも重複しない未使用の番号を新しく割り振ること
+//     (js/trophy.js側の自己検証がtrophyNumberの重複・範囲外・欠番を
+//     検出する)。
+//
 // judgeMode:
 //   "unordered" (順不同) - 選択順を問わず、正解の国・地域がすべて選ばれ、
 //     余分がなく、選択回数(重複選択も含む)も一致した場合のみ正解。
@@ -26,6 +39,7 @@ const PUZZLE_QUESTIONS = [
   {
     id: "puzzle-01",
     number: 1,
+    trophyNumber: 256, // 固定・恒久。変更・再利用禁止(上記コメント参照)
     title: "世界三大料理",
     genre: "世界◯大",
     judgeMode: "unordered",
@@ -38,6 +52,7 @@ const PUZZLE_QUESTIONS = [
   {
     id: "puzzle-02",
     number: 2,
+    trophyNumber: 257, // 固定・恒久。変更・再利用禁止(上記コメント参照)
     title: "人口の双璧",
     genre: "国旗・地理・文化",
     judgeMode: "unordered",
@@ -53,6 +68,7 @@ const PUZZLE_QUESTIONS = [
   {
     id: "puzzle-04",
     number: 4,
+    trophyNumber: 258, // 固定・恒久。変更・再利用禁止(上記コメント参照)
     title: "双子の旗",
     genre: "国旗・地理・文化",
     judgeMode: "unordered",

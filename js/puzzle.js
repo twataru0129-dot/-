@@ -296,6 +296,17 @@ const PuzzleModule = (() => {
 
   function handleSubmit() {
     if (!selectedIds.length) return;
+    // 【PR #81追加修正】既存のjs/app.js(モード選択ボタン)と同じく、ユーザー
+    // 操作(このボタンのクリック)の中でSoundManager.unlock()を呼ぶ。
+    // 「国旗/首都クイズを一度も選んでいない」経路(トロフィー一覧→この謎に
+    // 挑む、で直接ここへ来た場合)でもAudioContextが未初期化のままだと、
+    // 効果音ONでも謎解きトロフィー獲得時のファンファーレ(SoundManager.
+    // playFanfare())が音として鳴らない。unlock()自体は毎回呼んでも安全
+    // (生成済みなら何もせず、suspendedならresumeを試みるだけ)で、
+    // 正解・不正解のどちらでも呼んで構わない(既存のunlock()呼び出しと
+    // 同じく、効果音のON/OFF自体はSoundManager側(safePlay()の
+    // enabledチェック)が判定するため、ここで二重に判定しない)
+    SoundManager.unlock();
     const result = judgeAnswer(currentQuestionId, selectedIds.slice());
     if (result.correct) {
       showAnswerMessage(`「${result.title}」\n${result.explanationText}`, "correct");

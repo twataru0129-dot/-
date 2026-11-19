@@ -223,15 +223,34 @@ const TrophyModule = (() => {
   // 255に拡張された(189+61=250件)
   //
   // 謎解きトロフィー(第3段階)の追加により、#256以降にjs/puzzle-questions.js
-  // (PUZZLE_QUESTIONS)の件数分だけ番号を割り振る。番号を固定の個数で
-  // 書かず、PUZZLE_QUESTIONS.lengthから動的に計算することで、今後
-  // 問題が40問・50問・100問以上に増えても、このファイルを一切変更せずに
-  // 枠が自動的に増える(PUZZLE_QUESTIONSはjs/trophy.jsより前に読み込む
-  // ようindex.htmlのscript順を変更済み。未読み込み・空配列の場合は
-  // 謎解きトロフィーを0件として扱い、既存の255件には一切影響しない)
+  // (PUZZLE_QUESTIONS)の問題分だけ番号を割り振る。
+  //
+  // 【PR #81追加修正】番号は各問題のPUZZLE_QUESTIONS[].trophyNumber(問題
+  // データ側に明示的に固定した恒久的な番号)をそのまま使う。配列の並び順
+  // (index)や件数(length)からは一切計算しない。これにより、
+  //   - 問題を途中に追加しても、既存の問題のtrophyNumberは変化しない
+  //   - 配列の並び順を変更しても、既存の問題のtrophyNumberは変化しない
+  //   - 問題番号(No.01等、PUZZLE_QUESTIONS[].number)とトロフィー管理番号
+  //     (trophyNumber)は完全に別の値として管理される
+  // 新しい問題を追加する場合は、既存のどのtrophyNumberとも重複しない
+  // 未使用の番号を新しく割り振ること(重複・範囲外の値は下の
+  // validateTrophyDefinitions()が検出する)。
+  //
+  // 問題を削除してtrophyNumberが欠番になる場合は、首都トリビア等の既存の
+  // 欠番(50・55・56・57・90)と同じ扱いとして、その番号をSKIPPED_NUMBERSに
+  // 追加すること(新しい問題に再利用しない)。欠番がSKIPPED_NUMBERSに
+  // 追加されていない場合は、下のvalidateTrophyDefinitions()が「未定義の
+  // まま枠だけ作られている番号」として検出する。
+  //
+  // (PUZZLE_QUESTIONSはjs/trophy.jsより前に読み込むようindex.htmlの
+  // script順を変更済み。未読み込み・空配列の場合は謎解きトロフィーを
+  // 0件として扱い、既存の255件には一切影響しない)
   const PUZZLE_TROPHY_NUMBER_BASE = 255;
   const PUZZLE_QUESTION_LIST = typeof PUZZLE_QUESTIONS !== "undefined" ? PUZZLE_QUESTIONS : [];
-  const MAX_TROPHY_NUMBER = PUZZLE_TROPHY_NUMBER_BASE + PUZZLE_QUESTION_LIST.length;
+  const PUZZLE_TROPHY_NUMBERS = PUZZLE_QUESTION_LIST.map((q) => q.trophyNumber);
+  const MAX_TROPHY_NUMBER = PUZZLE_TROPHY_NUMBERS.length
+    ? Math.max(PUZZLE_TROPHY_NUMBER_BASE, ...PUZZLE_TROPHY_NUMBERS)
+    : PUZZLE_TROPHY_NUMBER_BASE;
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
   // 参照する「参照型」スロット。新規にwfq_v1_trophy_earnedへ書き込むことは
@@ -1782,10 +1801,11 @@ const TrophyModule = (() => {
   // PUZZLE_QUESTIONSから、問題が何件あっても自動的にトロフィー定義を
   // 組み立てる。既存のSTAGE_X_DEFINITIONSと同じ(番号→定義)の辞書形式で
   // 作るため、下のapplyStageBDefinitions()をそのまま再利用できる(この
-  // バッチ専用のコードを増やさない)。番号はPUZZLE_TROPHY_NUMBER_BASE
-  // (255)の直後からPUZZLE_QUESTIONSの並び順に機械的に割り振るため、
-  // 問題を追加・削除してもこのファイルを変更する必要がない
-  // (MAX_TROPHY_NUMBERも同じPUZZLE_QUESTION_LIST.lengthから計算済み)。
+  // バッチ専用のコードを増やさない)。
+  //
+  // 【PR #81追加修正】番号は各問題のq.trophyNumber(問題データ側に明示的に
+  // 固定した恒久的な番号)をそのまま辞書のキーにする。配列のindexからは
+  // 計算しない(上のPUZZLE_TROPHY_NUMBERSのコメント参照)。
   //
   // name: 正式名称(未獲得時は一覧・獲得演出のどちらでも「？？？？？」に
   //   伏せる。表示側(js/app.js)の責務)
@@ -1801,8 +1821,8 @@ const TrophyModule = (() => {
   //   構造上発生しない(js/puzzle-judge.jsの判定自体もquestionIdごとに
   //   独立しているため、ここでの追加チェックは二重の安全策)
   // ========================================================
-  const STAGE_PUZZLE_DEFINITIONS = PUZZLE_QUESTION_LIST.reduce((defs, q, index) => {
-    const number = PUZZLE_TROPHY_NUMBER_BASE + index + 1;
+  const STAGE_PUZZLE_DEFINITIONS = PUZZLE_QUESTION_LIST.reduce((defs, q) => {
+    const number = q.trophyNumber;
     defs[number] = {
       name: q.title,
       condition: q.questionText,
@@ -2075,6 +2095,34 @@ const TrophyModule = (() => {
       puzzleNumbers.length === PUZZLE_QUESTION_LIST.length,
       `STAGE_PUZZLE_DEFINITIONSの件数がPUZZLE_QUESTIONSの件数と一致しません(実際: ${puzzleNumbers.length}件、期待値: ${PUZZLE_QUESTION_LIST.length}件)`
     );
+    // 【PR #81追加修正】各問題のtrophyNumberが不正な値(整数でない、
+    // PUZZLE_TROPHY_NUMBER_BASE(255)以下)を持っていないかを確認する。
+    // この境界により、謎解きトロフィーの番号は既存の#1〜255のどの範囲とも
+    // 構造上重複しえない(上の重複チェックと合わせた二重の安全策)
+    console.assert(
+      PUZZLE_TROPHY_NUMBERS.every((n) => Number.isInteger(n) && n > PUZZLE_TROPHY_NUMBER_BASE),
+      `PUZZLE_QUESTIONSのtrophyNumberが不正です(${PUZZLE_TROPHY_NUMBER_BASE}より大きい整数を指定してください。実際の値: ${JSON.stringify(PUZZLE_TROPHY_NUMBERS)})`
+    );
+    // 【PR #81追加修正】問題ごとのtrophyNumberに重複がないことを確認する
+    // (重複があると、後に定義した問題が先の問題のトロフィーを辞書キーの
+    // 衝突で上書きし、先の問題の獲得条件が消えてしまう)
+    console.assert(
+      new Set(PUZZLE_TROPHY_NUMBERS).size === PUZZLE_TROPHY_NUMBERS.length,
+      `PUZZLE_QUESTIONSのtrophyNumberに重複があります(問題ごとに一意の番号を指定してください。実際の値: ${JSON.stringify(PUZZLE_TROPHY_NUMBERS)})`
+    );
+    // 【PR #81追加修正】謎解きトロフィーの番号範囲(256〜MAX_TROPHY_NUMBER)に
+    // 「SKIPPED_NUMBERSにも登録されておらず、どの問題のtrophyNumberでもない
+    // 番号」(= 未定義のまま枠だけ作られてしまっている欠番)が無いことを
+    // 確認する。将来、問題の追加で番号が連続しなくなったり、問題の削除で
+    // 欠番が生じたりした場合は、その番号を明示的にSKIPPED_NUMBERSへ
+    // 追加すること(既存の欠番50・55・56・57・90と同じ扱い)
+    for (let n = PUZZLE_TROPHY_NUMBER_BASE + 1; n <= MAX_TROPHY_NUMBER; n++) {
+      if (SKIPPED_NUMBERS.includes(n)) continue;
+      console.assert(
+        PUZZLE_TROPHY_NUMBERS.includes(n),
+        `謎解きトロフィーの番号#${n}が、どの問題のtrophyNumberでもなく、SKIPPED_NUMBERSにも登録されていません(未定義のまま枠だけ作られています。欠番として扱う場合はSKIPPED_NUMBERSに追加してください)`
+      );
+    }
     const existingConfirmedCount = stageBNumbers.length + stageDNumbers.length;
     console.assert(existingConfirmedCount === 107, `既存のStage B・Dで107件全てが確定するはずが、合計が107件になっていません(実際: ${existingConfirmedCount}件)`);
     console.assert(capitalTriviaNumbers.length === 29, `首都トリビアの定義が29件ではありません(実際: ${capitalTriviaNumbers.length}件)`);
