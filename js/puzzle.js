@@ -1,22 +1,24 @@
 // ==========================================================
-// 謎への挑戦: 国旗選択画面(第1段階)
+// 謎への挑戦: 国旗選択画面(第1段階の画面操作 + 第2段階の正解判定連携)
 //
 // 今後実装予定の「世界図鑑×謎解きトロフィー」(企画段階では32問としているが、
 // これは現時点の目安であり、将来40問・50問・100問以上に増える可能性がある)
 // で共通利用する、国旗選択専用のUI。
 //
 // このファイルが担うのは「国旗を選ぶ・選択を管理する・回答を送信する」という
-// 画面操作だけで、以下はこのファイルの責務に含めない(将来、別のファイルで
-// 実装する)。
-//   - 32問(以上)の問題データそのもの(問題文・正解条件)
-//   - 正解判定処理(順番指定/順不同)
-//   - トロフィーの獲得・保存・解放処理
-// submitAnswer()は、将来この3つを実装するときに置き換えやすいよう、
-// judgeAnswerStub()という1箇所の呼び出しだけで完結させている。
+// 画面操作だけで、以下はこのファイルの責務に含めない(別のファイルに分離)。
+//   - 問題データそのもの(問題文・正解条件・解説文): js/puzzle-questions.js
+//   - 正解判定処理(順番指定/順不同): js/puzzle-judge.js
+//   - トロフィーの獲得・保存・解放処理(将来、別のファイルで実装する)
+// handleSubmit()は、将来トロフィーの獲得・保存・解放処理を実装するときに
+// 追加しやすいよう、judgeAnswer()という1箇所の呼び出しの結果を見るだけの
+// 構造にしている。
 //
 // 問題数が何問に増えても、この画面自体は一切修正が不要であるように設計する。
-//   - 問題はopen({questionId, questionText})のように「id」で受け取る想定にし、
-//     32問固定の配列やswitch文をこのファイルの中に持たない。
+//   - 問題はopen({questionId, questionText})のように「id」で受け取り、
+//     判定もjs/puzzle-judge.jsのjudge(questionId, 選択id配列)に、挑戦中の
+//     questionIdをそのまま渡すだけ。32問(以上)固定の配列やswitch文を
+//     このファイルの中に持たない。
 //   - 選択結果は国・地域の安定したid(js/countries.jsのCOUNTRIES[].id)の
 //     配列として保持する。同じidが複数回含まれてよい(「10種類」ではなく
 //     「10回」選べる仕様のため)。
@@ -52,9 +54,10 @@ const PuzzleModule = (() => {
   // この定数だけを変更すればよい
   const MAX_SELECTIONS = 10;
 
-  // 問題IDが指定されなかったとき(今回の開発確認用の仮入口など)に表示する
-  // ダミーの問題文。将来、トロフィー画面から実際の問題文が渡されるように
-  // なれば、この文章が使われることはなくなる
+  // 問題IDが指定されなかったときに表示するダミーの問題文(open()を
+  // questionId省略で呼んだ場合の保険。現在の開発確認用の仮入口は、
+  // 必ずPUZZLE_QUESTIONSの中から問題を選んでから開くため、通常は
+  // 使われない)
   const DEFAULT_QUESTION_TEXT =
     "(これはテスト用の仮の問題文です) むかしむかし、世界のどこかに伝わる言い伝えによると、" +
     "ある4つの国の国旗には、決して忘れてはならない秘密の順番が隠されているという。" +
@@ -258,29 +261,45 @@ const PuzzleModule = (() => {
     hideAnswerMessage();
   }
 
-  // ---------- 回答確定(今回は正解判定・トロフィー獲得処理を一切行わない) ----------
-  // 将来、問題IDに紐づく正解判定処理(順番指定/順不同)とトロフィー獲得処理が
-  // 実装されたら、この関数の中身だけを置き換える想定。呼び出し側
-  // (handleSubmit)からは判定結果のmessageだけを受け取って表示する
-  function judgeAnswerStub(questionId, answerIds) {
-    return { message: "回答を受け付けました(テスト表示)" };
+  // ---------- 回答確定 ----------
+  // 判定そのもの(js/puzzle-judge.js)には依存を持たず、ここでは
+  // 「挑戦中の問題ID(currentQuestionId)と選択中の回答をまとめて判定
+  // モジュールに渡し、結果に応じた表示を行う」ことだけを行う。
+  // currentQuestionIdだけを渡すことで、他の問題の正解条件と混ざることは
+  // 構造上発生しない(js/puzzle-judge.jsが挑戦中の問題だけを見て判定する)。
+  // 今回はトロフィーの獲得・保存・解放処理を一切行わない(将来、正解時の
+  // 処理を追加するときは、ここのif (result.correct)の中に1行追加する想定)
+  function judgeAnswer(questionId, answerIds) {
+    if (typeof PuzzleJudgeModule === "undefined") {
+      // 判定モジュールが読み込まれていない場合の保険(通常は発生しない)
+      return { correct: false };
+    }
+    return PuzzleJudgeModule.judge(questionId, answerIds);
   }
 
   function handleSubmit() {
     if (!selectedIds.length) return;
-    const result = judgeAnswerStub(currentQuestionId, selectedIds.slice());
-    showAnswerMessage(result.message);
+    const result = judgeAnswer(currentQuestionId, selectedIds.slice());
+    if (result.correct) {
+      showAnswerMessage(`「${result.title}」\n${result.explanationText}`, "correct");
+    } else {
+      // 不正解でも選択内容は一切変更しない(保持したまま修正・再挑戦できる)
+      showAnswerMessage("しかし、何も起こらなかった……", "wrong");
+    }
   }
-  function showAnswerMessage(message) {
+  function showAnswerMessage(message, variant) {
     const el = $("puzzle-answer-message");
     if (!el) return;
     el.textContent = message;
-    el.classList.remove("hidden");
+    el.classList.remove("hidden", "puzzle-answer-message--correct", "puzzle-answer-message--wrong");
+    if (variant === "correct") el.classList.add("puzzle-answer-message--correct");
+    if (variant === "wrong") el.classList.add("puzzle-answer-message--wrong");
   }
   function hideAnswerMessage() {
     const el = $("puzzle-answer-message");
     if (!el) return;
     el.classList.add("hidden");
+    el.classList.remove("puzzle-answer-message--correct", "puzzle-answer-message--wrong");
   }
 
   // ---------- 検索 ----------
@@ -307,14 +326,38 @@ const PuzzleModule = (() => {
     $("puzzle-answer-submit").addEventListener("click", handleSubmit);
 
     // ============ 開発用・一時的な入口(本番非公開) ============
+    // ボタンを押すと、PUZZLE_QUESTIONS(js/puzzle-questions.js)に登録されて
+    // いる問題から1つを選べる一覧を表示する。一覧はデータから動的に
+    // 生成するため、問題が何件に増えても(3問専用のif文を増やさずに)
+    // そのまま対応できる
     const devEntryBtn = $("btn-dev-puzzle-entry");
+    const devPicker = $("puzzle-dev-question-picker");
     if (devEntryBtn && (PUZZLE_DEV_ENTRY_ENABLED || isPuzzleDevEntryRequested())) {
       devEntryBtn.classList.remove("hidden");
+      renderDevQuestionPicker(devPicker);
       devEntryBtn.addEventListener("click", () => {
-        open();
-        if (typeof showScreen === "function") showScreen("screen-puzzle-flag-select");
+        if (devPicker) devPicker.classList.toggle("hidden");
       });
     }
+  }
+
+  function renderDevQuestionPicker(container) {
+    if (!container) return;
+    container.innerHTML = "";
+    if (typeof PUZZLE_QUESTIONS === "undefined") return;
+    PUZZLE_QUESTIONS.forEach((q) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "puzzle-dev-question-btn";
+      btn.dataset.questionId = q.id;
+      btn.textContent = `No.${String(q.number).padStart(2, "0")} ${q.title}`;
+      btn.addEventListener("click", () => {
+        container.classList.add("hidden");
+        open({ questionId: q.id, questionText: q.questionText });
+        if (typeof showScreen === "function") showScreen("screen-puzzle-flag-select");
+      });
+      container.appendChild(btn);
+    });
   }
 
   // options.questionId / options.questionText: 将来、各謎解きトロフィーの

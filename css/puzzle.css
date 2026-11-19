@@ -345,6 +345,13 @@
   font-weight: 700;
   color: var(--color-primary);
   text-align: center;
+  /* 正解時は正式名称+解説文の2行以上になるため、改行を保持して表示する */
+  white-space: pre-line;
+}
+/* 正解時: 既定の文字色のままでよいため上書きは不要。不正解時だけ
+   目立たせすぎないグレーに変える(エラーのような強い警告色は避ける) */
+.puzzle-answer-message--wrong {
+  color: var(--color-text-sub);
 }
 
 .puzzle-answer-submit {
@@ -379,6 +386,34 @@
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+}
+
+/* ---------- 開発用・一時的な問題選択(本番非公開) ----------
+   #btn-dev-puzzle-entryを押すと表示される、問題を選ぶための一覧。
+   トロフィー一覧の固定ヘッダー(.trophy-list-header、position: sticky)の
+   外側(通常のフロー)に置いているため、表示/非表示が固定ヘッダーの
+   レイアウトに影響しない */
+.puzzle-dev-question-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 20px 16px;
+  padding: 10px;
+  border: 1px dashed var(--color-text-sub);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+.puzzle-dev-question-btn {
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
 }
 
 @media (prefers-reduced-motion: reduce) {
