@@ -149,7 +149,7 @@ function check(name, cond) {
       await encTab.click();
       await page.waitForTimeout(150);
       const encCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.filter((e) => !e.classList.contains("hidden")).length);
-      check('"世界図鑑" category shows 15 trophies (#143-157)', encCount === 15);
+      check('"世界図鑑" category shows 19 trophies (#143-157 + #259-262)', encCount === 19);
     }
 
     // ---- リセット確認ダイアログの文言 ----

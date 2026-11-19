@@ -26,9 +26,10 @@ const BASE_FILES = ["js/countries.js", "js/map-regions.js", "js/capital-display.
 const REAL_PUZZLE_01 = `{ id: "puzzle-01", number: 1, trophyNumber: 256, title: "世界三大料理", genre: "g", judgeMode: "unordered", answerIds: ["fr","cn","tr"], questionText: "q1", explanationText: "e1" }`;
 const REAL_PUZZLE_02 = `{ id: "puzzle-02", number: 2, trophyNumber: 257, title: "人口の双璧", genre: "g", judgeMode: "unordered", answerIds: ["in","cn"], questionText: "q2", explanationText: "e2" }`;
 const REAL_PUZZLE_04 = `{ id: "puzzle-04", number: 4, trophyNumber: 258, title: "双子の旗", genre: "g", judgeMode: "unordered", answerIds: ["id","mc"], questionText: "q4", explanationText: "e4" }`;
-// 将来追加されうる新規問題(No.03)を模したダミー。既存の256〜258とは
-// 重複しない新しい番号(259)を割り振る想定
-const NEW_PUZZLE_03 = `{ id: "puzzle-03", number: 3, trophyNumber: 259, title: "ダミー問題03", genre: "g", judgeMode: "unordered", answerIds: ["jp"], questionText: "q3", explanationText: "e3" }`;
+// 将来追加されうる新規問題(No.03)を模したダミー。既存の256〜258や、
+// 世界図鑑トロフィー追加分(#259〜262)とも重複せず、かつ連続して
+// 隙間を作らない新しい番号(263、#259〜262の直後)を割り振る想定
+const NEW_PUZZLE_03 = `{ id: "puzzle-03", number: 3, trophyNumber: 263, title: "ダミー問題03", genre: "g", judgeMode: "unordered", answerIds: ["jp"], questionText: "q3", explanationText: "e3" }`;
 
 function buildSandbox(puzzleQuestionsArrayLiteral) {
   const sandbox = {};
@@ -92,10 +93,10 @@ function trophyIdByQuestionId(Trophy, questionId) {
   check("シナリオC(No.03追加): No.01は依然trophy_256", trophyIdByQuestionId(Trophy, "puzzle-01") === "trophy_256");
   check("シナリオC(No.03追加): No.02は依然trophy_257", trophyIdByQuestionId(Trophy, "puzzle-02") === "trophy_257");
   check("シナリオC(No.03追加): No.04は依然trophy_258(変更されない)", trophyIdByQuestionId(Trophy, "puzzle-04") === "trophy_258");
-  check("シナリオC(No.03追加): 新規No.03はtrophy_259になる", trophyIdByQuestionId(Trophy, "puzzle-03") === "trophy_259");
+  check("シナリオC(No.03追加): 新規No.03はtrophy_263になる", trophyIdByQuestionId(Trophy, "puzzle-03") === "trophy_263");
   check("シナリオC: 自己検証のassertFailuresが0件", assertFailures.length === 0);
   const total = Trophy.getAllDefinitions().length;
-  check("シナリオC: トロフィー総数が254件(250+4問)になっている", total === 254);
+  check("シナリオC: トロフィー総数が258件(254+4問)になっている", total === 258);
 }
 
 // ---- シナリオD: trophyNumberの重複は自己検証で検出される ----
@@ -114,16 +115,17 @@ function trophyIdByQuestionId(Trophy, questionId) {
 
 // ---- シナリオF: SKIPPED_NUMBERSに登録されていない欠番を検出する ----
 {
-  const GAP_PUZZLE = `{ id: "puzzle-gap", number: 9, trophyNumber: 260, title: "欠番確認用", genre: "g", judgeMode: "unordered", answerIds: ["jp"], questionText: "q", explanationText: "e" }`;
-  // 256のみ使用、257〜259は未登録のままMAX=260まで枠が広がるため欠番になる
+  // 270は世界図鑑トロフィー追加分(#259〜262)とも重複しない未使用の番号
+  const GAP_PUZZLE = `{ id: "puzzle-gap", number: 9, trophyNumber: 270, title: "欠番確認用", genre: "g", judgeMode: "unordered", answerIds: ["jp"], questionText: "q", explanationText: "e" }`;
+  // 256のみ使用、257〜269は未登録のままMAX=270まで枠が広がるため欠番になる
   const { assertFailures } = buildSandbox([REAL_PUZZLE_01, GAP_PUZZLE].join(","));
-  check("シナリオF(未登録の欠番257〜259): 自己検証が欠番を検出する", assertFailures.some((m) => m.includes("未定義のまま枠だけ作られています")));
+  check("シナリオF(未登録の欠番257〜269): 自己検証が欠番を検出する", assertFailures.some((m) => m.includes("未定義のまま枠だけ作られています")));
 }
 
 // ---- シナリオG: 問題が1件も無い場合(PUZZLE_QUESTIONS未読込相当)は謎解きトロフィー0件 ----
 {
   const { assertFailures, Trophy } = buildSandbox("");
-  check("シナリオG(0件): 謎解きトロフィーが0件でも既存250件は壊れない", Trophy.getAllDefinitions().length === 250);
+  check("シナリオG(0件): 謎解きトロフィーが0件でも既存254件(世界図鑑追加分込み)は壊れない", Trophy.getAllDefinitions().length === 254);
   check("シナリオG: 自己検証のassertFailuresが0件", assertFailures.length === 0);
 }
 

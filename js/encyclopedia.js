@@ -34,6 +34,13 @@ const EncyclopediaModule = (() => {
   // 渡された場合のみtrueにする。goAdjacent()はこの変数を一切変更しないため、
   // 復習画面から開いた国を「前へ/次へ」で移動する間はtrueのまま保持される
   let currentSessionIsReview = false;
+  // 世界図鑑トロフィー追加分(No.261「知識の道しるべ」)用: 現在開いている
+  // 詳細画面が「検索結果から」開かれたかどうか。currentSessionIsReviewと
+  // 同じ考え方で、openDetail()(一覧からの通常表示)でのみ、その時点の
+  // searchQueryの有無から設定する。openDetailWithList()(地図・復習からの
+  // 表示)は常にfalseへリセットする。goAdjacent()はこの変数を一切変更しない
+  // ため、検索結果の一覧を「前へ/次へ」で移動する間はtrueのまま保持される
+  let lastOpenFromSearch = false;
 
   const collator = new Intl.Collator("ja");
 
@@ -288,6 +295,12 @@ const EncyclopediaModule = (() => {
     let changed = false;
     try {
       if (Storage.recordEncyclopediaVisit(id)) changed = true;
+      // 世界図鑑トロフィー追加分(No.259「未知なる領域の探究者」)用。
+      // idがMAP_ONLY_REGIONS(地図専用地域)でなければStorage側の確定id
+      // 集合チェックで常にfalseになるため、ここでカテゴリー判定は不要
+      if (Storage.recordEncyclopediaRegionVisit(id)) changed = true;
+      // 世界図鑑トロフィー追加分(No.261「知識の道しるべ」)用
+      if (lastOpenFromSearch && Storage.recordEncyclopediaSearchOpened(id)) changed = true;
       if (currentSessionIsReview && Storage.recordEncyclopediaReview(id)) changed = true;
     } catch (e) {
       console.warn("世界図鑑の閲覧記録に失敗しました", e);
@@ -417,6 +430,10 @@ const EncyclopediaModule = (() => {
     detailBackLabel = "← 図鑑一覧に戻る";
     detailOnBack = null;
     currentSessionIsReview = false; // 通常の一覧からの表示は常に復習扱いしない
+    // 世界図鑑トロフィー(No.261「知識の道しるべ」)用: この時点の検索語が
+    // 空でなければ「検索結果から開いた」とみなす(検索しただけ・一覧を
+    // 検索語なしで見ているだけではカウントしない)
+    lastOpenFromSearch = searchQuery.trim().length > 0;
     $("btn-ency-detail-back").textContent = detailBackLabel;
     showDetailScreen(id);
   }
@@ -487,6 +504,9 @@ const EncyclopediaModule = (() => {
     // 開かれた場合のみopts.reviewSessionがtrueになる。それ以外(地図からの
     // 再表示等)はfalsyのため、!!で確実にbooleanへ正規化する
     currentSessionIsReview = !!opts.reviewSession;
+    // 地図からの直接表示・復習画面からの表示は、検索結果からの表示では
+    // ないため、常に「検索由来ではない」とみなす
+    lastOpenFromSearch = false;
     $("btn-ency-detail-back").textContent = detailBackLabel;
     showDetailScreen(id);
   }

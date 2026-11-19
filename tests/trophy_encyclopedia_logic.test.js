@@ -66,19 +66,20 @@ function check(name, cond) {
   // 「世界の国どこかな？」専用トロフィー36種類(#159〜194)の追加により、
   // 153件/9カテゴリから189件/10カテゴリに変わり、さらに隠しトロフィー
   // 61種類(#195〜255、第2段階)の追加で189件/10カテゴリから250件/11カテゴリに
-  // 変わった(世界図鑑関連の期待値(#143〜157=15件等)はこれらの追加の
-  // 対象外のため変更していない)。このテストのfreshSandbox()はjs/puzzle-
-  // questions.jsを読み込まないため、謎解きトロフィー(第3段階、puzzle
-  // カテゴリ)は常に0件扱いとなり、定義総数は250件のまま変わらない
+  // 変わった。さらに世界図鑑トロフィー追加分(#259〜262、計4件)により、
+  // 250件から254件に、encyclopediaカテゴリは15件(#143〜157)から19件
+  // (#143〜157+#259〜262)に変わった。このテストのfreshSandbox()は
+  // js/puzzle-questions.jsを読み込まないため、謎解きトロフィー(第3段階、
+  // puzzleカテゴリ)は常に0件扱いとなり、定義総数は254件のまま変わらない
   // (カテゴリの種類数のみ、PUZZLE_QUESTIONSの件数に関わらず
   // TROPHY_CATEGORIESの固定分類として11→12件に増える)
-  check("total trophies = 250", defs.length === 250);
+  check("total trophies = 254", defs.length === 254);
   const cats = Trophy.getCategories();
   check("category count = 12", cats.length === 12);
   check("encyclopedia category exists", cats.some((c) => c.id === "encyclopedia"));
   const byCat = {};
   defs.forEach((d) => { byCat[d.category] = (byCat[d.category] || 0) + 1; });
-  check("encyclopedia category count = 15 (#143-157)", byCat.encyclopedia === 15);
+  check("encyclopedia category count = 19 (#143-157 + #259-262)", byCat.encyclopedia === 19);
   check("special category count = 13 (existing 11 + #142 + #158)", byCat.special === 13);
   check("capital_trivia category count = 29 (unchanged)", byCat.capital_trivia === 29);
   check("findcountry_hidden category count = 61 (#195-255)", byCat.findcountry_hidden === 61);

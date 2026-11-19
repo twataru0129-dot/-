@@ -48,6 +48,18 @@ const ENCYCLOPEDIA_MAP_CHECKED_KEY = STORAGE_PREFIX + "encyclopedia_map_checked"
 const ENCYCLOPEDIA_MAP_CHECKED_VERSION = 1;
 const ENCYCLOPEDIA_REVIEWED_KEY = STORAGE_PREFIX + "encyclopedia_reviewed";
 const ENCYCLOPEDIA_REVIEWED_VERSION = 1;
+// 世界図鑑トロフィー追加分(No.259〜262)用の記録。既存の3キー(閲覧・地図
+// 連携・復習、いずれもCOUNTRIES 198件のみ対象)とは別に、対象範囲が異なる
+// 記録を2種類追加する。既存のキー・バージョン・対象範囲(COUNTRIES専用)は
+// 一切変更しない
+// - ENCYCLOPEDIA_REGION_VISITED: MAP_ONLY_REGIONS(18件、地図専用地域)の
+//   閲覧記録。「未知なる領域の探究者」用
+// - ENCYCLOPEDIA_SEARCH_OPENED: 図鑑の検索結果から詳細画面を開いた記録。
+//   COUNTRIES+MAP_ONLY_REGIONS(216件)が対象。「知識の道しるべ」用
+const ENCYCLOPEDIA_REGION_VISITED_KEY = STORAGE_PREFIX + "encyclopedia_region_visited";
+const ENCYCLOPEDIA_REGION_VISITED_VERSION = 1;
+const ENCYCLOPEDIA_SEARCH_OPENED_KEY = STORAGE_PREFIX + "encyclopedia_search_opened";
+const ENCYCLOPEDIA_SEARCH_OPENED_VERSION = 1;
 
 function keysForMode(mode) {
   return mode === "capital" ? CapitalStorageKeys : StorageKeys;
@@ -312,11 +324,27 @@ function encyclopediaValidIds() {
   return encyclopediaValidIdsCache;
 }
 
-// 閲覧済み・地図確認済み・復習済みの3種類はいずれも「COUNTRIESのidを
-// 重複なく記録するだけ」という同じ形のため、読み書きロジックを1つの生成関数
-// にまとめて3回複製しない。返り値のrecord()は、idが不正/既に記録済み/保存
+// 世界図鑑トロフィー追加分(No.259「未知なる領域の探究者」)用:
+// MAP_ONLY_REGIONS(18件、地図専用地域)専用の確定id集合。既存の
+// encyclopediaValidIds()(COUNTRIES専用)とは対象が違うため別キャッシュにする
+let encyclopediaRegionValidIdsCache = null;
+function encyclopediaRegionValidIds() {
+  if (!encyclopediaRegionValidIdsCache) {
+    const all = typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : [];
+    encyclopediaRegionValidIdsCache = new Set(all.map((r) => r.id));
+  }
+  return encyclopediaRegionValidIdsCache;
+}
+
+// 閲覧済み・地図確認済み・復習済み・地域閲覧済み・検索由来閲覧済みはいずれも
+// 「決まった対象idの集合から、含まれるidを重複なく記録するだけ」という同じ
+// 形のため、読み書きロジックを1つの生成関数にまとめて複製しない。対象の
+// 確定id集合は呼び出し側がvalidIdsGetterで指定する(省略時は既存どおり
+// COUNTRIES専用のencyclopediaValidIds()を使うため、既存3種類の呼び出しは
+// 一切変更しなくてよい)。返り値のrecord()は、idが不正/既に記録済み/保存
 // 失敗のいずれかであればfalseを返す(=保存が実際に成功した場合のみtrueになる)
-function makeEncyclopediaIdSetStore(key, version) {
+function makeEncyclopediaIdSetStore(key, version, validIdsGetter) {
+  const getValidIds = typeof validIdsGetter === "function" ? validIdsGetter : encyclopediaValidIds;
   function empty() { return { version, ids: {} }; }
   function load() {
     const raw = safeGet(key);
@@ -339,7 +367,7 @@ function makeEncyclopediaIdSetStore(key, version) {
       const data = load();
       const sanitized = {};
       Object.keys(data.ids).forEach((id) => {
-        if (data.ids[id] === true && encyclopediaValidIds().has(id)) sanitized[id] = true;
+        if (data.ids[id] === true && getValidIds().has(id)) sanitized[id] = true;
       });
       return sanitized;
     },
@@ -347,7 +375,7 @@ function makeEncyclopediaIdSetStore(key, version) {
     has(id) { return Object.prototype.hasOwnProperty.call(this.getAll(), id); },
     record(id) {
       try {
-        if (typeof id !== "string" || !encyclopediaValidIds().has(id)) return false;
+        if (typeof id !== "string" || !getValidIds().has(id)) return false;
         const data = load();
         if (data.ids[id] === true) return false;
         data.ids[id] = true;
@@ -363,6 +391,16 @@ function makeEncyclopediaIdSetStore(key, version) {
 const encyclopediaVisitedStore = makeEncyclopediaIdSetStore(ENCYCLOPEDIA_VISITED_KEY, ENCYCLOPEDIA_VISITED_VERSION);
 const encyclopediaMapCheckedStore = makeEncyclopediaIdSetStore(ENCYCLOPEDIA_MAP_CHECKED_KEY, ENCYCLOPEDIA_MAP_CHECKED_VERSION);
 const encyclopediaReviewedStore = makeEncyclopediaIdSetStore(ENCYCLOPEDIA_REVIEWED_KEY, ENCYCLOPEDIA_REVIEWED_VERSION);
+// 「未知なる領域の探究者」用: MAP_ONLY_REGIONS(18件)専用の閲覧記録
+const encyclopediaRegionVisitedStore = makeEncyclopediaIdSetStore(
+  ENCYCLOPEDIA_REGION_VISITED_KEY, ENCYCLOPEDIA_REGION_VISITED_VERSION, encyclopediaRegionValidIds
+);
+// 「知識の道しるべ」用: 検索結果から開いた詳細画面の記録(COUNTRIES+
+// MAP_ONLY_REGIONS、216件対象。既存のfindCountryCollectionValidIds()を
+// そのまま再利用し、対象id集合を複製しない)
+const encyclopediaSearchOpenedStore = makeEncyclopediaIdSetStore(
+  ENCYCLOPEDIA_SEARCH_OPENED_KEY, ENCYCLOPEDIA_SEARCH_OPENED_VERSION, findCountryCollectionValidIds
+);
 
 const Storage = {
   // ---- 効果音設定 ----
@@ -673,6 +711,14 @@ const Storage = {
   getEncyclopediaReviewedCount() { return encyclopediaReviewedStore.getCount(); },
   recordEncyclopediaReview(id) { return encyclopediaReviewedStore.record(id); },
 
+  // 世界図鑑トロフィー追加分(No.259〜261)用
+  getEncyclopediaRegionVisited() { return encyclopediaRegionVisitedStore.getAll(); },
+  getEncyclopediaRegionVisitedCount() { return encyclopediaRegionVisitedStore.getCount(); },
+  recordEncyclopediaRegionVisit(id) { return encyclopediaRegionVisitedStore.record(id); },
+
+  getEncyclopediaSearchOpenedCount() { return encyclopediaSearchOpenedStore.getCount(); },
+  recordEncyclopediaSearchOpened(id) { return encyclopediaSearchOpenedStore.record(id); },
+
   // ---- データリセット(国旗・首都両方の称号・記録だけを消す) ----
   // 効果音設定(StorageKeys.SOUND)は確認画面の文言(「称号・記録をリセット」)
   // に合わせて対象外にする。以前はStorageKeysの全キー(SOUNDを含む)を
@@ -697,6 +743,8 @@ const Storage = {
       ENCYCLOPEDIA_VISITED_KEY,
       ENCYCLOPEDIA_MAP_CHECKED_KEY,
       ENCYCLOPEDIA_REVIEWED_KEY,
+      ENCYCLOPEDIA_REGION_VISITED_KEY,
+      ENCYCLOPEDIA_SEARCH_OPENED_KEY,
     ];
     keysToRemove.forEach((k) => {
       try { localStorage.removeItem(k); } catch (e) { /* noop */ }

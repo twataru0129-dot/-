@@ -248,9 +248,39 @@ const TrophyModule = (() => {
   const PUZZLE_TROPHY_NUMBER_BASE = 255;
   const PUZZLE_QUESTION_LIST = typeof PUZZLE_QUESTIONS !== "undefined" ? PUZZLE_QUESTIONS : [];
   const PUZZLE_TROPHY_NUMBERS = PUZZLE_QUESTION_LIST.map((q) => q.trophyNumber);
-  const MAX_TROPHY_NUMBER = PUZZLE_TROPHY_NUMBERS.length
+
+  // 世界図鑑トロフィー追加分(#259〜262、4件)。謎解きトロフィーとは異なり
+  // 問題データファイルから動的に生成するものではないため、固定の番号配列と
+  // して直接定義する。番号は謎解きトロフィーの番号(#256〜、現時点の最大は
+  // #258)とも重複しない、現時点で未使用の番号を割り当てた。将来、謎解き
+  // トロフィーがこれらの番号まで増えた場合に備え、categoryForNumber()は
+  // 単純な範囲比較ではなくこの配列への実在チェックで「世界図鑑」と判定する
+  // (下記参照)
+  const ENCYCLOPEDIA4_NUMBERS = [259, 260, 261, 262];
+
+  // 謎解きトロフィー自身が実際に占有している範囲の上限(PUZZLE_QUESTIONSが
+  // 空の場合は255のまま)。全体の上限(MAX_TROPHY_NUMBER、下記)とは区別する。
+  // 世界図鑑追加分(#259〜262)のように謎解きより後ろに固定番号の別の段階が
+  // 追加されたことで、全体の上限が謎解き自身の範囲よりも先に進むことが
+  // あるため、「謎解き自身の欠番チェック」は必ずこちらの値を基準にする
+  // (PUZZLE_QUESTIONSが空の場合でも、無関係な後続の段階の番号を謎解きの
+  // 欠番と誤認しないようにするため)
+  const PUZZLE_OWN_MAX_NUMBER = PUZZLE_TROPHY_NUMBERS.length
     ? Math.max(PUZZLE_TROPHY_NUMBER_BASE, ...PUZZLE_TROPHY_NUMBERS)
     : PUZZLE_TROPHY_NUMBER_BASE;
+
+  const MAX_TROPHY_NUMBER = Math.max(PUZZLE_OWN_MAX_NUMBER, ...ENCYCLOPEDIA4_NUMBERS);
+
+  // 謎解き自身の範囲(PUZZLE_OWN_MAX_NUMBERまで)と世界図鑑追加分
+  // (ENCYCLOPEDIA4_NUMBERS)のどちらにも属さない番号(例: PUZZLE_QUESTIONSが
+  // 空、または謎解きの件数が少ない状態で、#259より手前の番号が余ってしまう
+  // 場合)は、スロット自体を作らない(confirmed:falseの未定義スロットを
+  // 残さない)。これにより、謎解きの件数に関わらずTROPHIES.length・
+  // カテゴリ別集計が常に正しい値になる
+  const UNCLAIMED_GAP_NUMBERS = [];
+  for (let n = PUZZLE_OWN_MAX_NUMBER + 1; n <= MAX_TROPHY_NUMBER; n++) {
+    if (!ENCYCLOPEDIA4_NUMBERS.includes(n)) UNCLAIMED_GAP_NUMBERS.push(n);
+  }
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
   // 参照する「参照型」スロット。新規にwfq_v1_trophy_earnedへ書き込むことは
@@ -1838,6 +1868,66 @@ const TrophyModule = (() => {
   }, {});
 
   // ========================================================
+  // 世界図鑑トロフィー追加分(No.259〜262、計4件)。既存の世界図鑑トロフィー
+  // 16種類(No.143〜158)と合わせて合計20種類になる。既存16種類の名称・
+  // 番号・獲得条件は一切変更しない。
+  //
+  // 259「未知なる領域の探究者」: 地図専用18地域(MAP_ONLY_REGIONS)の
+  //   図鑑詳細をすべて閲覧。js/storage.jsの新規キー(COUNTRIES専用の
+  //   既存閲覧記録とは別、MAP_ONLY_REGIONS専用)を読むだけ。
+  // 260「世界を結ぶ地図師」: 図鑑→地図連携(既存のNo.154・155と同じ
+  //   Storage.getEncyclopediaMapCheckedCount())で異なる30件を確認。
+  //   既存のNo.154(1件)・No.155(50件)としきい値が違うだけで、記録自体は
+  //   完全に共有する(新しい保存領域を追加しない)。
+  // 261「知識の道しるべ」: 図鑑の検索結果から異なる30件の詳細画面を開く。
+  //   js/encyclopedia.jsのopenDetail()が検索語の有無を見て記録する新規
+  //   データ(COUNTRIES+MAP_ONLY_REGIONS、216件対象)を参照する。
+  // 262「世界の大賢者」: 自分自身を除く世界図鑑トロフィー19種類
+  //   (No.143〜158+259〜261)をすべて獲得。#142「都の神話」・#158
+  //   「世界の叡智」と同じく、対象番号を明示的に列挙するだけの純粋関数で
+  //   判定し、自分自身(262)は対象に含めない(循環参照を避ける)。
+  // ========================================================
+  const ENCYCLOPEDIA_EXISTING_16_NUMBERS = Array.from({ length: 16 }, (_, i) => 143 + i); // #143〜158
+  const ENCYCLOPEDIA_19_NUMBERS = ENCYCLOPEDIA_EXISTING_16_NUMBERS.concat([259, 260, 261]); // #262自身は含めない
+  function allEncyclopedia19Earned() {
+    return ENCYCLOPEDIA_19_NUMBERS.every((n) => isEarned(`trophy_${n}`));
+  }
+  const STAGE_ENCYCLOPEDIA4_DEFINITIONS = {
+    259: {
+      name: "未知なる領域の探究者",
+      condition: "世界図鑑で地図専用18地域をすべて閲覧",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaRegionVisitedCount() >= 18,
+      description: "世界には、国旗クイズに登場しない地域もある。知られざる18の地域を巡り、世界の奥深さを知った探究者。",
+      countries: null,
+    },
+    260: {
+      name: "世界を結ぶ地図師",
+      condition: "世界図鑑の詳細画面から「地図で場所を見る」で異なる国・地域を30件確認",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaMapCheckedCount() >= 30,
+      description: "国の知識と地理を結びつけ、30の国と地域の位置を確かめた地図の達人。",
+      countries: null,
+    },
+    261: {
+      name: "知識の道しるべ",
+      condition: "世界図鑑の検索結果から異なる国・地域を30件、詳細画面で開く",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && Storage.getEncyclopediaSearchOpenedCount() >= 30,
+      description: "知りたい国を自ら探し、30の国と地域の知識にたどり着いた。好奇心こそが、世界を知る道しるべ。",
+      countries: null,
+    },
+    262: {
+      name: "世界の大賢者",
+      condition: "世界図鑑トロフィー19種類(No.143〜158・259〜261)をすべて獲得",
+      mode: "encyclopedia",
+      check: (ctx) => ctx && ctx.source === "encyclopedia" && allEncyclopedia19Earned(),
+      description: "世界を知り、地理を学び、あらゆる探究を成し遂げた者。その知識と好奇心は、世界の叡智を極めた証である。",
+      countries: null,
+    },
+  };
+
+  // ========================================================
   // Stage E: トロフィー一覧画面(新規)向けのカテゴリ分類。
   // docs/trophy-spec-final.md 2章の照合テーブルが採用している番号区分
   // (#1〜19・20〜29・30〜39・40〜59・60〜70・71〜100・101〜112)をそのまま
@@ -1882,7 +1972,12 @@ const TrophyModule = (() => {
     if (number === 158) return "special"; // #158「世界の叡智」のみ例外的にspecialへ
     if (number <= 194) return "findcountry"; // #159〜194
     if (number <= 255) return "findcountry_hidden"; // #195〜255(隠しトロフィー61種類、第2段階)
-    return "puzzle"; // #256〜(謎解きトロフィー、第3段階)
+    // 世界図鑑トロフィー追加分(#259〜262)は、謎解きトロフィー(#256〜)の
+    // 番号範囲と入り交じる位置にあるため、単純なしきい値ではなく
+    // ENCYCLOPEDIA4_NUMBERSへの実在チェックで判定する(将来、謎解き
+    // トロフィーの番号がこの範囲まで増えても誤判定しない)
+    if (ENCYCLOPEDIA4_NUMBERS.includes(number)) return "encyclopedia";
+    return "puzzle"; // #256〜(謎解きトロフィー、第3段階。上記以外)
   }
   function getCategories() {
     return TROPHY_CATEGORIES.slice();
@@ -1925,7 +2020,7 @@ const TrophyModule = (() => {
   // ため、番号から機械的に作れるidにしておけば、後で正式な名称を
   // 当てはめる際にもidを振り直す必要がない)。
   function buildTrophyDefinitions() {
-    const skipped = new Set(SKIPPED_NUMBERS);
+    const skipped = new Set(SKIPPED_NUMBERS.concat(UNCLAIMED_GAP_NUMBERS));
     const list = [];
     for (let number = 1; number <= MAX_TROPHY_NUMBER; number++) {
       if (skipped.has(number)) continue;
@@ -2028,6 +2123,7 @@ const TrophyModule = (() => {
   applyStageBDefinitions(TROPHIES, STAGE_FINDCOUNTRY_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_HIDDEN61_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_PUZZLE_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_ENCYCLOPEDIA4_DEFINITIONS);
   // category/hidden/stageのみをここで補完する(name/condition/mode/checkは
   // applyStageBDefinitions()が設定した値から一切変更しない)。
   // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
@@ -2047,10 +2143,11 @@ const TrophyModule = (() => {
   // と同じ、console.assertベースの開発時チェック。問題が無ければ何も出力しない) ----------
   (function validateTrophyDefinitions() {
     // 謎解きトロフィー(第3段階)はPUZZLE_QUESTION_LIST.length件だけ250に
-    // 加算される(件数が増減しても自動的に追従する)
+    // 加算される(件数が増減しても自動的に追従する)。世界図鑑トロフィー
+    // 追加分(#259〜262、固定4件)は別途254への加算として扱う
     console.assert(
-      TROPHIES.length === 250 + PUZZLE_QUESTION_LIST.length,
-      `トロフィー定義が250+謎解き件数ではありません(実際: ${TROPHIES.length}件、期待値: ${250 + PUZZLE_QUESTION_LIST.length}件)`
+      TROPHIES.length === 254 + PUZZLE_QUESTION_LIST.length,
+      `トロフィー定義が254+謎解き件数ではありません(実際: ${TROPHIES.length}件、期待値: ${254 + PUZZLE_QUESTION_LIST.length}件)`
     );
     const numbers = new Set(TROPHIES.map((t) => t.number));
     console.assert(numbers.size === TROPHIES.length, "トロフィー定義のnumberに重複があります");
@@ -2074,6 +2171,7 @@ const TrophyModule = (() => {
     const findCountryNumbers = Object.keys(STAGE_FINDCOUNTRY_DEFINITIONS).map(Number);
     const hidden61Numbers = Object.keys(STAGE_HIDDEN61_DEFINITIONS).map(Number);
     const puzzleNumbers = Object.keys(STAGE_PUZZLE_DEFINITIONS).map(Number);
+    const encyclopedia4Numbers = Object.keys(STAGE_ENCYCLOPEDIA4_DEFINITIONS).map(Number);
     console.assert(
       stageBNumbers.every((n) => !stageDNumbers.includes(n)),
       "STAGE_B_DEFINITIONSとSTAGE_D_DEFINITIONSで番号が重複しています"
@@ -2099,12 +2197,34 @@ const TrophyModule = (() => {
       "STAGE_HIDDEN61_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142/世界図鑑/findcountry36)と番号が重複しています"
     );
     console.assert(
-      puzzleNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n) && !encyclopediaNumbers.includes(n) && !findCountryNumbers.includes(n) && !hidden61Numbers.includes(n)),
-      "STAGE_PUZZLE_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142/世界図鑑/findcountry36/隠しトロフィー61)と番号が重複しています"
+      puzzleNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n) && !encyclopediaNumbers.includes(n) && !findCountryNumbers.includes(n) && !hidden61Numbers.includes(n) && !encyclopedia4Numbers.includes(n)),
+      "STAGE_PUZZLE_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142/世界図鑑/findcountry36/隠しトロフィー61/世界図鑑追加分)と番号が重複しています"
     );
     console.assert(
       puzzleNumbers.length === PUZZLE_QUESTION_LIST.length,
       `STAGE_PUZZLE_DEFINITIONSの件数がPUZZLE_QUESTIONSの件数と一致しません(実際: ${puzzleNumbers.length}件、期待値: ${PUZZLE_QUESTION_LIST.length}件)`
+    );
+    // 世界図鑑トロフィー追加分(#259〜262)が、既存の全定義(Stage B/D/首都
+    // トリビア/#142/世界図鑑16件/findcountry36/隠しトロフィー61/謎解き)と
+    // 番号が重複していないことを確認する
+    console.assert(
+      encyclopedia4Numbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n) && !encyclopediaNumbers.includes(n) && !findCountryNumbers.includes(n) && !hidden61Numbers.includes(n) && !puzzleNumbers.includes(n)),
+      "STAGE_ENCYCLOPEDIA4_DEFINITIONSが既存の定義(Stage B/D/首都トリビア/#142/世界図鑑/findcountry36/隠しトロフィー61/謎解き)と番号が重複しています"
+    );
+    console.assert(
+      encyclopedia4Numbers.length === 4,
+      `STAGE_ENCYCLOPEDIA4_DEFINITIONSの件数が4件ではありません(実際: ${encyclopedia4Numbers.length}件)`
+    );
+    console.assert(
+      new Set(encyclopedia4Numbers).size === 4 && [259, 260, 261, 262].every((n) => encyclopedia4Numbers.includes(n)),
+      "STAGE_ENCYCLOPEDIA4_DEFINITIONSの番号が#259〜262ちょうどになっていません"
+    );
+    // 「世界の大賢者」(#262)の判定対象(ENCYCLOPEDIA_19_NUMBERS)が、自分
+    // 自身(262)を含まずちょうど19件(既存16件+259〜261の3件)であることを
+    // 確認する(循環参照・無限ループの防止)
+    console.assert(
+      ENCYCLOPEDIA_19_NUMBERS.length === 19 && !ENCYCLOPEDIA_19_NUMBERS.includes(262),
+      `ENCYCLOPEDIA_19_NUMBERSが19件・#262自身を含まない、の条件を満たしていません(実際: ${ENCYCLOPEDIA_19_NUMBERS.length}件)`
     );
     // 【PR #81追加修正】各問題のtrophyNumberが不正な値(整数でない、
     // PUZZLE_TROPHY_NUMBER_BASE(255)以下)を持っていないかを確認する。
@@ -2127,8 +2247,8 @@ const TrophyModule = (() => {
     // 確認する。将来、問題の追加で番号が連続しなくなったり、問題の削除で
     // 欠番が生じたりした場合は、その番号を明示的にSKIPPED_NUMBERSへ
     // 追加すること(既存の欠番50・55・56・57・90と同じ扱い)
-    for (let n = PUZZLE_TROPHY_NUMBER_BASE + 1; n <= MAX_TROPHY_NUMBER; n++) {
-      if (SKIPPED_NUMBERS.includes(n)) continue;
+    for (let n = PUZZLE_TROPHY_NUMBER_BASE + 1; n <= PUZZLE_OWN_MAX_NUMBER; n++) {
+      if (SKIPPED_NUMBERS.includes(n) || ENCYCLOPEDIA4_NUMBERS.includes(n)) continue;
       console.assert(
         PUZZLE_TROPHY_NUMBERS.includes(n),
         `謎解きトロフィーの番号#${n}が、どの問題のtrophyNumberでもなく、SKIPPED_NUMBERSにも登録されていません(未定義のまま枠だけ作られています。欠番として扱う場合はSKIPPED_NUMBERSに追加してください)`
@@ -2141,8 +2261,8 @@ const TrophyModule = (() => {
     console.assert(encyclopediaNumbers.length === 16, `世界図鑑トロフィー(#143〜158)の定義が16件ではありません(実際: ${encyclopediaNumbers.length}件)`);
     console.assert(findCountryNumbers.length === 36, `「世界の国どこかな？」専用トロフィー(#159〜194)の定義が36件ではありません(実際: ${findCountryNumbers.length}件)`);
     console.assert(hidden61Numbers.length === 61, `隠しトロフィー61種類(#195〜255)の定義が61件ではありません(実際: ${hidden61Numbers.length}件)`);
-    const expectedConfirmedCountBeforePuzzle = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length + findCountryNumbers.length + hidden61Numbers.length;
-    console.assert(expectedConfirmedCountBeforePuzzle === 250, `250件全てが確定するはずが、合計が250件になっていません(実際: ${expectedConfirmedCountBeforePuzzle}件)`);
+    const expectedConfirmedCountBeforePuzzle = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length + findCountryNumbers.length + hidden61Numbers.length + encyclopedia4Numbers.length;
+    console.assert(expectedConfirmedCountBeforePuzzle === 254, `254件全てが確定するはずが、合計が254件になっていません(実際: ${expectedConfirmedCountBeforePuzzle}件)`);
     // 謎解きトロフィー(第3段階)はPUZZLE_QUESTIONSの件数分だけ250に加算される
     const expectedConfirmedCount = expectedConfirmedCountBeforePuzzle + puzzleNumbers.length;
     console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑・findcountry36・隠しトロフィー61・謎解きで確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
@@ -2190,8 +2310,8 @@ const TrophyModule = (() => {
     );
     const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
     console.assert(
-      categoryTotal === 250 + PUZZLE_QUESTION_LIST.length,
-      `カテゴリ別件数の合計が250+謎解き件数になっていません(実際: ${categoryTotal}件)`
+      categoryTotal === 254 + PUZZLE_QUESTION_LIST.length,
+      `カテゴリ別件数の合計が254+謎解き件数になっていません(実際: ${categoryTotal}件)`
     );
     const puzzleCategoryCount = TROPHIES.filter((t) => t.category === "puzzle").length;
     console.assert(
@@ -2204,8 +2324,15 @@ const TrophyModule = (() => {
     console.assert(findCountryHiddenCategoryCount === 61, `findcountry_hiddenカテゴリの件数が61件(#195〜255)ではありません(実際: ${findCountryHiddenCategoryCount}件)`);
     const capitalTriviaCategoryCount = TROPHIES.filter((t) => t.category === "capital_trivia").length;
     console.assert(capitalTriviaCategoryCount === 29, `首都トリビアカテゴリの件数が29件ではありません(実際: ${capitalTriviaCategoryCount}件)`);
+    // 世界図鑑カテゴリーは、既存の15件(#143〜157、#158は「世界の叡智」として
+    // 既存どおりspecialカテゴリーのまま据え置き)に、今回追加した4件
+    // (#259〜262)を加えた19件になる(#158を含めた「世界図鑑トロフィー20種類」
+    // という企画上の総数は、modeフィールド(ENCYCLOPEDIA_19_NUMBERS+262で
+    // 20件)で別途確認できる。categoryはあくまで一覧画面の表示用タブ分類)
     const encyclopediaCategoryCount = TROPHIES.filter((t) => t.category === "encyclopedia").length;
-    console.assert(encyclopediaCategoryCount === 15, `世界図鑑カテゴリの件数が15件(#143〜157)ではありません(実際: ${encyclopediaCategoryCount}件)`);
+    console.assert(encyclopediaCategoryCount === 19, `世界図鑑カテゴリの件数が19件(#143〜157+#259〜262)ではありません(実際: ${encyclopediaCategoryCount}件)`);
+    const encyclopediaThemedCount = TROPHIES.filter((t) => t.mode === "encyclopedia").length;
+    console.assert(encyclopediaThemedCount === 20, `世界図鑑トロフィー(mode==="encyclopedia")の総数が20件ではありません(実際: ${encyclopediaThemedCount}件)`);
     const specialCategoryCount = TROPHIES.filter((t) => t.category === "special").length;
     console.assert(specialCategoryCount === 13, `特別チャレンジカテゴリの件数が13件(既存11件+#142+#158)ではありません(実際: ${specialCategoryCount}件)`);
     const legendDef = TROPHIES.find((t) => t.number === 142);
