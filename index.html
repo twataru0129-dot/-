@@ -343,6 +343,28 @@
   </div>
 </section>
 
+<!-- ============ 謎解きトロフィー専用の獲得演出画面(第3段階) ============
+     js/puzzle.jsのhandleSubmit()が、謎解き問題(js/puzzle-questions.jsの
+     PUZZLE_QUESTIONS)に初めて正解した瞬間だけ表示する。既存の
+     screen-trophy-award(複数件対応の通知キュー)・screen-trophy-legend
+     (#142「都の神話」等専用)とは完全に別の、独立した画面。謎解き1問の
+     正解で獲得できるトロフィーは常に最大1件のため、複数件を順番に
+     表示するキュー機構は持たない。既存の獲得通知・演出画面やその
+     キュー状態には一切影響しない ============ -->
+<section id="screen-puzzle-trophy-award" class="screen">
+  <div class="panel puzzle-award-panel">
+    <div id="puzzle-award-confetti-wrap" class="confetti-canvas-wrap"></div>
+    <div class="puzzle-award-icon-wrap" aria-hidden="true">🏆</div>
+    <h2 class="puzzle-award-heading">謎を解き明かした！</h2>
+    <p class="puzzle-award-subheading">トロフィー「<strong id="puzzle-award-name"></strong>」を獲得しました！</p>
+    <p id="puzzle-award-description" class="puzzle-award-description"></p>
+    <div class="result-buttons">
+      <button id="btn-puzzle-award-view" class="btn btn-gold btn-large" type="button">トロフィーを見る</button>
+      <button id="btn-puzzle-award-close" class="btn btn-secondary" type="button">閉じる</button>
+    </div>
+  </div>
+</section>
+
 <!-- ============ トロフィー刷新 Stage E: トロフィー一覧画面(新規・既存の称号コレクションとは別画面) ============ -->
 <section id="screen-trophy-list" class="screen">
   <div class="panel trophy-panel">
@@ -743,6 +765,10 @@
 <canvas id="hidden-render-canvas" style="display:none;"></canvas>
 
 <script src="./js/countries.js"></script>
+<!-- js/puzzle-questions.js(謎解き問題データ)は、js/trophy.jsが起動時に
+     読み込んで謎解きトロフィー(#256〜)を自動生成するため、js/trophy.jsより
+     前に読み込む必要がある(以前はjs/findcountry.jsの後にあった) -->
+<script src="./js/puzzle-questions.js"></script>
 <script src="./js/map-regions.js"></script>
 <script src="./js/map-colors.js"></script>
 <script src="./js/map-uk-regions.js"></script>
@@ -757,7 +783,6 @@
 <script src="./js/encyclopedia.js"></script>
 <script src="./js/review.js"></script>
 <script src="./js/findcountry.js"></script>
-<script src="./js/puzzle-questions.js"></script>
 <script src="./js/puzzle-judge.js"></script>
 <script src="./js/puzzle.js"></script>
 <script src="./js/app.js"></script>

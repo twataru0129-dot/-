@@ -1,18 +1,21 @@
 // ==========================================================
-// 謎への挑戦: 国旗選択画面(第1段階の画面操作 + 第2段階の正解判定連携)
+// 謎への挑戦: 国旗選択画面
+// (第1段階の画面操作 + 第2段階の正解判定連携 + 第3段階のトロフィー連携)
 //
 // 今後実装予定の「世界図鑑×謎解きトロフィー」(企画段階では32問としているが、
 // これは現時点の目安であり、将来40問・50問・100問以上に増える可能性がある)
 // で共通利用する、国旗選択専用のUI。
 //
-// このファイルが担うのは「国旗を選ぶ・選択を管理する・回答を送信する」という
-// 画面操作だけで、以下はこのファイルの責務に含めない(別のファイルに分離)。
+// このファイルが担うのは「国旗を選ぶ・選択を管理する・回答を送信し、正解
+// 時にトロフィー獲得処理を呼ぶ」ところまでで、以下はこのファイルの責務に
+// 含めない(別のファイルに分離)。
 //   - 問題データそのもの(問題文・正解条件・解説文): js/puzzle-questions.js
 //   - 正解判定処理(順番指定/順不同): js/puzzle-judge.js
-//   - トロフィーの獲得・保存・解放処理(将来、別のファイルで実装する)
-// handleSubmit()は、将来トロフィーの獲得・保存・解放処理を実装するときに
-// 追加しやすいよう、judgeAnswer()という1箇所の呼び出しの結果を見るだけの
-// 構造にしている。
+//   - トロフィーの獲得条件・定義・保存・一覧表示: js/trophy.js
+//   - トロフィー獲得演出画面の表示: js/app.js(showPuzzleTrophyAward())
+// awardTrophyIfNew()は、TrophyModule.evaluatePuzzleAnswer()という1箇所の
+// 呼び出しに判定・保存を完全に委譲し、新規獲得があった場合だけjs/app.jsの
+// 演出表示関数を呼ぶだけの薄い接続点にしている。
 //
 // 問題数が何問に増えても、この画面自体は一切修正が不要であるように設計する。
 //   - 問題はopen({questionId, questionText})のように「id」で受け取り、
@@ -267,8 +270,6 @@ const PuzzleModule = (() => {
   // モジュールに渡し、結果に応じた表示を行う」ことだけを行う。
   // currentQuestionIdだけを渡すことで、他の問題の正解条件と混ざることは
   // 構造上発生しない(js/puzzle-judge.jsが挑戦中の問題だけを見て判定する)。
-  // 今回はトロフィーの獲得・保存・解放処理を一切行わない(将来、正解時の
-  // 処理を追加するときは、ここのif (result.correct)の中に1行追加する想定)
   function judgeAnswer(questionId, answerIds) {
     if (typeof PuzzleJudgeModule === "undefined") {
       // 判定モジュールが読み込まれていない場合の保険(通常は発生しない)
@@ -277,11 +278,28 @@ const PuzzleModule = (() => {
     return PuzzleJudgeModule.judge(questionId, answerIds);
   }
 
+  // 正解時のトロフィー獲得処理(第3段階)。js/trophy.jsのevaluatePuzzleAnswer()
+  // に、挑戦中のquestionIdだけを渡す(他の問題のトロフィーが誤って獲得
+  // されることは構造上発生しない)。新規に獲得したトロフィーがあった場合
+  // (初回正解時だけ)に限り、js/app.jsの専用演出画面を呼ぶ。2回目以降の
+  // 正解(既に獲得済み)はawardedIdsが常に空になるため、演出は再実行されない
+  function awardTrophyIfNew(questionId) {
+    if (typeof TrophyModule === "undefined" || typeof TrophyModule.evaluatePuzzleAnswer !== "function") return;
+    const result = TrophyModule.evaluatePuzzleAnswer({ questionId, correct: true });
+    const awardedId = result && result.awardedIds && result.awardedIds[0];
+    if (!awardedId) return;
+    const def = TrophyModule.getDefinition(awardedId);
+    if (def && typeof showPuzzleTrophyAward === "function") {
+      showPuzzleTrophyAward(def);
+    }
+  }
+
   function handleSubmit() {
     if (!selectedIds.length) return;
     const result = judgeAnswer(currentQuestionId, selectedIds.slice());
     if (result.correct) {
       showAnswerMessage(`「${result.title}」\n${result.explanationText}`, "correct");
+      awardTrophyIfNew(currentQuestionId);
     } else {
       // 不正解でも選択内容は一切変更しない(保持したまま修正・再挑戦できる)
       showAnswerMessage("しかし、何も起こらなかった……", "wrong");

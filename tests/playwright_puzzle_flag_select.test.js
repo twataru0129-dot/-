@@ -98,6 +98,17 @@ async function clickFlags(page, ids) {
   }
 }
 
+// 初回正解時だけ表示される謎解きトロフィーの獲得演出(screen-puzzle-trophy-award)
+// が出ていれば「閉じる」で元の国旗選択画面に戻る(第3段階で追加)。
+// 既に獲得済みの再挑戦では演出が出ないため、何もしない
+async function dismissPuzzleAwardIfShown(page) {
+  const active = await page.$eval(".screen.active", (el) => el.id);
+  if (active !== "screen-puzzle-trophy-award") return false;
+  await page.click("#btn-puzzle-award-close");
+  await page.waitForSelector("#screen-puzzle-flag-select.active");
+  return true;
+}
+
 async function gridIds(page) {
   return page.$$eval("#puzzle-grid .puzzle-flag-card", (els) => els.map((el) => el.dataset.id));
 }
@@ -316,12 +327,26 @@ async function answerState(page) {
     const correctClass = await page.$eval("#puzzle-answer-message", (el) => el.classList.contains("puzzle-answer-message--correct"));
     check("テスト7-1: 正解時にcorrectのスタイルクラスが付与される", correctClass === true);
 
-    // 7-2: 同じ正解国を順不同(逆順)で選んでも正解になる(判定:順不同)
+    // 7-1b: 初回正解のため、謎解きトロフィーの獲得演出(screen-puzzle-trophy-award)
+    // が表示される(第3段階)
+    await page.waitForSelector("#screen-puzzle-trophy-award.active", { timeout: 5000 });
+    const awardName = await page.$eval("#puzzle-award-name", (el) => el.textContent);
+    check("テスト7-1b: 獲得演出に正式名称「世界三大料理」が表示される", awardName === "世界三大料理");
+    const awardDesc = await page.$eval("#puzzle-award-description", (el) => el.textContent);
+    check("テスト7-1b: 獲得演出に解説文が表示される", awardDesc.includes("慣用的な呼称"));
+    await dismissPuzzleAwardIfShown(page);
+    const earnedAfter71 = await page.evaluate(() => TrophyModule.isEarned(TrophyModule.getAllDefinitions().find((d) => d.puzzleQuestionId === "puzzle-01").id));
+    check("テスト7-1b: 初回正解でNo.01のトロフィーが獲得済みになる", earnedAfter71 === true);
+
+    // 7-2: 同じ正解国を順不同(逆順)で選んでも正解になる(判定:順不同、
+    // 既に獲得済みのため2回目の獲得演出は表示されない)
     await page.click("#puzzle-answer-clear");
     await clickFlags(page, ids01.slice().reverse());
     await page.click("#puzzle-answer-submit");
     msg = await page.$eval("#puzzle-answer-message", (el) => el.textContent);
     check("テスト7-2: 選択順を入れ替えても(順不同判定)正解になる", msg.includes("世界三大料理"));
+    const activeAfter72 = await page.$eval(".screen.active", (el) => el.id);
+    check("テスト7-2: 2回目以降の正解では獲得演出が再表示されない", activeAfter72 === "screen-puzzle-flag-select");
 
     // 7-3: 1件足りないと不正解になる
     await page.click("#puzzle-answer-clear");
@@ -384,6 +409,10 @@ async function answerState(page) {
     await page.click("#puzzle-answer-submit");
     let msg = await page.$eval("#puzzle-answer-message", (el) => el.textContent);
     check("テスト8: No.02を正解の国で解答すると正解になる", msg.includes("人口の双璧"));
+    await page.waitForSelector("#screen-puzzle-trophy-award.active", { timeout: 5000 });
+    let awardName = await page.$eval("#puzzle-award-name", (el) => el.textContent);
+    check("テスト8: No.02の初回正解で獲得演出に「人口の双璧」が表示される", awardName === "人口の双璧");
+    await dismissPuzzleAwardIfShown(page);
 
     // No.04(インドネシア・モナコ)
     await openPuzzleScreen(page, base, "puzzle-04");
@@ -393,6 +422,10 @@ async function answerState(page) {
     await page.click("#puzzle-answer-submit");
     msg = await page.$eval("#puzzle-answer-message", (el) => el.textContent);
     check("テスト8: No.04を正解の国で解答すると正解になる", msg.includes("双子の旗"));
+    await page.waitForSelector("#screen-puzzle-trophy-award.active", { timeout: 5000 });
+    awardName = await page.$eval("#puzzle-award-name", (el) => el.textContent);
+    check("テスト8: No.04の初回正解で獲得演出に「双子の旗」が表示される", awardName === "双子の旗");
+    await dismissPuzzleAwardIfShown(page);
 
     // 問題IDごとの独立性: No.01に挑戦中、No.02の正解(in/cn)を入力しても
     // No.01としては不正解になる(他の問題の正解条件と混ざらない)
@@ -404,6 +437,18 @@ async function answerState(page) {
       "テスト8: No.01挑戦中にNo.02の正解を入力しても正解にならない(問題IDの独立性)",
       msg === "しかし、何も起こらなかった……"
     );
+
+    // No.01・02・04それぞれの獲得状態は完全に独立している(No.02・04は
+    // この時点で獲得済み、No.01は一度も正解していないため未獲得のまま)
+    const earnedStates = await page.evaluate(() => {
+      const defs = TrophyModule.getAllDefinitions().filter((d) => d.category === "puzzle");
+      const byQid = {};
+      defs.forEach((d) => { byQid[d.puzzleQuestionId] = TrophyModule.isEarned(d.id); });
+      return byQid;
+    });
+    check("テスト8: No.01は未獲得のまま(No.02の正解入力でも獲得しない)", earnedStates["puzzle-01"] === false);
+    check("テスト8: No.02は獲得済みのまま独立している", earnedStates["puzzle-02"] === true);
+    check("テスト8: No.04は獲得済みのまま独立している", earnedStates["puzzle-04"] === true);
 
     check("テスト8: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
     await page.close();
