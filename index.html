@@ -361,6 +361,14 @@
            (js/puzzle.jsのisPuzzleDevEntryRequested()参照) ============ -->
       <button id="btn-dev-puzzle-entry" class="btn-dev-puzzle-entry hidden" type="button">🧩謎(開発用)</button>
     </div>
+    <!-- ============ 開発用・一時的な問題選択(本番非公開) ============
+         上の#btn-dev-puzzle-entryを押すと表示される、PUZZLE_QUESTIONS
+         (js/puzzle-questions.js)に登録済みの問題から1つを選ぶ一覧。
+         中身(ボタン群)はjs/puzzle.jsのrenderDevQuestionPicker()が
+         問題データから動的に生成するため、このHTMLに3問専用の記述はない。
+         正式な入口(各謎解きトロフィーの詳細画面)を実装したら、この要素も
+         #btn-dev-puzzle-entryと合わせて削除してよい ============ -->
+    <div id="puzzle-dev-question-picker" class="puzzle-dev-question-picker hidden" role="group" aria-label="開発用問題選択"></div>
     <p id="trophy-progress-summary" class="trophy-progress-summary"></p>
 
     <div id="trophy-category-tabs" class="trophy-category-tabs" role="tablist" aria-label="カテゴリで絞り込み"></div>
@@ -749,6 +757,8 @@
 <script src="./js/encyclopedia.js"></script>
 <script src="./js/review.js"></script>
 <script src="./js/findcountry.js"></script>
+<script src="./js/puzzle-questions.js"></script>
+<script src="./js/puzzle-judge.js"></script>
 <script src="./js/puzzle.js"></script>
 <script src="./js/app.js"></script>
 </body>
