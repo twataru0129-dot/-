@@ -774,6 +774,62 @@ function runConfetti(container) {
   draw();
 }
 
+// 謎解きトロフィー専用の獲得演出(screen-puzzle-trophy-award、第3段階)で
+// 使う、金色の光が画面中央に集まるCanvas 2Dエフェクト。runConfetti()
+// (上から降る紙吹雪)とは見た目も用途も異なるため複製せず新規に用意したが、
+// 実装方針(軽量なCanvas描画、prefers-reduced-motionなら即return、
+// 一定フレーム数で自動的に消える)は完全に揃えている
+function runGoldConverge(container) {
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  container.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  const colors = ["#ffd76a", "#ffe9a8", "#d4a017", "#fff6d6"];
+  const cx = canvas.width / 2;
+  const cy = canvas.height * 0.4; // アイコンの中心付近に収束させる
+  const pieces = Array.from({ length: 70 }, () => {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 120 + Math.random() * Math.max(canvas.width, canvas.height) * 0.4;
+    return {
+      x: cx + Math.cos(angle) * dist,
+      y: cy + Math.sin(angle) * dist,
+      size: 2 + Math.random() * 4,
+      speed: 0.02 + Math.random() * 0.02, // 収束の進み具合(0〜1の補間係数)
+      t: 0,
+      startX: cx + Math.cos(angle) * dist,
+      startY: cy + Math.sin(angle) * dist,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    };
+  });
+  let frame = 0;
+  const maxFrames = 90;
+  function draw() {
+    frame++;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach((p) => {
+      p.t = Math.min(1, p.t + p.speed);
+      p.x = p.startX + (cx - p.startX) * p.t;
+      p.y = p.startY + (cy - p.startY) * p.t;
+      const fade = 1 - p.t * 0.7;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, fade);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    });
+    if (frame < maxFrames) {
+      requestAnimationFrame(draw);
+    } else {
+      container.innerHTML = "";
+    }
+  }
+  draw();
+}
+
 // ==========================================================
 // トロフィー刷新 Stage E: 新トロフィー獲得演出画面
 // 既存の「称号獲得画面」(screen-title-award、古い12称号専用)とは完全に
@@ -1077,6 +1133,74 @@ function initLegendAwardScreen() {
 }
 
 // ==========================================================
+// 謎解きトロフィー専用の獲得演出画面(screen-puzzle-trophy-award、第3段階)。
+// 既存のscreen-trophy-award(複数件対応の通知キュー、notifyNonQuizTrophyAward)・
+// screen-trophy-legend(#142「都の神話」等専用)のどちらにも接続しない、
+// 完全に独立した画面。謎解き1問の正解で獲得できるトロフィーは常に最大1件
+// のため、複数件を順番に表示するキュー機構は持たない。js/puzzle.jsの
+// handleSubmit()が、初めて正解した瞬間だけshowPuzzleTrophyAward()を呼ぶ
+// ==========================================================
+let puzzleAwardReturnScreenId = "screen-puzzle-flag-select";
+let lastPuzzleAwardTrophyId = null;
+
+function renderPuzzleTrophyAwardScreen(def) {
+  lastPuzzleAwardTrophyId = def.id;
+  $("puzzle-award-name").textContent = def.name;
+  $("puzzle-award-description").textContent = def.description || "";
+  const panel = document.querySelector("#screen-puzzle-trophy-award .puzzle-award-panel");
+  panel.classList.remove("puzzle-award-skip"); // 前回表示時のスキップ状態を引き継がない
+  const confettiWrap = $("puzzle-award-confetti-wrap");
+  confettiWrap.innerHTML = "";
+  runGoldConverge(confettiWrap);
+  SoundManager.playFanfare();
+}
+
+// 謎解きの正解判定(js/puzzle.js)が初回獲得を検知した時だけ呼ぶ。
+// 開く直前にいた画面(常にscreen-puzzle-flag-select)を記憶しておき、
+// 「閉じる」はそこへ戻る
+function showPuzzleTrophyAward(def) {
+  const activeScreen = document.querySelector(".screen.active");
+  puzzleAwardReturnScreenId = activeScreen ? activeScreen.id : "screen-puzzle-flag-select";
+  renderPuzzleTrophyAwardScreen(def);
+  showScreen("screen-puzzle-trophy-award");
+}
+
+// トロフィー一覧を開き、今回獲得したカードまでスクロールして一時的に
+// ハイライトする。獲得直後は絞り込みフィルターの影響で対象カードが
+// 非表示になっている可能性があるため、「すべて」に戻してから開く
+// (ユーザーが戻った後に再び絞り込みたい場合は、一覧画面側で改めて
+// タブを選べばよい。この画面遷移専用の一時的な初期化)
+function openTrophyListAndHighlight(trophyId) {
+  state.trophyListFilter = { category: "all", status: "all" };
+  renderTrophyListScreen();
+  showScreen("screen-trophy-list");
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`#trophy-grid [data-trophy-id="${trophyId}"]`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: "smooth", block: "center" });
+    card.classList.add("trophy-card-highlight");
+    setTimeout(() => card.classList.remove("trophy-card-highlight"), 2200);
+  });
+}
+
+function initPuzzleTrophyAwardScreen() {
+  const panel = document.querySelector("#screen-puzzle-trophy-award .puzzle-award-panel");
+  // 演出中に画面(ボタン以外)をタップすると、段階的な表示アニメーションを
+  // 即座に完了させる(「タップでスキップ可能」の実装。ボタン自体のタップは
+  // 通常のクリック動作を優先するため対象外にする)
+  panel.addEventListener("click", (e) => {
+    if (e.target.closest("button")) return;
+    panel.classList.add("puzzle-award-skip");
+  });
+  $("btn-puzzle-award-view").addEventListener("click", () => {
+    openTrophyListAndHighlight(lastPuzzleAwardTrophyId);
+  });
+  $("btn-puzzle-award-close").addEventListener("click", () => {
+    showScreen(puzzleAwardReturnScreenId);
+  });
+}
+
+// ==========================================================
 // トロフィー刷新 Stage E: トロフィー一覧画面(新規・既存の「称号コレクション」
 // 画面とは別画面)。107件すべてをカテゴリ別・獲得状況で絞り込んで表示する。
 // 性能のため、カードは画面を開くたびに一度だけ全件分DOM生成し、以降の
@@ -1160,6 +1284,73 @@ function buildDualSplitCardPair(def, earnedEntry) {
   wrap.appendChild(buildTrophySplitSideCard(def, "国旗クイズ", "🌍", st.flagEarned, st.flagEarnedAt));
   wrap.appendChild(buildTrophySplitSideCard(def, "首都クイズ", "🏙️", st.capitalEarned, st.capitalEarnedAt));
   return wrap;
+}
+
+// ========================================================
+// 謎解きトロフィー(def.category === "puzzle"、#256〜、第3段階)専用のカード。
+// 既存のbuildTrophyCardElement()(隠しトロフィーのsecretLocked処理等)は
+// 一切変更せず、renderTrophyGrid()がcategoryで分岐してこの関数を呼ぶ。
+//
+// 既存の隠しトロフィー仕様(secretLocked: 名称・条件の両方を伏せる)とは
+// 異なり、謎解きトロフィーは未獲得でも問題文(def.condition=PUZZLE_
+// QUESTIONS[].questionText)を常に見せ、「この謎に挑む」ボタンから
+// 専用の国旗選択画面(js/puzzle.js)を開けるようにする。正式名称だけを
+// 「？？？？？」で伏せ、獲得後にのみ解説文(def.description=
+// PUZZLE_QUESTIONS[].explanationText)を表示する
+// ========================================================
+function buildPuzzleTrophyCardElement(def, earnedEntry) {
+  const st = trophyEarnedState(def, earnedEntry);
+  const card = document.createElement("div");
+  card.className = "trophy-card trophy-card-puzzle" + (st.earned ? "" : " locked");
+  card.dataset.category = def.category;
+  card.dataset.earned = String(st.earned);
+  card.dataset.hidden = "false";
+  // 「トロフィーを見る」(screen-puzzle-trophy-award)からこのカードへ
+  // スクロール・ハイライトするための識別子
+  card.dataset.trophyId = def.id;
+
+  const question = (typeof PUZZLE_QUESTIONS_BY_ID !== "undefined" && def.puzzleQuestionId)
+    ? PUZZLE_QUESTIONS_BY_ID[def.puzzleQuestionId]
+    : null;
+  const questionText = question ? question.questionText : (def.condition || "");
+  const dateStr = st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "";
+  const categoryLabel = TROPHY_CATEGORY_LABELS[def.category] || "";
+  const nameHtml = st.earned ? def.name : "？？？？？";
+  const descHtml = st.earned && def.description ? `<p class="trophy-description">${def.description}</p>` : "";
+  // 【PR #81最終調整】出典・注釈(descriptionNote)は、解説文とは別の要素
+  // として、指定がある場合だけ表示する(未指定の問題では何も出力しない。
+  // 空の<p>やラベルも出さない)
+  const noteHtml = st.earned && def.descriptionNote ? `<p class="trophy-note">${def.descriptionNote}</p>` : "";
+  const actionHtml = st.earned
+    ? ""
+    : `<button type="button" class="btn-puzzle-challenge" data-question-id="${def.puzzleQuestionId}">この謎に挑む</button>`;
+
+  card.innerHTML = `
+    <div class="trophy-card-top">
+      <span class="trophy-number">No.${def.number}</span>
+      <div class="trophy-card-badges">
+        <span class="trophy-category-badge">${categoryLabel}</span>
+      </div>
+    </div>
+    <div class="trophy-marks">
+      <div class="trophy-mark-col">
+        ${buildTrophyMarkHtml("🧩", "🧩", st.earned, dateStr, "獲得マーク", false)}
+      </div>
+    </div>
+    <p class="trophy-name">${nameHtml}</p>
+    <p class="trophy-cond trophy-puzzle-question">${questionText}</p>
+    ${descHtml}
+    ${noteHtml}
+    ${actionHtml}`;
+
+  if (!st.earned) {
+    card.querySelector(".btn-puzzle-challenge").addEventListener("click", (e) => {
+      e.stopPropagation();
+      PuzzleModule.open({ questionId: def.puzzleQuestionId, questionText });
+      showScreen("screen-puzzle-flag-select");
+    });
+  }
+  return card;
 }
 
 // 隠しトロフィー(def.hidden)の未獲得時は、正式名称・獲得条件を一切DOMに
@@ -1296,6 +1487,13 @@ function renderTrophyGrid() {
   const defs = TrophyModule.getAllDefinitions();
   const earned = TrophyModule.getEarned();
   defs.forEach((def) => {
+    // 謎解きトロフィー(#256〜、第3段階)は、隠しトロフィーのsecretLocked
+    // 処理とは異なる専用の表示(未獲得でも問題文を見せる)が必要なため、
+    // 他のどの分岐よりも先にbuildPuzzleTrophyCardElement()へ回す
+    if (def.category === "puzzle") {
+      grid.appendChild(buildPuzzleTrophyCardElement(def, earned[def.id]));
+      return;
+    }
     // 集計方式A案: No.1〜19のみ、国旗クイズ・首都クイズの2枚の独立カードに
     // 分割する。No.20以降(他のmode==="both"のデュアルトロフィーを含む)は
     // 既存どおり1枚のカードに2つの達成マークを並べる表示のまま変更しない
@@ -1756,6 +1954,7 @@ function initApp() {
   initTitleAwardScreen();
   initTrophyAwardScreen();
   initLegendAwardScreen();
+  initPuzzleTrophyAwardScreen();
   initTrophyListScreen();
   initMemorialScreen();
   initMapEncyclopediaLink();

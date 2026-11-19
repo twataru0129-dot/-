@@ -1547,3 +1547,189 @@ img { max-width: 100%; }
 .legend-panel-great .legend-icon-wrap {
   background: radial-gradient(circle at 32% 24%, #3a2d66 0%, #201a3f 55%, #120d28 100%);
 }
+
+/* ==========================================================
+   謎解きトロフィー(#256〜、第3段階)専用デザイン
+   一覧カード(.trophy-card-puzzle)と、初回正解時の獲得演出画面
+   (#screen-puzzle-trophy-award)のスタイル。既存の.trophy-card・
+   secretLocked・legend系のスタイルは一切変更していない
+   ========================================================== */
+
+/* 一覧カード: 既存の.trophy-cardを土台に、問題文(常に表示)用の余白だけ
+   少し広げる。未獲得時に名称を「？？？？？」にする処理自体はjs/app.js側
+   (secretLockedとは別の専用分岐)で行うため、ここでは見た目の微調整のみ。
+   【PR #81最終調整】謎解きトロフィーの一覧カードはスマートフォンで長文を
+   読む場面が多いため、以下の体裁に統一する(今後追加するすべての謎解き
+   問題に自動適用される。個別の問題ごとにCSSを書き分けない)。
+     - アイコン(.trophy-marks)・トロフィー名(.trophy-name)は、既存の
+       共通ルール(line 1126/1164)がすでに中央揃えのため変更不要
+     - 問題文(.trophy-cond.trophy-puzzle-question)・解説文
+       (.trophy-description)・注釈(.trophy-note)は左揃えにする
+       (.trophy-cond の既定値は中央揃えのため、ここで明示的に上書きする。
+       他のカテゴリー(findcountry等)が使う.trophy-condの中央揃えは
+       変更しない。.trophy-card-puzzleの中でだけ上書きする)
+     - 行間・左右の余白は、カード自体の既存のpadding(16px、line 1083)を
+       そのまま使い、文章側には追加の左右paddingを設けない(ボタン等との
+       横幅を揃えるため) */
+.trophy-card-puzzle .trophy-cond.trophy-puzzle-question {
+  text-align: left;
+  line-height: 1.7;
+  margin-top: 2px;
+}
+.trophy-card-puzzle .trophy-description {
+  text-align: left;
+  line-height: 1.7;
+}
+/* 注釈・出典(.trophy-note): 本文(.trophy-description)よりひとまわり
+   小さい文字で、本文の直後に別要素として表示する。js/app.js側は
+   def.descriptionNoteが無い問題では<p>自体を出力しないため、注釈の無い
+   問題でも余計な空白・ラベルは表示されない */
+.trophy-card-puzzle .trophy-note {
+  font-size: 0.72rem;
+  color: var(--color-text-sub);
+  text-align: left;
+  line-height: 1.5;
+  margin: 6px 0 0;
+  opacity: 0.85;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.btn-puzzle-challenge {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  min-height: 44px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.btn-puzzle-challenge:active { transform: scale(0.98); }
+
+/* 「トロフィーを見る」から一覧に戻った際、対象カードを一時的に
+   ハイライトする(js/app.jsがsetTimeoutでこのクラスを外す) */
+.trophy-card-highlight {
+  animation: puzzleCardHighlight 2.2s ease;
+}
+@keyframes puzzleCardHighlight {
+  0%, 100% { box-shadow: var(--shadow-card); }
+  15%, 60% { box-shadow: 0 0 0 3px #ffd76a, 0 0 20px 4px rgba(255, 215, 106, .6); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trophy-card-highlight {
+    animation: none;
+    box-shadow: 0 0 0 3px #ffd76a;
+  }
+}
+
+/* ---------- 謎解きトロフィー専用の獲得演出画面(screen-puzzle-trophy-award) ----------
+   既存の#screen-trophy-legendと同じ「背景暗転+アイコン拡大+段階的な
+   フェードイン」の考え方を再利用しつつ、この画面専用のクラス名で複製する
+   (既存のlegend-*クラス・アニメーションは一切変更しない)。配色は金×
+   深い茶褐色(宝物・謎解きのイメージ)にして、紺紫の#screen-trophy-legendと
+   見分けられるようにしている */
+#screen-puzzle-trophy-award {
+  background: radial-gradient(circle at 50% 20%, #3d2d12 0%, #1d1509 50%, #0b0805 100%);
+}
+.puzzle-award-panel {
+  text-align: center;
+  padding-top: 48px;
+  position: relative;
+  overflow: hidden;
+  color: #fdf3e0;
+}
+.puzzle-award-icon-wrap {
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4.2rem;
+  background: radial-gradient(circle at 32% 26%, #5a3f1a 0%, #2e1f0d 55%, #150e05 100%);
+  box-shadow: 0 0 0 3px #ffd76a, 0 0 32px 6px rgba(255, 215, 106, .5), inset 0 -8px 0 rgba(0,0,0,.3);
+  animation: puzzleAwardIconIn .9s ease both, puzzleAwardGlowPulse 2.6s ease-in-out .9s infinite;
+}
+@keyframes puzzleAwardIconIn {
+  0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
+  70% { opacity: 1; transform: scale(1.1) rotate(3deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes puzzleAwardGlowPulse {
+  0%, 100% { box-shadow: 0 0 0 3px #ffd76a, 0 0 28px 4px rgba(255, 215, 106, .45), inset 0 -8px 0 rgba(0,0,0,.3); }
+  50% { box-shadow: 0 0 0 3px #ffe9a8, 0 0 44px 10px rgba(255, 215, 106, .7), inset 0 -8px 0 rgba(0,0,0,.3); }
+}
+.puzzle-award-heading {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #ffe27a;
+  margin: 4px 0 8px;
+  opacity: 0;
+  animation: puzzleAwardFadeUp .7s ease .6s both;
+}
+.puzzle-award-subheading {
+  font-size: 1.1rem;
+  margin: 0 0 16px;
+  color: #fdf3e0;
+  opacity: 0;
+  animation: puzzleAwardFadeUp .7s ease 1.2s both;
+}
+.puzzle-award-subheading strong { color: #ffd76a; font-size: 1.25rem; }
+.puzzle-award-description {
+  max-width: 480px;
+  margin: 0 auto 28px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 215, 106, .35);
+  color: #efe0c2;
+  font-style: italic;
+  line-height: 1.7;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  animation: puzzleAwardFadeUp .7s ease 1.8s both;
+}
+.puzzle-award-panel .result-buttons {
+  opacity: 0;
+  animation: puzzleAwardFadeUp .7s ease 2.4s both;
+}
+@keyframes puzzleAwardFadeUp {
+  0% { opacity: 0; transform: translateY(14px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* タップでスキップした時・OSの「視差効果を減らす」設定が有効な時は、
+   段階的な表示を待たず最初から全て見える状態にする(既存の
+   #screen-trophy-legendと同じ対応方針) */
+.puzzle-award-panel.puzzle-award-skip .puzzle-award-icon-wrap,
+.puzzle-award-panel.puzzle-award-skip .puzzle-award-heading,
+.puzzle-award-panel.puzzle-award-skip .puzzle-award-subheading,
+.puzzle-award-panel.puzzle-award-skip .puzzle-award-description,
+.puzzle-award-panel.puzzle-award-skip .result-buttons {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .puzzle-award-icon-wrap,
+  .puzzle-award-heading,
+  .puzzle-award-subheading,
+  .puzzle-award-description,
+  .puzzle-award-panel .result-buttons {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .puzzle-award-icon-wrap { width: 112px; height: 112px; font-size: 3.2rem; }
+  .puzzle-award-heading { font-size: 1.3rem; }
+  .puzzle-award-subheading { font-size: 1rem; }
+}

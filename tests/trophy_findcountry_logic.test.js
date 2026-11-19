@@ -102,10 +102,15 @@ function miss(kind, opts) {
   const defs = Trophy.getAllDefinitions();
   // 隠しトロフィー61種類実装(第2段階)でトロフィー定義総数が189→250件、
   // カテゴリー数が10→11件、隠しトロフィー数が14→75件に拡張された
-  // (既存のfindcountry36種類自体の件数・内容は変更していない)
+  // (既存のfindcountry36種類自体の件数・内容は変更していない)。
+  // このテストのfreshSandbox()はjs/puzzle-questions.jsを読み込まないため、
+  // 謎解きトロフィー(第3段階、puzzleカテゴリ)は常に0件扱いとなり、
+  // 定義総数自体は250件のまま変わらない(カテゴリの種類数のみ、
+  // PUZZLE_QUESTIONSの件数に関わらずTROPHY_CATEGORIESの固定分類として
+  // 11→12件に増える)
   check("total trophies = 250", defs.length === 250);
   const cats = Trophy.getCategories();
-  check("category count = 11", cats.length === 11);
+  check("category count = 12", cats.length === 12);
   check("findcountry category exists", cats.some((c) => c.id === "findcountry"));
   const fcDefs = defs.filter((d) => d.number >= 159 && d.number <= 194);
   check("findcountry defs count = 36", fcDefs.length === 36);
