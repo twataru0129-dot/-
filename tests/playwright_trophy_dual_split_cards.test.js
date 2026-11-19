@@ -3,7 +3,7 @@
 // 分割する表示修正と、集計方式A案の統合テスト。
 // 第1弾(No.1〜19)に続き、追加修正で#21・26・27・30〜39の13種類も対象に
 // 加え、合計32種類・282件(250+32)になり、さらに謎解きトロフィー第3段階
-// (No.01/02/04の3件)の追加で285件(282+3)になった状態を検証する。
+// (No.01/02/04の3件)の追加で289件(286+3)になった状態を検証する。
 // 実行方法: node tests/playwright_trophy_dual_split_cards.test.js
 // ==========================================================
 const { chromium } = require("playwright");
@@ -109,8 +109,8 @@ async function getPairSideRects(page, numberLabel) {
     await openTrophyList(page);
 
     const progressText = await page.textContent("#trophy-progress-summary");
-    check("テスト1: 進捗表示の分母が285件になっている", /\/\s*285\s*件/.test(progressText || ""));
-    check("テスト1: 初期状態の獲得数は0件", /🏆\s*0\s*\/\s*285/.test(progressText || ""));
+    check("テスト1: 進捗表示の分母が289件になっている", /\/\s*289\s*件/.test(progressText || ""));
+    check("テスト1: 初期状態の獲得数は0件", /🏆\s*0\s*\/\s*289/.test(progressText || ""));
 
     await openCategory(page, "progress");
     const totalSplitCards = await page.$$eval('#trophy-grid .trophy-card-split:not(.hidden)', (els) => els.length);
@@ -152,7 +152,7 @@ async function getPairSideRects(page, numberLabel) {
 
     await openTrophyList(page);
     const progressText = await page.textContent("#trophy-progress-summary");
-    check("テスト2: 獲得数が3件(No.1国旗+No.5両方)になっている", /🏆\s*3\s*\/\s*285/.test(progressText || ""));
+    check("テスト2: 獲得数が3件(No.1国旗+No.5両方)になっている", /🏆\s*3\s*\/\s*289/.test(progressText || ""));
 
     await openCategory(page, "progress");
     const cards = await readProgressCards(page);

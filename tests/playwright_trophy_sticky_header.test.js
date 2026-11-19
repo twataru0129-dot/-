@@ -89,7 +89,7 @@ async function runForViewport(browser, base, viewport, label) {
   await page.click('#trophy-status-filter [data-status="locked"]');
   await page.waitForTimeout(150);
   const lockedVisibleCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.filter((e) => !e.classList.contains("hidden")).length);
-  check(`[${label}] 「未獲得」フィルターが機能する(世界図鑑15件が全て未獲得として表示)`, lockedVisibleCount === 15);
+  check(`[${label}] 「未獲得」フィルターが機能する(世界図鑑19件が全て未獲得として表示)`, lockedVisibleCount === 19);
   await page.click('#trophy-status-filter [data-status="all"]');
   await page.click('#trophy-category-tabs [data-category="all"]');
   await page.waitForTimeout(150);
@@ -100,9 +100,10 @@ async function runForViewport(browser, base, viewport, label) {
   // (No.1〜19を国旗/首都の2枚の独立カードに分割)により250件から269件
   // (250+19)、追加修正(#21・26・27・30〜39の13種類も分割対象に追加)
   // により269件から282件(250+32)、謎解きトロフィー第3段階(No.01/02/04の
-  // 3件)の追加により282件から285件に変わった)
+  // 3件)の追加により282件から285件に変わり、さらに世界図鑑トロフィー追加分
+  // (#259〜262、計4件)により289件に変わった)
   const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-  check(`[${label}] トロフィー285件が全てDOMに存在する`, totalCount === 285);
+  check(`[${label}] トロフィー289件が全てDOMに存在する`, totalCount === 289);
 
   // 8. 隠しトロフィーの表示仕様が維持されている(「？？？？？？」のまま)。
   // 既存14件+隠しトロフィー61種類(#195〜255)=75件

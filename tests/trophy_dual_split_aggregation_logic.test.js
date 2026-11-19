@@ -4,7 +4,9 @@
 // ロードし(DOM不要)、TrophyModule.getProgressSummary()/
 // isDualSplitCardNumber()を直接呼んで検証する。
 // 第1弾(No.1〜19)に続き、追加修正で#21・26・27・30〜39の13種類を対象に
-// 加え、合計32種類・282件(250+32)になった状態を検証する。
+// 加え、合計32種類・282件(250+32)になり、さらに世界図鑑トロフィー追加分
+// (#259〜262、計4件、dual対象外)によりTROPHIES.length自体が250→254件に
+// 増えたことで、最終的に286件(254+32)になった状態を検証する。
 // 依存パッケージ不要(node tests/trophy_dual_split_aggregation_logic.test.js で実行)。
 // ==========================================================
 const fs = require("fs");
@@ -78,14 +80,14 @@ function check(name, cond) {
 // ---- 定義総数は250件のまま変更がないこと ----
 {
   const { Trophy } = freshSandbox();
-  check("getAllDefinitions().length === 250(変更なし)", Trophy.getAllDefinitions().length === 250);
+  check("getAllDefinitions().length === 254(変更なし)", Trophy.getAllDefinitions().length === 254);
 }
 
-// ---- getProgressSummary(): 初期状態(未獲得)でtotalCount===282 ----
+// ---- getProgressSummary(): 初期状態(未獲得)でtotalCount===286 ----
 {
   const { Trophy } = freshSandbox();
   const summary = Trophy.getProgressSummary();
-  check("初期状態: totalCount === 282 (250 + 32種類の追加枠)", summary.totalCount === 282);
+  check("初期状態: totalCount === 286 (254 + 32種類の追加枠)", summary.totalCount === 286);
   check("初期状態: earnedCount === 0", summary.earnedCount === 0);
 }
 
@@ -98,7 +100,7 @@ function check(name, cond) {
   Trophy.awardIfNew("trophy_1", "flag");
   const afterFlagOnly = Trophy.getProgressSummary();
   check("No.1の国旗のみ獲得でearnedCountが1増える", afterFlagOnly.earnedCount === before + 1);
-  check("国旗のみ獲得でもtotalCountは変わらない(282)", afterFlagOnly.totalCount === 282);
+  check("国旗のみ獲得でもtotalCountは変わらない(286)", afterFlagOnly.totalCount === 286);
 
   Trophy.awardIfNew("trophy_1", "capital");
   const afterBoth = Trophy.getProgressSummary();
@@ -125,7 +127,7 @@ function check(name, cond) {
     Trophy.awardIfNew(`trophy_${n}`, "capital");
     const afterBoth = Trophy.getProgressSummary();
     check(`No.${n}の首都も獲得するとearnedCountがさらに1増える(合計+2)`, afterBoth.earnedCount === before + 2);
-    check(`No.${n}の両方獲得後もtotalCountは変わらない(282)`, afterBoth.totalCount === 282);
+    check(`No.${n}の両方獲得後もtotalCountは変わらない(286)`, afterBoth.totalCount === 286);
   });
 }
 
@@ -139,7 +141,7 @@ function check(name, cond) {
 }
 
 // ---- No.1〜19すべての国旗側だけを獲得した場合、earnedCountは19になり、
-//      totalCountは282のまま変わらないこと ----
+//      totalCountは286のまま変わらないこと ----
 {
   const { Trophy } = freshSandbox();
   for (let n = 1; n <= 19; n++) {
@@ -147,7 +149,7 @@ function check(name, cond) {
   }
   const summary = Trophy.getProgressSummary();
   check("No.1〜19の国旗側19件獲得でearnedCount === 19", summary.earnedCount === 19);
-  check("この状態でもtotalCount === 282のまま", summary.totalCount === 282);
+  check("この状態でもtotalCount === 286のまま", summary.totalCount === 286);
 
   // さらに首都側も全て獲得すると38になること
   for (let n = 1; n <= 19; n++) {
@@ -168,7 +170,7 @@ function check(name, cond) {
   });
   const summary = Trophy.getProgressSummary();
   check("対象32種類すべての国旗・首都64件獲得でearnedCount === 64", summary.earnedCount === 64);
-  check("totalCountは282のまま変わらない", summary.totalCount === 282);
+  check("totalCountは286のまま変わらない", summary.totalCount === 286);
 }
 
 // ---- 既存の獲得履歴・獲得日時がそのまま保持されること(getEarned経由で確認) ----
