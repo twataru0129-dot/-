@@ -1814,6 +1814,8 @@ const TrophyModule = (() => {
   //   のため、hiddenはtrueにしない(buildTrophyDefinitions()の既定値
   //   falseのまま)
   // description: 獲得後の解説文(PUZZLE_QUESTIONS[].explanationText)
+  // descriptionNote: 獲得後の出典・注釈(PUZZLE_QUESTIONS[].explanationNote、
+  //   省略可)。指定が無い問題はnullのまま(表示側(js/app.js)で何も描画しない)
   // puzzleQuestionId: 「この謎に挑む」ボタンがPuzzleModule.open()に渡す
   //   問題id。一覧カードの描画(js/app.js)が参照する
   // check: 挑戦中の問題(ctx.questionId)がこの問題と完全一致し、かつ
@@ -1828,6 +1830,7 @@ const TrophyModule = (() => {
       condition: q.questionText,
       mode: "puzzle",
       description: typeof q.explanationText === "string" ? q.explanationText : null,
+      descriptionNote: typeof q.explanationNote === "string" ? q.explanationNote : null,
       puzzleQuestionId: q.id,
       check: (ctx) => !!ctx && ctx.source === "puzzle" && ctx.questionId === q.id && ctx.correct === true,
     };
@@ -1905,6 +1908,11 @@ const TrophyModule = (() => {
       // 謎解きトロフィー(第3段階)用: 挑戦先の問題id(js/puzzle-questions.js
       // のPUZZLE_QUESTIONS[].id)。該当しないトロフィーはnullのまま
       t.puzzleQuestionId = typeof def.puzzleQuestionId === "string" ? def.puzzleQuestionId : null;
+      // 【PR #81最終調整】謎解きトロフィー用: 解説文(description)とは別の
+      // 出典・注釈テキスト(js/puzzle-questions.jsのPUZZLE_QUESTIONS[].
+      // explanationNote)。指定が無い問題はnullのまま(表示側(js/app.js)は
+      // nullなら何も描画しない)
+      t.descriptionNote = typeof def.descriptionNote === "string" ? def.descriptionNote : null;
       // 「世界の国どこかな？」専用36種(#159〜194)用のレア度表示。
       // 既存の#1〜158にはrarityフィールドを持つ定義が無いため、常にnullのまま
       t.rarity = (def.rarity === "normal" || def.rarity === "rare" || def.rarity === "super_rare") ? def.rarity : null;
@@ -1941,6 +1949,9 @@ const TrophyModule = (() => {
         // 謎解きトロフィー(第3段階、#256〜)用: 挑戦先の問題id。
         // 該当しないトロフィーはnullのまま
         puzzleQuestionId: null,
+        // 【PR #81最終調整】謎解きトロフィー用: 解説文(description)とは
+        // 別の出典・注釈テキスト。該当しないトロフィーはnullのまま
+        descriptionNote: null,
         // 「世界の国どこかな？」専用36種(#159〜194)用: 表示用のレア度
         // ("normal"|"rare"|"super_rare")。該当しないトロフィーはnullのまま
         rarity: null,

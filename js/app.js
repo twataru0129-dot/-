@@ -1317,6 +1317,10 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
   const categoryLabel = TROPHY_CATEGORY_LABELS[def.category] || "";
   const nameHtml = st.earned ? def.name : "？？？？？";
   const descHtml = st.earned && def.description ? `<p class="trophy-description">${def.description}</p>` : "";
+  // 【PR #81最終調整】出典・注釈(descriptionNote)は、解説文とは別の要素
+  // として、指定がある場合だけ表示する(未指定の問題では何も出力しない。
+  // 空の<p>やラベルも出さない)
+  const noteHtml = st.earned && def.descriptionNote ? `<p class="trophy-note">${def.descriptionNote}</p>` : "";
   const actionHtml = st.earned
     ? ""
     : `<button type="button" class="btn-puzzle-challenge" data-question-id="${def.puzzleQuestionId}">この謎に挑む</button>`;
@@ -1336,6 +1340,7 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
     <p class="trophy-name">${nameHtml}</p>
     <p class="trophy-cond trophy-puzzle-question">${questionText}</p>
     ${descHtml}
+    ${noteHtml}
     ${actionHtml}`;
 
   if (!st.earned) {

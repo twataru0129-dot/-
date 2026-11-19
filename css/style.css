@@ -1557,9 +1557,42 @@ img { max-width: 100%; }
 
 /* 一覧カード: 既存の.trophy-cardを土台に、問題文(常に表示)用の余白だけ
    少し広げる。未獲得時に名称を「？？？？？」にする処理自体はjs/app.js側
-   (secretLockedとは別の専用分岐)で行うため、ここでは見た目の微調整のみ */
+   (secretLockedとは別の専用分岐)で行うため、ここでは見た目の微調整のみ。
+   【PR #81最終調整】謎解きトロフィーの一覧カードはスマートフォンで長文を
+   読む場面が多いため、以下の体裁に統一する(今後追加するすべての謎解き
+   問題に自動適用される。個別の問題ごとにCSSを書き分けない)。
+     - アイコン(.trophy-marks)・トロフィー名(.trophy-name)は、既存の
+       共通ルール(line 1126/1164)がすでに中央揃えのため変更不要
+     - 問題文(.trophy-cond.trophy-puzzle-question)・解説文
+       (.trophy-description)・注釈(.trophy-note)は左揃えにする
+       (.trophy-cond の既定値は中央揃えのため、ここで明示的に上書きする。
+       他のカテゴリー(findcountry等)が使う.trophy-condの中央揃えは
+       変更しない。.trophy-card-puzzleの中でだけ上書きする)
+     - 行間・左右の余白は、カード自体の既存のpadding(16px、line 1083)を
+       そのまま使い、文章側には追加の左右paddingを設けない(ボタン等との
+       横幅を揃えるため) */
 .trophy-card-puzzle .trophy-cond.trophy-puzzle-question {
-  line-height: 1.6;
+  text-align: left;
+  line-height: 1.7;
+  margin-top: 2px;
+}
+.trophy-card-puzzle .trophy-description {
+  text-align: left;
+  line-height: 1.7;
+}
+/* 注釈・出典(.trophy-note): 本文(.trophy-description)よりひとまわり
+   小さい文字で、本文の直後に別要素として表示する。js/app.js側は
+   def.descriptionNoteが無い問題では<p>自体を出力しないため、注釈の無い
+   問題でも余計な空白・ラベルは表示されない */
+.trophy-card-puzzle .trophy-note {
+  font-size: 0.72rem;
+  color: var(--color-text-sub);
+  text-align: left;
+  line-height: 1.5;
+  margin: 6px 0 0;
+  opacity: 0.85;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .btn-puzzle-challenge {
   display: block;
