@@ -1039,7 +1039,7 @@ const PUZZLE_QUESTIONS = [
     judgeMode: "unordered",
     answerIds: ["th","la"],
     questionText:
-      "過去に国旗に白い象を描いていた歴史を持つ東南アジアの国は？",
+      "過去に国旗に白い象を描いていた歴史を持つ東南アジアの国を2つ選べ。",
     explanationText:
       "タイとラオスは、かつて国旗に白い象を描いていた歴史を持つ東南アジアの国です。",
   },
