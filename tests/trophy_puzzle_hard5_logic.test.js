@@ -156,5 +156,24 @@ HARD5_IDS.forEach((id) => {
   check("No.385のexplanationTextには正解に対応する歴史的説明が含まれる", /1949/.test(q385.explanationText) && /1993/.test(q385.explanationText));
 }
 
+// ========================================================
+// F. No.381「国境の無限迷宮」・No.382「三つの鍵と小さな王国」の
+// 問題文修正(正式採用済み仕様との整合)に関する検証
+// ========================================================
+{
+  const q381 = PUZZLE_QUESTIONS_BY_ID["puzzle-hard-01"];
+  check("No.381のquestionTextに地名(マダ・ナハワ・オマーン・UAE等)が含まれない(正解を直接明かさない)", !/マダ|ナハワ|オマーン|アラブ首長国連邦|UAE/.test(q381.questionText));
+  check("No.381のquestionTextが国境を3回越える記録になっている(「国境」の言及が3回以上)", (q381.questionText.match(/国境/g) || []).length >= 3);
+  check("No.381のquestionTextに入れ子構造を示す語(入れ子)が含まれる", /入れ子/.test(q381.questionText));
+}
+{
+  const q382 = PUZZLE_QUESTIONS_BY_ID["puzzle-hard-02"];
+  check("No.382のquestionTextに誤った「頭文字」という表現が含まれない", !/頭文字/.test(q382.questionText));
+  check("No.382のquestionTextに「6文字の国名」という表現が含まれない", !/6文字の国名|六文字の国名/.test(q382.questionText));
+  check("No.382のquestionTextに暗号図(□□＋□□＋□□)が含まれる", q382.questionText.includes("□□＋□□＋□□"));
+  check("No.382のquestionTextに正式採用の3ヒント(東洋のラスベガス・世界最古級の砂漠・太平洋とカリブ海)が含まれる", /東洋のラスベガス/.test(q382.questionText) && /世界最古級の砂漠/.test(q382.questionText) && /太平洋とカリブ海/.test(q382.questionText));
+  check("No.382のexplanationTextが2文字コードの連結であることを明記し、単なる頭文字とは説明していない", /2文字コード/.test(q382.explanationText) && /頭文字ではなく/.test(q382.explanationText));
+}
+
 console.log(`\nTotal: ${pass + fail}, Pass: ${pass}, Fail: ${fail}`);
 process.exit(fail > 0 ? 1 : 0);
