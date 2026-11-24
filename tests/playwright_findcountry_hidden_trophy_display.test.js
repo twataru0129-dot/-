@@ -76,16 +76,18 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
     // 謎解きトロフィー第3段階(No.01/02/04の3件)の追加により282件→285件になり、
     // 世界図鑑トロフィー追加分(#259〜262、計4件)により289件になった後、
-    // 謎解きトロフィー118問追加(#263〜380、計121件に増加)で412件(286+121)になった
-    check("テスト1: トロフィー総数が412件(既存189件+隠しトロフィー61件+分割対象32件+謎解き126件+世界図鑑追加4件)", totalCount === 412);
+    // 謎解きトロフィー118問追加(#263〜380、計121件に増加)で412件(286+121)になり、
+    // 世界7不思議(7問+隠し特別2種、計9件)の追加で421件になった
+    check("テスト1: トロフィー総数が421件(既存189件+隠しトロフィー61件+分割対象32件+謎解き126件+世界図鑑追加4件+世界7不思議9件)", totalCount === 421);
 
     const hiddenTab = await page.$('#trophy-category-tabs [data-category="findcountry_hidden"]');
     check("テスト1: 「世界の国どこかな？ 隠しトロフィー」カテゴリータブが存在する", !!hiddenTab);
 
     await openHiddenCategoryTab(page);
-    const hiddenCards = await page.$$eval(
+    const hiddenCardsAll = await page.$$eval(
       '#trophy-grid .trophy-card[data-category="findcountry_hidden"]:not(.hidden)',
       (els) => els.map((e) => ({
+        number: e.querySelector(".trophy-number").textContent.trim(),
         name: e.querySelector(".trophy-name").textContent.trim(),
         hasCond: !!e.querySelector(".trophy-cond"),
         icon: e.querySelector(".trophy-mark-icon") ? e.querySelector(".trophy-mark-icon").textContent.trim() : null,
@@ -93,12 +95,18 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
         isSecretClass: e.classList.contains("trophy-card-secret"),
       }))
     );
-    check("テスト1: 隠しトロフィー61件が一覧に表示される", hiddenCards.length === 61);
-    check("テスト1: 全件が「？？？？？？」表示になっている", hiddenCards.every((c) => c.name === "？？？？？？"));
-    check("テスト1: 全件で獲得条件(.trophy-cond)が表示されない", hiddenCards.every((c) => !c.hasCond));
-    check("テスト1: 全件がtrophy-card-secretクラスを持つ(未発見の見た目)", hiddenCards.every((c) => c.isSecretClass));
-    check("テスト1: 全件のアイコンが🔒(鍵マーク)になっている", hiddenCards.every((c) => c.icon === "🔒"));
-    check("テスト1: 全件が「未発見」表記になっている", hiddenCards.every((c) => c.dateText === "未発見"));
+    check("テスト1: 隠しトロフィー61件が一覧に表示される", hiddenCardsAll.length === 61);
+    // 世界7不思議Ⅰ「暗号作戦634」の手がかりとして、No.220「東京スカイツリー」
+    // だけは例外的に名称・条件を常時公開する(他の60件は従来どおり伏せる)
+    const no220Card = hiddenCardsAll.find((c) => c.number === "No.220");
+    check("テスト1: No.220のみ名称が常時公開されている", !!no220Card && no220Card.name === "東京スカイツリー");
+    check("テスト1: No.220のみ獲得条件(.trophy-cond)が常時公開されている", !!no220Card && no220Card.hasCond);
+    const hiddenCards = hiddenCardsAll.filter((c) => c.number !== "No.220");
+    check("テスト1: No.220を除く60件が「？？？？？？」表示になっている", hiddenCards.every((c) => c.name === "？？？？？？"));
+    check("テスト1: No.220を除く60件で獲得条件(.trophy-cond)が表示されない", hiddenCards.every((c) => !c.hasCond));
+    check("テスト1: No.220を除く60件がtrophy-card-secretクラスを持つ(未発見の見た目)", hiddenCards.every((c) => c.isSecretClass));
+    check("テスト1: No.220を除く60件のアイコンが🔒(鍵マーク)になっている", hiddenCards.every((c) => c.icon === "🔒"));
+    check("テスト1: No.220を除く60件が「未発見」表記になっている", hiddenCards.every((c) => c.dateText === "未発見"));
 
     // 正式名称・条件が、タイトル属性等を含めページ上のどこにも漏れていないこと
     const bodyHtml = await page.content();
@@ -116,9 +124,9 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     check("テスト1: 既存findcountry専用36件の表示件数が変わっていない", normalCards.length === 36);
     check("テスト1: 既存findcountry専用36件は正式名称のまま表示される(隠し扱いされていない)", normalCards.every((c) => c.name !== "？？？？？？" && !c.secret));
 
-    // 進捗表示(🏆 X / 412 件 獲得)が新しい総数に追従していること
+    // 進捗表示(🏆 X / 421 件 獲得)が新しい総数に追従していること
     const progressText = await page.textContent("#trophy-progress-summary");
-    check("テスト1: 進捗表示が「/ 412 件」になっている", /\/\s*412\s*件/.test(progressText || ""));
+    check("テスト1: 進捗表示が「/ 421 件」になっている", /\/\s*421\s*件/.test(progressText || ""));
 
     check("テスト1: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
     await page.close();

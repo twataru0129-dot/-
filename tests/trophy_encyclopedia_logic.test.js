@@ -75,7 +75,7 @@ function check(name, cond) {
   // TROPHY_CATEGORIESの固定分類として11→12件に増える)
   check("total trophies = 254", defs.length === 254);
   const cats = Trophy.getCategories();
-  check("category count = 12", cats.length === 12);
+  check("category count = 13", cats.length === 13);
   check("encyclopedia category exists", cats.some((c) => c.id === "encyclopedia"));
   const byCat = {};
   defs.forEach((d) => { byCat[d.category] = (byCat[d.category] || 0) + 1; });
@@ -83,7 +83,7 @@ function check(name, cond) {
   check("special category count = 13 (existing 11 + #142 + #158)", byCat.special === 13);
   check("capital_trivia category count = 29 (unchanged)", byCat.capital_trivia === 29);
   check("findcountry_hidden category count = 61 (#195-255)", byCat.findcountry_hidden === 61);
-  check("hidden trophy count = 75 (既存14+隠しトロフィー61種類)", defs.filter((d) => d.hidden).length === 75);
+  check("hidden trophy count = 74 (既存14+隠しトロフィー61種類のうちNo.220を除く60件)", defs.filter((d) => d.hidden).length === 74);
   check("#158 is hidden", defs.find((d) => d.number === 158).hidden === true);
   check("#158 name is 世界の叡智", defs.find((d) => d.number === 158).name === "世界の叡智");
 }

@@ -102,14 +102,16 @@ async function runForViewport(browser, base, viewport, label) {
   // により269件から282件(250+32)、謎解きトロフィー第3段階(No.01/02/04の
   // 3件)の追加により282件から285件に変わり、世界図鑑トロフィー追加分
   // (#259〜262、計4件)により289件になった後、謎解きトロフィー118問追加
-  // (#263〜380、計121件に増加)で412件に変わった)
+  // (#263〜380、計121件に増加)で412件に変わり、世界7不思議(7問+隠し特別2種、
+  // 計9件)の追加で421件になった)
   const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-  check(`[${label}] トロフィー412件が全てDOMに存在する`, totalCount === 412);
+  check(`[${label}] トロフィー421件が全てDOMに存在する`, totalCount === 421);
 
   // 8. 隠しトロフィーの表示仕様が維持されている(「？？？？？？」のまま)。
-  // 既存14件+隠しトロフィー61種類(#195〜255)=75件
+  // 既存14件+隠しトロフィー61種類のうちNo.220を除く60件+世界7不思議隠し特別
+  // 2種(未獲得)=76件
   const hiddenNames = await page.$$eval(".trophy-card.trophy-card-secret .trophy-name", (els) => els.map((e) => e.textContent.trim()));
-  check(`[${label}] 隠しトロフィー(75件)が全て「？？？？？？」のまま表示される`, hiddenNames.length === 75 && hiddenNames.every((t) => t === "？？？？？？"));
+  check(`[${label}] 隠しトロフィー(76件)が全て「？？？？？？」のまま表示される`, hiddenNames.length === 76 && hiddenNames.every((t) => t === "？？？？？？"));
 
   check(`[${label}] コンソール/ページエラーが発生していない`, consoleErrors.length === 0);
   if (consoleErrors.length) consoleErrors.forEach((e) => console.log(`  [${label}] console error:`, e));
