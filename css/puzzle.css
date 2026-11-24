@@ -83,7 +83,13 @@
 }
 .puzzle-question-text.expanded {
   -webkit-line-clamp: unset;
-  overflow: visible;
+  /* 既存126問の展開時の最大高さは約142pxで収まるため、この上限は
+     通常の問題には一切影響しない。世界7不思議の長い問題文(詩の全文)を
+     展開した際に、国旗検索・一覧・回答ボタンが画面外へ押し出されて
+     操作不能にならないよう、問題文自体を内部スクロール領域にする */
+  max-height: 42vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .puzzle-question-toggle {
   display: block;
