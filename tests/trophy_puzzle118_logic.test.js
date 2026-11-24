@@ -62,8 +62,9 @@ const { assertFailures, TrophyModule: Trophy, Storage, PuzzleJudgeModule: Judge,
 {
   check("自己検証(trophy.js)のassertFailuresが0件", assertFailures.length === 0);
 
-  const EXISTING_IDS = ["puzzle-01", "puzzle-02", "puzzle-04"];
-  const newQuestions = PUZZLE_QUESTIONS.filter((q) => !EXISTING_IDS.includes(q.id));
+  // 【高難度謎解き5問追加(No.381〜385)後も、この118問固有のチェックが
+  // 対象をずらさないよう、trophyNumberの範囲(263〜380)で絞り込む】
+  const newQuestions = PUZZLE_QUESTIONS.filter((q) => q.trophyNumber >= 263 && q.trophyNumber <= 380);
   check("新規登録数が118問", newQuestions.length === 118);
 
   const newTrophyNumbers = newQuestions.map((q) => q.trophyNumber).sort((a, b) => a - b);
