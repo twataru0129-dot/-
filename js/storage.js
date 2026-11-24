@@ -61,6 +61,20 @@ const ENCYCLOPEDIA_REGION_VISITED_VERSION = 1;
 const ENCYCLOPEDIA_SEARCH_OPENED_KEY = STORAGE_PREFIX + "encyclopedia_search_opened";
 const ENCYCLOPEDIA_SEARCH_OPENED_VERSION = 1;
 
+// 世界7不思議: 不正解確定による7日間(168時間)ロックの保存領域。既存の
+// どの保存キーとも衝突しない新規キー(wfq_v1_seven_wonders_lock)。
+// 「獲得済みの判定」自体はjs/trophy.js(TrophyModule.isEarned)の既存の
+// 獲得記録をそのまま使うため、ここには一切記録しない(重複保存を避ける。
+// セクション8の要求どおり)。ここで保存するのは「不正解が確定した時刻
+// (failedAt)」と「それから168時間後に再挑戦できるようになる時刻
+// (unlockAt)」だけで、問題id(SEVEN_WONDERS_QUESTIONS[].id)をキーとした
+// 辞書として持つ(1問ごとに完全に独立。他の問題のロック状態には一切影響
+// しない)。経過時間ベース(unlockAt = failedAt + 604800000ms)で判定する
+// ため、カレンダー日付が変わったかどうかには依存しない
+const SEVEN_WONDERS_LOCK_KEY = STORAGE_PREFIX + "seven_wonders_lock";
+const SEVEN_WONDERS_LOCK_VERSION = 1;
+const SEVEN_WONDERS_LOCK_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 168時間
+
 function keysForMode(mode) {
   return mode === "capital" ? CapitalStorageKeys : StorageKeys;
 }
@@ -402,6 +416,54 @@ const encyclopediaSearchOpenedStore = makeEncyclopediaIdSetStore(
   ENCYCLOPEDIA_SEARCH_OPENED_KEY, ENCYCLOPEDIA_SEARCH_OPENED_VERSION, findCountryCollectionValidIds
 );
 
+// ---------- 世界7不思議: 7日間(168時間)ロックの読み書き ----------
+function sevenWondersLockEmpty() { return { version: SEVEN_WONDERS_LOCK_VERSION, locks: {} }; }
+function loadSevenWondersLock() {
+  const raw = safeGet(SEVEN_WONDERS_LOCK_KEY);
+  if (!raw) return sevenWondersLockEmpty();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || parsed.version !== SEVEN_WONDERS_LOCK_VERSION
+      || !parsed.locks || typeof parsed.locks !== "object") {
+      return sevenWondersLockEmpty();
+    }
+    return parsed;
+  } catch (e) {
+    console.warn("世界7不思議のロック状態の読み込みに失敗しました。保存データを初期化します", e);
+    return sevenWondersLockEmpty();
+  }
+}
+function saveSevenWondersLock(data) { return safeSet(SEVEN_WONDERS_LOCK_KEY, JSON.stringify(data)); }
+
+const sevenWondersLockStore = {
+  // 問題idの現在のロック状態({failedAt, unlockAt}、記録が無い/壊れている
+  // 場合はnull)を返す。unlockAt自体の過去/未来判定はjs/puzzle.js・
+  // js/app.js側(呼び出し時点のDate.now()と比較)が行う。ここでは保存
+  // データの読み出しのみを行う
+  get(questionId) {
+    const data = loadSevenWondersLock();
+    const entry = data.locks[questionId];
+    if (!entry || typeof entry !== "object") return null;
+    if (!Number.isFinite(entry.failedAt) || !Number.isFinite(entry.unlockAt)) return null;
+    return { failedAt: entry.failedAt, unlockAt: entry.unlockAt };
+  },
+  // 不正解確定時に1回だけ呼ぶ。failedAtMsを明示的に受け取る(呼び出し側で
+  // Date.now()を1回だけ評価し、保存とUI表示で同じ時刻を使えるようにする)。
+  // すでに正解済みの問題をロックしてしまうことが無いよう、呼び出し側
+  // (js/puzzle.js)がTrophyModule.isEarned()を確認した上でだけ呼ぶ想定
+  recordFailure(questionId, failedAtMs) {
+    try {
+      if (typeof questionId !== "string" || !Number.isFinite(failedAtMs)) return false;
+      const data = loadSevenWondersLock();
+      data.locks[questionId] = { failedAt: failedAtMs, unlockAt: failedAtMs + SEVEN_WONDERS_LOCK_DURATION_MS };
+      return !!saveSevenWondersLock(data);
+    } catch (e) {
+      console.warn("世界7不思議のロック状態の保存に失敗しました", e);
+      return false;
+    }
+  },
+};
+
 const Storage = {
   // ---- 効果音設定 ----
   isSoundEnabled() {
@@ -719,6 +781,11 @@ const Storage = {
   getEncyclopediaSearchOpenedCount() { return encyclopediaSearchOpenedStore.getCount(); },
   recordEncyclopediaSearchOpened(id) { return encyclopediaSearchOpenedStore.record(id); },
 
+  // 世界7不思議: 7日間(168時間)ロックの読み書き
+  getSevenWonderLock(questionId) { return sevenWondersLockStore.get(questionId); },
+  recordSevenWonderFailure(questionId, failedAtMs) { return sevenWondersLockStore.recordFailure(questionId, failedAtMs); },
+  SEVEN_WONDERS_LOCK_DURATION_MS,
+
   // ---- データリセット(国旗・首都両方の称号・記録だけを消す) ----
   // 効果音設定(StorageKeys.SOUND)は確認画面の文言(「称号・記録をリセット」)
   // に合わせて対象外にする。以前はStorageKeysの全キー(SOUNDを含む)を
@@ -745,6 +812,7 @@ const Storage = {
       ENCYCLOPEDIA_REVIEWED_KEY,
       ENCYCLOPEDIA_REGION_VISITED_KEY,
       ENCYCLOPEDIA_SEARCH_OPENED_KEY,
+      SEVEN_WONDERS_LOCK_KEY,
     ];
     keysToRemove.forEach((k) => {
       try { localStorage.removeItem(k); } catch (e) { /* noop */ }

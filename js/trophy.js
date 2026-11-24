@@ -258,6 +258,26 @@ const TrophyModule = (() => {
   // (下記参照)
   const ENCYCLOPEDIA4_NUMBERS = [259, 260, 261, 262];
 
+  // 世界7不思議(7問、#386〜392)+隠し特別トロフィー2種(ミステリーハンター
+  // #393・全知全能の神#394)。js/seven-wonders-questions.js
+  // (SEVEN_WONDERS_QUESTIONS)から動的に生成する点は謎解きトロフィーと同じ。
+  // この7問は意図的にPUZZLE_QUESTIONS(通常謎解き126問)とは別の配列に
+  // 分離してあるため、「通常謎解きを全問獲得」の判定(isAllNormalPuzzlesEarned、
+  // 下記)の対象に構造上絶対に混入しない(循環参照防止)。番号は既存の
+  // どのトロフィー番号(謎解き#256〜385含む)とも重複しない、現時点で
+  // 未使用の#386〜394を新しく割り振った
+  const SEVEN_WONDERS_QUESTION_LIST = typeof SEVEN_WONDERS_QUESTIONS !== "undefined" ? SEVEN_WONDERS_QUESTIONS : [];
+  const SEVEN_WONDERS_TROPHY_NUMBERS = SEVEN_WONDERS_QUESTION_LIST.map((q) => q.trophyNumber);
+  const MYSTERY_HUNTER_NUMBER = 393;
+  const OMNISCIENT_GOD_NUMBER = 394;
+  // js/seven-wonders-questions.jsが読み込まれていない場合(未更新の既存
+  // テストファイル等)は、PUZZLE_QUESTIONSが空の場合と同じく、世界7不思議
+  // 関連の番号を一切予約しない(#393・#394も含め、既存の254+謎解き件数の
+  // 構成に一切影響を与えない、完全な後方互換)
+  const SEVEN_WONDERS_ALL_NUMBERS = SEVEN_WONDERS_TROPHY_NUMBERS.length
+    ? SEVEN_WONDERS_TROPHY_NUMBERS.concat([MYSTERY_HUNTER_NUMBER, OMNISCIENT_GOD_NUMBER])
+    : [];
+
   // 謎解きトロフィー自身が実際に占有している範囲の上限(PUZZLE_QUESTIONSが
   // 空の場合は255のまま)。全体の上限(MAX_TROPHY_NUMBER、下記)とは区別する。
   // 世界図鑑追加分(#259〜262)のように謎解きより後ろに固定番号の別の段階が
@@ -269,17 +289,17 @@ const TrophyModule = (() => {
     ? Math.max(PUZZLE_TROPHY_NUMBER_BASE, ...PUZZLE_TROPHY_NUMBERS)
     : PUZZLE_TROPHY_NUMBER_BASE;
 
-  const MAX_TROPHY_NUMBER = Math.max(PUZZLE_OWN_MAX_NUMBER, ...ENCYCLOPEDIA4_NUMBERS);
+  const MAX_TROPHY_NUMBER = Math.max(PUZZLE_OWN_MAX_NUMBER, ...ENCYCLOPEDIA4_NUMBERS, ...SEVEN_WONDERS_ALL_NUMBERS);
 
   // 謎解き自身の範囲(PUZZLE_OWN_MAX_NUMBERまで)と世界図鑑追加分
-  // (ENCYCLOPEDIA4_NUMBERS)のどちらにも属さない番号(例: PUZZLE_QUESTIONSが
-  // 空、または謎解きの件数が少ない状態で、#259より手前の番号が余ってしまう
-  // 場合)は、スロット自体を作らない(confirmed:falseの未定義スロットを
-  // 残さない)。これにより、謎解きの件数に関わらずTROPHIES.length・
-  // カテゴリ別集計が常に正しい値になる
+  // (ENCYCLOPEDIA4_NUMBERS)・世界7不思議(SEVEN_WONDERS_ALL_NUMBERS)の
+  // どちらにも属さない番号(例: PUZZLE_QUESTIONSが空、または謎解きの件数が
+  // 少ない状態で、#259より手前の番号が余ってしまう場合)は、スロット自体を
+  // 作らない(confirmed:falseの未定義スロットを残さない)。これにより、
+  // 謎解きの件数に関わらずTROPHIES.length・カテゴリ別集計が常に正しい値になる
   const UNCLAIMED_GAP_NUMBERS = [];
   for (let n = PUZZLE_OWN_MAX_NUMBER + 1; n <= MAX_TROPHY_NUMBER; n++) {
-    if (!ENCYCLOPEDIA4_NUMBERS.includes(n)) UNCLAIMED_GAP_NUMBERS.push(n);
+    if (!ENCYCLOPEDIA4_NUMBERS.includes(n) && !SEVEN_WONDERS_ALL_NUMBERS.includes(n)) UNCLAIMED_GAP_NUMBERS.push(n);
   }
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
@@ -1868,6 +1888,82 @@ const TrophyModule = (() => {
   }, {});
 
   // ========================================================
+  // 世界7不思議(#386〜392、7問)。js/puzzle.jsのhandleSubmit()が、謎解きと
+  // 区別するために ctx.source === "sevenWonder"(通常謎解きは"puzzle") で
+  // 呼び分けるため、checkがそれを要求する。これにより、通常謎解きの正解
+  // 判定(evaluatePuzzleAnswer)がこの7問を誤って獲得させることは構造上
+  // 発生しない(逆方向も同様)。
+  // mode: "sevenWonder"(既存のどのmode文字列とも重複しない専用の値)
+  // puzzleQuestionId: SEVEN_WONDERS_QUESTIONS[].id(js/app.jsの専用カードが
+  // SEVEN_WONDERS_QUESTIONS_BY_IDから問題文を参照する)
+  // ========================================================
+  const STAGE_SEVEN_WONDERS_DEFINITIONS = SEVEN_WONDERS_QUESTION_LIST.reduce((defs, q) => {
+    const number = q.trophyNumber;
+    defs[number] = {
+      name: q.title,
+      condition: q.questionText,
+      mode: "sevenWonder",
+      description: typeof q.explanationText === "string" ? q.explanationText : null,
+      puzzleQuestionId: q.id,
+      check: (ctx) => !!ctx && ctx.source === "sevenWonder" && ctx.questionId === q.id && ctx.correct === true,
+    };
+    return defs;
+  }, {});
+
+  // 通常謎解き126問(PUZZLE_TROPHY_NUMBERS、世界7不思議自身は含まない)を
+  // すべて獲得しているか。この関数自身は世界7不思議・隠し特別トロフィー2種を
+  // 一切参照しないため、循環参照・無限ループは構造上発生しない
+  function isAllNormalPuzzlesEarned() {
+    if (!PUZZLE_TROPHY_NUMBERS.length) return false;
+    return PUZZLE_TROPHY_NUMBERS.every((n) => isEarned(`trophy_${n}`));
+  }
+  // 世界7不思議7問(SEVEN_WONDERS_TROPHY_NUMBERS、全知全能の神#394自身は
+  // 含まない)をすべて獲得しているか。解いた順序は問わない
+  function isAllSevenWondersEarned() {
+    if (!SEVEN_WONDERS_TROPHY_NUMBERS.length) return false;
+    return SEVEN_WONDERS_TROPHY_NUMBERS.every((n) => isEarned(`trophy_${n}`));
+  }
+
+  // ========================================================
+  // 世界7不思議 隠し特別トロフィー2種(#393「ミステリーハンター」・
+  // #394「全知全能の神」)。どちらもstageを一切指定しない(既定のnull)ため、
+  // evaluate()が呼ばれるたびに(クイズ終了・謎解き正解・世界図鑑閲覧・
+  // 世界7不思議の回答確定など、どの呼び出し経路からでも)自動的に判定される。
+  // これにより、
+  //   - 通常謎解きの126問目をちょうど正解した瞬間に#393が即座に獲得される
+  //     (js/puzzle.jsのawardTrophyIfNew()が、この回のawardedIdsの中から
+  //     #393のidも見つけて解放演出につなげる)。
+  //   - 本更新より前からすでに126問全問を獲得済みだった利用者も、次回
+  //     起動時にTrophyModule.evaluateSevenWondersCatchUp()(新規、
+  //     app.js起動処理から1回だけ呼ぶ)経由で静かに解放される。
+  // のどちらも、追加の専用コードを増やさずに同じcheck関数1つで両立できる。
+  // #393自身・世界7不思議7問・#394は、isAllNormalPuzzlesEarned()の対象
+  // (PUZZLE_TROPHY_NUMBERS)に含まれないため、循環参照は発生しない
+  // ========================================================
+  // js/seven-wonders-questions.jsが読み込まれていない(SEVEN_WONDERS_QUESTION_LIST
+  // が空)場合は、この2件自体を定義しない。MAX_TROPHY_NUMBERも#393・#394を
+  // 含まなくなるため、TROPHIESにそもそもこの2件のスロットが作られない
+  // (既存のPUZZLE_QUESTIONSが空の場合と同じ、完全な後方互換)
+  const STAGE_SEVEN_WONDERS_SPECIAL_DEFINITIONS = SEVEN_WONDERS_QUESTION_LIST.length ? {
+    [MYSTERY_HUNTER_NUMBER]: {
+      name: "ミステリーハンター",
+      condition: "世界7不思議を除く、謎解きトロフィーをすべて獲得",
+      mode: "sevenWonder",
+      check: () => isAllNormalPuzzlesEarned(),
+      description:
+        "数え切れぬ謎を解き明かし、ついに最後の欠片を手にした者。その先には、まだ誰も踏み込んだことのない七つの封印が待っている。",
+    },
+    [OMNISCIENT_GOD_NUMBER]: {
+      name: "全知全能の神",
+      condition: "世界7不思議を全7問獲得",
+      mode: "sevenWonder",
+      check: () => isAllSevenWondersEarned(),
+      description:
+        "暗号機、古地図、歴史の年表、歌と星、密書、そして旗。世界に散らばる七つの不思議をすべて解き明かした者だけが到達する、知の頂。",
+    },
+  } : {};
+
+  // ========================================================
   // 世界図鑑トロフィー追加分(No.259〜262、計4件)。既存の世界図鑑トロフィー
   // 16種類(No.143〜158)と合わせて合計20種類になる。既存16種類の名称・
   // 番号・獲得条件は一切変更しない。
@@ -1953,6 +2049,8 @@ const TrophyModule = (() => {
     // 謎解きトロフィー(第3段階)。件数がPUZZLE_QUESTIONSの増減に応じて
     // 変わるため、range表記は固定の終端を書かない
     { id: "puzzle", label: "謎解きトロフィー", range: "#256〜" },
+    // 世界7不思議(7問+隠し特別2種、#386〜394)
+    { id: "sevenWonders", label: "世界7不思議", range: "#386〜394" },
   ];
   // #142「都の神話」・#158「世界の叡智」は、既存の番号区分(#60〜70の
   // 特別チャレンジ、#143〜157の世界図鑑)とは別に、両方とも「特別チャレンジ」
@@ -1977,6 +2075,10 @@ const TrophyModule = (() => {
     // ENCYCLOPEDIA4_NUMBERSへの実在チェックで判定する(将来、謎解き
     // トロフィーの番号がこの範囲まで増えても誤判定しない)
     if (ENCYCLOPEDIA4_NUMBERS.includes(number)) return "encyclopedia";
+    // 世界7不思議(7問+隠し特別2種、#386〜394)は、謎解きトロフィーの番号
+    // 範囲(#256〜)と入り交じる位置にあるため、ENCYCLOPEDIA4_NUMBERSと同様に
+    // 実在チェックで判定する
+    if (SEVEN_WONDERS_ALL_NUMBERS.includes(number)) return "sevenWonders";
     return "puzzle"; // #256〜(謎解きトロフィー、第3段階。上記以外)
   }
   function getCategories() {
@@ -2097,6 +2199,19 @@ const TrophyModule = (() => {
   // トロフィーとして扱う(表示自体は今回実装しないが、将来の一覧画面で
   // 既存のsecretLocked分岐をそのまま使えるようにhiddenフラグだけ先に立てる)
   const HIDDEN61_NUMBERS = Array.from({ length: 61 }, (_, i) => 195 + i);
+  // 世界7不思議: No.220「東京スカイツリー」のみ、隠しトロフィー61種類の
+  // 表示仕様(未獲得時は名称・条件を伏せる)から例外的に除外する。世界7
+  // 不思議Ⅰ「暗号作戦634」の鍵が、この獲得条件(「合計得点の下3桁が634に
+  // なる」)を読むことで手に入るため、No.220自身を獲得しなくても条件文を
+  // 読めるようにする必要がある。獲得条件・保存キー・判定ロジック(check・
+  // stage==="hidden61")自体は一切変更しない。他の60種類の表示・件数には
+  // 影響しない
+  const HIDDEN61_NOW_VISIBLE_NUMBER = 220;
+  // 世界7不思議 隠し特別トロフィー2種(#393・#394)は、既存のHIDDEN_TROPHY_
+  // NUMBERS/隠しトロフィー61種類と同じ「未獲得時は？？？？？？で伏せる」
+  // 表示仕様の対象に加える(js/app.jsの専用カードが、def.hiddenをこの2件にも
+  // 適用する)
+  const SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS = new Set([MYSTERY_HUNTER_NUMBER, OMNISCIENT_GOD_NUMBER]);
 
   // トロフィー一覧の集計方式A案: 国旗・首都を独立管理するデュアル状態の
   // トロフィーは、国旗・首都を完全に独立した2枠として数える。
@@ -2124,18 +2239,28 @@ const TrophyModule = (() => {
   applyStageBDefinitions(TROPHIES, STAGE_HIDDEN61_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_PUZZLE_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_ENCYCLOPEDIA4_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_SEVEN_WONDERS_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_SEVEN_WONDERS_SPECIAL_DEFINITIONS);
   // category/hidden/stageのみをここで補完する(name/condition/mode/checkは
   // applyStageBDefinitions()が設定した値から一切変更しない)。
   // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
-  // - hidden: 既存のHIDDEN_TROPHY_NUMBERS(14件)+隠しトロフィー61種類(61件)の
-  //   合計75件のみtrue、残り175件はfalse
+  // - hidden: 既存のHIDDEN_TROPHY_NUMBERS(14件)+隠しトロフィー61種類の
+  //   うちNo.220を除く60件+世界7不思議隠し特別2種(#393・#394)がtrue。
+  //   世界7不思議7問自身(#386〜392)はhidden:trueにしない(未獲得でも
+  //   ロック解除後は通常の謎解きカードと同じく問題文を常に見せるため。
+  //   ロック中の専用マスキングはjs/app.js側の専用カード描画が、この
+  //   hiddenフラグとは別の「世界7不思議の解放状態」を見て行う)
   // - stage: 隠しトロフィー61種類だけ"hidden61"を持つ(evaluate()が既定では
   //   この61件を一切判定しないようにするための絞り込み専用マーカー。
-  //   表示には使わない)
+  //   表示には使わない。No.220もこのstageのまま変更しない)
   TROPHIES.forEach((t) => {
     t.category = categoryForNumber(t.number);
-    t.hidden = HIDDEN_TROPHY_NUMBERS.has(t.number) || HIDDEN61_NUMBERS.includes(t.number);
-    t.stage = (t.number >= 195 && t.number <= 255) ? "hidden61" : null;
+    t.hidden = HIDDEN_TROPHY_NUMBERS.has(t.number)
+      || (HIDDEN61_NUMBERS.includes(t.number) && t.number !== HIDDEN61_NOW_VISIBLE_NUMBER)
+      || SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS.has(t.number);
+    t.stage = (t.number >= 195 && t.number <= 255)
+      ? "hidden61"
+      : (SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS.has(t.number) ? "sevenWondersSpecial" : null);
   });
   const TROPHY_BY_ID = new Map(TROPHIES.map((t) => [t.id, t]));
 
@@ -2144,10 +2269,12 @@ const TrophyModule = (() => {
   (function validateTrophyDefinitions() {
     // 謎解きトロフィー(第3段階)はPUZZLE_QUESTION_LIST.length件だけ250に
     // 加算される(件数が増減しても自動的に追従する)。世界図鑑トロフィー
-    // 追加分(#259〜262、固定4件)は別途254への加算として扱う
+    // 追加分(#259〜262、固定4件)は別途254への加算として扱う。世界7不思議
+    // (7問+隠し特別2種、固定9件)もSEVEN_WONDERS_ALL_NUMBERS.lengthとして
+    // 同様に加算する
     console.assert(
-      TROPHIES.length === 254 + PUZZLE_QUESTION_LIST.length,
-      `トロフィー定義が254+謎解き件数ではありません(実際: ${TROPHIES.length}件、期待値: ${254 + PUZZLE_QUESTION_LIST.length}件)`
+      TROPHIES.length === 254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length,
+      `トロフィー定義が254+謎解き件数+世界7不思議件数ではありません(実際: ${TROPHIES.length}件、期待値: ${254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length}件)`
     );
     const numbers = new Set(TROPHIES.map((t) => t.number));
     console.assert(numbers.size === TROPHIES.length, "トロフィー定義のnumberに重複があります");
@@ -2172,6 +2299,8 @@ const TrophyModule = (() => {
     const hidden61Numbers = Object.keys(STAGE_HIDDEN61_DEFINITIONS).map(Number);
     const puzzleNumbers = Object.keys(STAGE_PUZZLE_DEFINITIONS).map(Number);
     const encyclopedia4Numbers = Object.keys(STAGE_ENCYCLOPEDIA4_DEFINITIONS).map(Number);
+    const sevenWondersNumbers = Object.keys(STAGE_SEVEN_WONDERS_DEFINITIONS).map(Number);
+    const sevenWondersSpecialNumbers = Object.keys(STAGE_SEVEN_WONDERS_SPECIAL_DEFINITIONS).map(Number);
     console.assert(
       stageBNumbers.every((n) => !stageDNumbers.includes(n)),
       "STAGE_B_DEFINITIONSとSTAGE_D_DEFINITIONSで番号が重複しています"
@@ -2219,6 +2348,53 @@ const TrophyModule = (() => {
       new Set(encyclopedia4Numbers).size === 4 && [259, 260, 261, 262].every((n) => encyclopedia4Numbers.includes(n)),
       "STAGE_ENCYCLOPEDIA4_DEFINITIONSの番号が#259〜262ちょうどになっていません"
     );
+    // 世界7不思議(7問+隠し特別2種)が、既存の全定義と番号が重複していない
+    // ことを確認する
+    console.assert(
+      sevenWondersNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n) && !encyclopediaNumbers.includes(n) && !findCountryNumbers.includes(n) && !hidden61Numbers.includes(n) && !puzzleNumbers.includes(n) && !encyclopedia4Numbers.includes(n)),
+      "STAGE_SEVEN_WONDERS_DEFINITIONSが既存の定義と番号が重複しています"
+    );
+    console.assert(
+      sevenWondersSpecialNumbers.every((n) => !stageBNumbers.includes(n) && !stageDNumbers.includes(n) && !capitalTriviaNumbers.includes(n) && !legendNumbers.includes(n) && !encyclopediaNumbers.includes(n) && !findCountryNumbers.includes(n) && !hidden61Numbers.includes(n) && !puzzleNumbers.includes(n) && !encyclopedia4Numbers.includes(n) && !sevenWondersNumbers.includes(n)),
+      "STAGE_SEVEN_WONDERS_SPECIAL_DEFINITIONSが既存の定義(世界7不思議7問含む)と番号が重複しています"
+    );
+    // js/seven-wonders-questions.jsが読み込まれていない(SEVEN_WONDERS_QUESTION_LIST
+    // が空)場合は、謎解き(PUZZLE_QUESTION_LIST)が空の場合と同じく0件が正しい
+    // ため、件数はハードコードせずSEVEN_WONDERS_QUESTION_LIST.lengthに対して
+    // 相対的に検証する(未更新の既存テストファイルを後方互換に保つ)
+    console.assert(
+      sevenWondersNumbers.length === SEVEN_WONDERS_QUESTION_LIST.length && new Set(sevenWondersNumbers).size === sevenWondersNumbers.length,
+      `STAGE_SEVEN_WONDERS_DEFINITIONSの件数がSEVEN_WONDERS_QUESTIONSの件数と一致しません(実際: ${JSON.stringify(sevenWondersNumbers)})`
+    );
+    if (SEVEN_WONDERS_QUESTION_LIST.length === 7) {
+      console.assert(
+        [386, 387, 388, 389, 390, 391, 392].every((n) => sevenWondersNumbers.includes(n)),
+        `STAGE_SEVEN_WONDERS_DEFINITIONSの番号が#386〜392ちょうど7件になっていません(実際: ${JSON.stringify(sevenWondersNumbers)})`
+      );
+    }
+    console.assert(
+      sevenWondersSpecialNumbers.length === (SEVEN_WONDERS_QUESTION_LIST.length ? 2 : 0)
+        && new Set(sevenWondersSpecialNumbers).size === sevenWondersSpecialNumbers.length,
+      `STAGE_SEVEN_WONDERS_SPECIAL_DEFINITIONSの件数が想定と一致しません(実際: ${JSON.stringify(sevenWondersSpecialNumbers)})`
+    );
+    if (SEVEN_WONDERS_QUESTION_LIST.length) {
+      console.assert(
+        [MYSTERY_HUNTER_NUMBER, OMNISCIENT_GOD_NUMBER].every((n) => sevenWondersSpecialNumbers.includes(n)),
+        `STAGE_SEVEN_WONDERS_SPECIAL_DEFINITIONSの番号が#393・#394ちょうど2件になっていません(実際: ${JSON.stringify(sevenWondersSpecialNumbers)})`
+      );
+    }
+    // 循環参照防止の自己検証: 「通常謎解きを全問獲得」の判定対象
+    // (PUZZLE_TROPHY_NUMBERS)に世界7不思議・隠し特別2種が含まれないこと、
+    // 「世界7不思議を全7問獲得」の判定対象(SEVEN_WONDERS_TROPHY_NUMBERS)に
+    // 全知全能の神(#394)自身が含まれないことを確認する
+    console.assert(
+      PUZZLE_TROPHY_NUMBERS.every((n) => !sevenWondersNumbers.includes(n) && !sevenWondersSpecialNumbers.includes(n)),
+      "PUZZLE_TROPHY_NUMBERS(通常謎解き全問判定の対象)に世界7不思議の番号が混入しています(循環参照の危険)"
+    );
+    console.assert(
+      !SEVEN_WONDERS_TROPHY_NUMBERS.includes(OMNISCIENT_GOD_NUMBER),
+      "SEVEN_WONDERS_TROPHY_NUMBERS(世界7不思議全問判定の対象)に全知全能の神自身が混入しています(循環参照の危険)"
+    );
     // 「世界の大賢者」(#262)の判定対象(ENCYCLOPEDIA_19_NUMBERS)が、自分
     // 自身(262)を含まずちょうど19件(既存16件+259〜261の3件)であることを
     // 確認する(循環参照・無限ループの防止)
@@ -2263,9 +2439,10 @@ const TrophyModule = (() => {
     console.assert(hidden61Numbers.length === 61, `隠しトロフィー61種類(#195〜255)の定義が61件ではありません(実際: ${hidden61Numbers.length}件)`);
     const expectedConfirmedCountBeforePuzzle = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length + findCountryNumbers.length + hidden61Numbers.length + encyclopedia4Numbers.length;
     console.assert(expectedConfirmedCountBeforePuzzle === 254, `254件全てが確定するはずが、合計が254件になっていません(実際: ${expectedConfirmedCountBeforePuzzle}件)`);
-    // 謎解きトロフィー(第3段階)はPUZZLE_QUESTIONSの件数分だけ250に加算される
-    const expectedConfirmedCount = expectedConfirmedCountBeforePuzzle + puzzleNumbers.length;
-    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑・findcountry36・隠しトロフィー61・謎解きで確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    // 謎解きトロフィー(第3段階)はPUZZLE_QUESTIONSの件数分だけ254に加算され、
+    // 世界7不思議(7問+隠し特別2種、固定9件)もさらに加算される
+    const expectedConfirmedCount = expectedConfirmedCountBeforePuzzle + puzzleNumbers.length + sevenWondersNumbers.length + sevenWondersSpecialNumbers.length;
+    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑・findcountry36・隠しトロフィー61・謎解き・世界7不思議で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
     // findcountry36のrarity構成が、仕様どおり普通14・レア12・スーパーレア10であること
     const findCountryDefs = TROPHIES.filter((t) => findCountryNumbers.includes(t.number));
     console.assert(findCountryDefs.every((t) => t.rarity === "normal" || t.rarity === "rare" || t.rarity === "super_rare"), "findcountry36のいずれかにrarityが設定されていません");
@@ -2310,13 +2487,18 @@ const TrophyModule = (() => {
     );
     const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
     console.assert(
-      categoryTotal === 254 + PUZZLE_QUESTION_LIST.length,
-      `カテゴリ別件数の合計が254+謎解き件数になっていません(実際: ${categoryTotal}件)`
+      categoryTotal === 254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length,
+      `カテゴリ別件数の合計が254+謎解き件数+世界7不思議件数になっていません(実際: ${categoryTotal}件)`
     );
     const puzzleCategoryCount = TROPHIES.filter((t) => t.category === "puzzle").length;
     console.assert(
       puzzleCategoryCount === PUZZLE_QUESTION_LIST.length,
       `puzzleカテゴリの件数がPUZZLE_QUESTIONSの件数と一致しません(実際: ${puzzleCategoryCount}件)`
+    );
+    const sevenWondersCategoryCount = TROPHIES.filter((t) => t.category === "sevenWonders").length;
+    console.assert(
+      sevenWondersCategoryCount === SEVEN_WONDERS_ALL_NUMBERS.length,
+      `sevenWondersカテゴリの件数が世界7不思議の件数(7問+隠し特別2種)と一致しません(実際: ${sevenWondersCategoryCount}件)`
     );
     const findCountryCategoryCount = TROPHIES.filter((t) => t.category === "findcountry").length;
     console.assert(findCountryCategoryCount === 36, `findcountryカテゴリの件数が36件(#159〜194)ではありません(実際: ${findCountryCategoryCount}件)`);
@@ -2339,25 +2521,57 @@ const TrophyModule = (() => {
     console.assert(!!legendDef && legendDef.category === "special", "#142「都の神話」のカテゴリがspecialになっていません");
     const greatLegendDef = TROPHIES.find((t) => t.number === 158);
     console.assert(!!greatLegendDef && greatLegendDef.category === "special", "#158「世界の叡智」のカテゴリがspecialになっていません");
-    // 隠しトロフィーは正式確定した75件のみ(HIDDEN_TROPHY_NUMBERSの既存14件+
-    // 隠しトロフィー61種類)。それ以外の175件はhidden:falseであること、
-    // 75件という件数そのものも確認する
+    // 隠しトロフィーは正式確定した74件(HIDDEN_TROPHY_NUMBERSの既存14件+
+    // 隠しトロフィー61種類のうちNo.220を除く60件)+世界7不思議隠し特別2種
+    // (js/seven-wonders-questions.jsが読み込まれていない場合は0件)のみ。
+    // No.220は世界7不思議Ⅰの手がかりとして条件文を常時公開するため、
+    // この件数から明示的に除外した(判定ロジック・保存キー自体は無変更)
+    const expectedHiddenCount = 74 + (SEVEN_WONDERS_QUESTION_LIST.length ? 2 : 0);
     const hiddenDefs = TROPHIES.filter((t) => t.hidden === true);
-    console.assert(hiddenDefs.length === 75, `隠しトロフィーが75件ではありません(実際: ${hiddenDefs.length}件)`);
+    console.assert(hiddenDefs.length === expectedHiddenCount, `隠しトロフィーが${expectedHiddenCount}件ではありません(実際: ${hiddenDefs.length}件)`);
     console.assert(
-      hiddenDefs.every((t) => HIDDEN_TROPHY_NUMBERS.has(t.number) || HIDDEN61_NUMBERS.includes(t.number))
-        && TROPHIES.filter((t) => !t.hidden).every((t) => !HIDDEN_TROPHY_NUMBERS.has(t.number) && !HIDDEN61_NUMBERS.includes(t.number)),
-      "hiddenフラグが正式確定した75件(HIDDEN_TROPHY_NUMBERS+隠しトロフィー61種類)と一致していません"
+      hiddenDefs.every((t) =>
+        HIDDEN_TROPHY_NUMBERS.has(t.number)
+        || (HIDDEN61_NUMBERS.includes(t.number) && t.number !== HIDDEN61_NOW_VISIBLE_NUMBER)
+        || SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS.has(t.number))
+        && TROPHIES.filter((t) => !t.hidden).every((t) =>
+          !HIDDEN_TROPHY_NUMBERS.has(t.number)
+          && (t.number === HIDDEN61_NOW_VISIBLE_NUMBER || !HIDDEN61_NUMBERS.includes(t.number))
+          && !SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS.has(t.number)),
+      "hiddenフラグが正式確定した76件(HIDDEN_TROPHY_NUMBERS+隠しトロフィー61種類のうちNo.220を除く60件+世界7不思議隠し特別2種)と一致していません"
+    );
+    // No.220自身はhidden61のstageのまま(判定ロジック不変)だが、表示上は
+    // 例外的にhidden:falseになっていることを確認する
+    const no220Def = TROPHIES.find((t) => t.number === HIDDEN61_NOW_VISIBLE_NUMBER);
+    console.assert(
+      !!no220Def && no220Def.hidden === false && no220Def.stage === "hidden61",
+      "No.220「東京スカイツリー」がhidden:false・stage:\"hidden61\"のまま保たれていません"
     );
     console.assert(TROPHIES.every((t) => typeof t.hidden === "boolean"), "hiddenがboolean以外のトロフィーがあります");
     // 隠しトロフィー61種類実装(第2段階)で追加したstage("hidden61"|null)の
     // 自己検証。evaluate()の絞り込みが正しく機能する前提(stage==="hidden61"が
-    // ちょうど61件、残り189件はnull)を確認する
+    // ちょうど61件)を確認する
     const stage61Defs = TROPHIES.filter((t) => t.stage === "hidden61");
     console.assert(stage61Defs.length === 61, `stage==="hidden61"のトロフィーが61件ではありません(実際: ${stage61Defs.length}件)`);
     console.assert(
-      stage61Defs.every((t) => HIDDEN61_NUMBERS.includes(t.number)) && TROPHIES.filter((t) => t.stage !== "hidden61").every((t) => t.stage === null),
+      stage61Defs.every((t) => HIDDEN61_NUMBERS.includes(t.number)),
       "stageフラグがHIDDEN61_NUMBERSと一致していません"
+    );
+    // 世界7不思議 隠し特別2種(#393・#394)だけがstage==="sevenWondersSpecial"を
+    // 持つ(evaluate()の絞り込みにより、通常のクイズ終了・世界図鑑閲覧等の
+    // 既存の呼び出し経路からは一切判定されない。js/trophy.js内の
+    // evaluatePuzzleAnswer・evaluateSevenWonderAnswer・
+    // evaluateSevenWondersCatchUpの3箇所だけが、この2件を明示的に判定する)。
+    // 残り(254+PUZZLE_QUESTION_LIST.length+7)件はstage===null(hidden61を除く)
+    const stageSevenWondersSpecialDefs = TROPHIES.filter((t) => t.stage === "sevenWondersSpecial");
+    console.assert(
+      stageSevenWondersSpecialDefs.length === (SEVEN_WONDERS_QUESTION_LIST.length ? 2 : 0)
+        && stageSevenWondersSpecialDefs.every((t) => SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS.has(t.number)),
+      `stage==="sevenWondersSpecial"のトロフィーが想定件数になっていません(実際: ${stageSevenWondersSpecialDefs.length}件)`
+    );
+    console.assert(
+      TROPHIES.filter((t) => t.stage !== "hidden61" && t.stage !== "sevenWondersSpecial").every((t) => t.stage === null),
+      "stageが想定外の値(hidden61/sevenWondersSpecial/null以外)のトロフィーがあります"
     );
     // 世界図鑑の地域制覇6件(#148〜153)の対象国数合計が、COUNTRIES全件数と
     // 一致すること(ハードコードした想定件数ではなく、countryIdsInRegion()が
@@ -2817,10 +3031,17 @@ const TrophyModule = (() => {
   // ため、この分岐が実際に通ることはない(安全な空振りのまま)
   // options.onlyStage: 隠しトロフィー61種類実装(第2段階)で追加。指定時は
   // t.stageが一致するトロフィーだけを判定する(他は一切チェックしない)。
-  // 省略時(既存の全呼び出し元)は、t.stage==="hidden61"の61件を常に
-  // スキップする(evaluateFindCountryHiddenProgress専用の呼び出し経路からしか
-  // 判定されないようにするための隔離。既存#1〜194の判定タイミング・
-  // 通知経路には一切影響しない)。
+  // 省略時(既存の全呼び出し元)は、t.stage==="hidden61"の61件と
+  // t.stage==="sevenWondersSpecial"の2件(ミステリーハンター・全知全能の神)を
+  // 常にスキップする(evaluateFindCountryHiddenProgress・
+  // evaluatePuzzleAnswer・evaluateSevenWonderAnswer・
+  // evaluateSevenWondersCatchUpの専用呼び出し経路からしか判定されないように
+  // するための隔離。既存#1〜385・世界図鑑追加分の判定タイミング・通知経路
+  // には一切影響しない。特にsevenWondersSpecialは、context無しで常にtrueに
+  // なりうる判定(Storage/既存獲得記録だけを見る)のため、クイズ終了・
+  // 世界図鑑閲覧等の既存呼び出し経路に紛れ込むと、本来の獲得通知演出を
+  // 経由せず静かに獲得記録だけが書き込まれてしまう。これを避けるため
+  // 常に明示的な呼び出し経路からしか判定しない)。
   // 戻り値のhiddenAwardedIdsには、今回新たに獲得が確定したstage==="hidden61"の
   // idだけが入る(awardedIdsには入らないため、既存の呼び出し元(js/app.js・
   // js/findcountry.js)が行う獲得通知・専用演出のトリガーには一切混入しない。
@@ -2834,7 +3055,7 @@ const TrophyModule = (() => {
       if (!t.confirmed || typeof t.check !== "function") return;
       if (onlyStage) {
         if (t.stage !== onlyStage) return;
-      } else if (t.stage === "hidden61") {
+      } else if (t.stage === "hidden61" || t.stage === "sevenWondersSpecial") {
         return;
       }
       const isDual = t.mode === "both";
@@ -2923,8 +3144,95 @@ const TrophyModule = (() => {
   // 要求するため、挑戦中の問題以外のトロフィーが誤って獲得されることは
   // 構造上発生しない。correct:falseで呼んでも(呼ばれない想定だが)、
   // check関数がctx.correct===trueを要求するため何も獲得しない
+  // 通常謎解き(#256〜385、世界7不思議は含まない)の正解判定に加え、同じ
+  // 呼び出しの中で、stage==="sevenWondersSpecial"(ミステリーハンターのみ。
+  // 全知全能の神はここでは絶対にtrueにならない)も明示的に判定する。これに
+  // より、通常謎解きの最後の1問に正解した「その瞬間」にミステリーハンターも
+  // 即座に獲得される(js/puzzle.js側が、戻り値のawardedIds配列に両方のidが
+  // 入っている場合があることを前提に演出をつなげる)
   function evaluatePuzzleAnswer(context) {
-    return evaluate(Object.assign({ source: "puzzle" }, context));
+    const normal = evaluate(Object.assign({ source: "puzzle" }, context));
+    const special = evaluate(Object.assign({ source: "puzzle" }, context), { onlyStage: "sevenWondersSpecial" });
+    return {
+      awardedIds: normal.awardedIds.concat(special.awardedIds),
+      hiddenAwardedIds: normal.hiddenAwardedIds.concat(special.hiddenAwardedIds),
+    };
+  }
+
+  // 世界7不思議(js/puzzle.jsのhandleSubmit())からの呼び出し専用。
+  // context: { questionId(挑戦中の問題id、SEVEN_WONDERS_QUESTIONS[].id)、
+  // correct(真偽値) }。STAGE_SEVEN_WONDERS_DEFINITIONSのcheck関数が
+  // ctx.source==="sevenWonder"かつctx.questionIdの完全一致を要求するため、
+  // 通常謎解き(evaluatePuzzleAnswer、source:"puzzle")側のトロフィーが
+  // 誤って獲得されることは構造上発生しない。このevaluate()呼び出しは
+  // stage指定なし(onlyStage省略)のため、同じ一回の呼び出しの中で、
+  // ミステリーハンター(#393、常にチェック対象)・全知全能の神(#394、同)も
+  // 併せて判定される。これにより、世界7不思議の7問目を正解した瞬間に
+  // 「その問題のトロフィー」と「全知全能の神」が同じawardedIds配列に
+  // 両方入ることがある(js/puzzle.js側がその両方を見て、専用演出を
+  // 正しい順序でつなげる)
+  function evaluateSevenWonderAnswer(context) {
+    const normal = evaluate(Object.assign({ source: "sevenWonder" }, context));
+    const special = evaluate(Object.assign({ source: "sevenWonder" }, context), { onlyStage: "sevenWondersSpecial" });
+    return {
+      awardedIds: normal.awardedIds.concat(special.awardedIds),
+      hiddenAwardedIds: normal.hiddenAwardedIds.concat(special.hiddenAwardedIds),
+    };
+  }
+
+  // 世界7不思議: アプリ起動時に1回だけ呼ぶ、追いつき判定専用の呼び出し経路。
+  // 本更新より前からすでに通常謎解き126問を全問獲得済みだった利用者を、
+  // 新しい謎解きへの回答を待たずに静かに解放する(「次回起動時に解放」の
+  // 要求)。contextに特別な情報は不要(ミステリーハンター・全知全能の神の
+  // check関数はisEarned()の現在値だけを見るため)。stage指定なし
+  // (onlyStage省略)のevaluate()を呼ぶだけなので、他のどのトロフィーの
+  // 判定・保存・通知経路にも影響を与えない(他の256件は、呼ばれるたびの
+  // 判定自体は行われるが、この呼び出しのcontextには他のcheck関数が要求する
+  // フィールド(例: source:"quiz"、ctx.correct等)が無いため、実質的に
+  // 何も新規獲得しない安全な空振りになる)
+  // onlyStage:"sevenWondersSpecial"を明示するため、通常のクイズ・世界図鑑・
+  // 「世界の国どこかな？」の既存254件・謎解き126件には一切触れない
+  // (空のcontextで他のトロフィーが誤って静かに獲得されることを構造上防ぐ)
+  function evaluateSevenWondersCatchUp() {
+    return evaluate({ source: "sevenWondersCatchUp" }, { onlyStage: "sevenWondersSpecial" });
+  }
+
+  // 世界7不思議が解放済みかどうか。ミステリーハンター(#393)の獲得有無を
+  // そのまま解放フラグとして再利用する(awardIfNew()による獲得記録は
+  // 一度確定すれば永久に残るため、「一度解放されたら二度とロックしない」
+  // という要求を、新しい保存キーを追加せずに満たせる。将来PUZZLE_QUESTIONSが
+  // 増えてisAllNormalPuzzlesEarned()が再びfalseになっても、すでに
+  // awardIfNew()で保存済みのミステリーハンターの獲得記録自体は消えない
+  // ため、解放状態は再ロックされない)
+  function isSevenWondersUnlocked() {
+    return isEarned(`trophy_${MYSTERY_HUNTER_NUMBER}`);
+  }
+
+  // 世界7不思議: 1問ごとの現在の状態を返す単一の判定経路
+  // ("locked"|"available"|"cooldown"|"completed")。js/puzzle.js(入室時の
+  // 多重アクセス防止)・js/app.js(一覧カードの表示)の両方がこの関数だけを
+  // 使う(ロック状態の判定ロジックを複製しない)。
+  //   - completed: この問題のトロフィーを獲得済み(再ロックは絶対に発生しない)
+  //   - locked: 世界7不思議が未解放(通常謎解き全問未達成)
+  //   - cooldown: 解放済みだが、直近の確定済み不正解から168時間以内
+  //   - available: 解放済み・未獲得・ロック無し(挑戦できる)
+  function getSevenWonderState(questionId) {
+    const q = SEVEN_WONDERS_QUESTION_LIST.find((item) => item.id === questionId);
+    if (!q) return "locked";
+    if (isEarned(`trophy_${q.trophyNumber}`)) return "completed";
+    if (!isSevenWondersUnlocked()) return "locked";
+    if (typeof Storage !== "undefined" && typeof Storage.getSevenWonderLock === "function") {
+      const lock = Storage.getSevenWonderLock(questionId);
+      if (lock && Date.now() < lock.unlockAt) return "cooldown";
+    }
+    return "available";
+  }
+  // cooldown状態の問題が再挑戦可能になる時刻(ミリ秒epoch)。cooldown以外の
+  // 状態、または記録が無い場合はnullを返す
+  function getSevenWonderUnlockAt(questionId) {
+    if (typeof Storage === "undefined" || typeof Storage.getSevenWonderLock !== "function") return null;
+    const lock = Storage.getSevenWonderLock(questionId);
+    return lock ? lock.unlockAt : null;
   }
 
   // Stage A: 「全データリセット」から呼ばれる。新トロフィーの獲得記録
@@ -2962,5 +3270,15 @@ const TrophyModule = (() => {
     evaluateFindCountryHiddenProgress,
     evaluateEncyclopediaVisit,
     evaluatePuzzleAnswer,
+    evaluateSevenWonderAnswer,
+    evaluateSevenWondersCatchUp,
+    isSevenWondersUnlocked,
+    getSevenWonderState,
+    getSevenWonderUnlockAt,
+    isAllNormalPuzzlesEarned,
+    isAllSevenWondersEarned,
+    SEVEN_WONDERS_TROPHY_NUMBERS,
+    MYSTERY_HUNTER_NUMBER,
+    OMNISCIENT_GOD_NUMBER,
   };
 })();
