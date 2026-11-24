@@ -25,9 +25,14 @@
 //   - 選択結果は国・地域の安定したid(js/countries.jsのCOUNTRIES[].id)の
 //     配列として保持する。同じidが複数回含まれてよい(「10種類」ではなく
 //     「10回」選べる仕様のため)。
-//   - 国旗一覧はjs/countries.js(COUNTRIES、198件)をそのまま参照するだけで、
-//     別データを複製しない。既存の国旗・首都クイズの出題対象(COUNTRIES)や
-//     読み仮名データ(js/encyclopedia-data.js)には一切手を加えない。
+//   - 国旗一覧はjs/countries.js(COUNTRIES、198件)とjs/map-regions.js
+//     (MAP_ONLY_REGIONS、18件、世界図鑑専用の地域)を合わせた計216件
+//     (PUZZLE_FLAG_POOL)をそのまま参照するだけで、別データを複製しない
+//     (謎解きトロフィー118問追加分、グリーンランド等を正解とする問題に
+//     対応するための拡張。既存の国旗・首都クイズの出題対象(COUNTRIES、
+//     198件のみ)には一切手を加えない)。読み仮名データ
+//     (js/encyclopedia-data.js、COUNTRIES+MAP_ONLY_REGIONSの216件分が
+//     既存)にも手を加えない。
 // ==========================================================
 
 const PuzzleModule = (() => {
@@ -115,11 +120,19 @@ const PuzzleModule = (() => {
     return haystack;
   }
 
-  // 198件を、現在の検索語・地域フィルターで絞り込み、既存の図鑑と同じ
+  // 謎解きトロフィー118問追加分: 正解にMAP_ONLY_REGIONS(地図専用18地域、
+  // グリーンランド・ニューカレドニア・西サハラ・ニウエ等)を含む問題が
+  // あるため、この画面の選択対象をCOUNTRIES(198件)単独から、世界図鑑と
+  // 同じCOUNTRIES+MAP_ONLY_REGIONS(計216件)に拡張する。対象を拡張する
+  // のはこの謎解き専用画面だけで、国旗クイズ・首都クイズ(どちらも
+  // COUNTRIES単独)には一切手を加えない
+  const PUZZLE_FLAG_POOL = COUNTRIES.concat(typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : []);
+
+  // 216件を、現在の検索語・地域フィルターで絞り込み、既存の図鑑と同じ
   // 読み仮名基準の五十音順(Intl.Collator("ja"))で並べて返す
   function computeList() {
     const normalizedQuery = searchQuery ? normalizeForSearch(searchQuery) : "";
-    return COUNTRIES.filter(
+    return PUZZLE_FLAG_POOL.filter(
       (c) =>
         (regionFilter === "all" || c.region === regionFilter) &&
         (!normalizedQuery || haystackFor(c).includes(normalizedQuery))
@@ -179,8 +192,12 @@ const PuzzleModule = (() => {
     card.className = "puzzle-flag-card";
     card.dataset.id = country.id;
     card.setAttribute("aria-label", `${country.name}を選ぶ`);
+    // MAP_ONLY_REGIONSの一部(南極大陸・北キプロス・ソマリランド・シアチェン
+    // 氷河)は国旗ではなくアイコン画像のため、既存の世界図鑑(js/encyclopedia.js)
+    // と同じくisFlagImage===falseの場合だけalt文言を変える
+    const alt = country.isFlagImage === false ? `${country.name}のアイコン` : `${country.name}の国旗`;
     card.innerHTML = `
-      <img class="puzzle-flag-img" src="${country.flag}" alt="${country.name}の国旗" loading="lazy">
+      <img class="puzzle-flag-img" src="${country.flag}" alt="${alt}" loading="lazy">
       <span class="puzzle-flag-name">${country.name}</span>
     `;
     // 選択済みでも無効化しない(同じ国旗を何度でも選べる仕様のため)
@@ -220,7 +237,7 @@ const PuzzleModule = (() => {
   }
 
   function countryById(id) {
-    return COUNTRIES.find((c) => c.id === id);
+    return PUZZLE_FLAG_POOL.find((c) => c.id === id);
   }
 
   function renderAnswerBar() {

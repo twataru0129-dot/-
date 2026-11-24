@@ -136,11 +136,14 @@ async function answerState(page) {
 
     const info = await page.evaluate(() => {
       const ids = Array.from(document.querySelectorAll("#puzzle-grid .puzzle-flag-card")).map((el) => el.dataset.id);
-      const countryIds = COUNTRIES.map((c) => c.id);
+      // 謎解き専用の国旗選択画面はCOUNTRIES(198件)+MAP_ONLY_REGIONS(18件)=
+      // 216件に拡張されている(国旗クイズ・首都クイズのCOUNTRIESのみの
+      // プールとは別物)
+      const poolIds = COUNTRIES.concat(typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : []).map((c) => c.id);
       const idSet = new Set(ids);
-      const countrySet = new Set(countryIds);
-      const missing = countryIds.filter((id) => !idSet.has(id));
-      const extra = ids.filter((id) => !countrySet.has(id));
+      const poolSet = new Set(poolIds);
+      const missing = poolIds.filter((id) => !idSet.has(id));
+      const extra = ids.filter((id) => !poolSet.has(id));
       const yomis = ids.map((id) => ENCYCLOPEDIA_YOMIGANA[id] || "");
       const collator = new Intl.Collator("ja");
       let sorted = true;
@@ -149,10 +152,10 @@ async function answerState(page) {
       }
       return { total: ids.length, unique: idSet.size, missingCount: missing.length, extraCount: extra.length, sorted };
     });
-    check("テスト1: 198件すべてが表示される", info.total === 198);
-    check("テスト1: 198件とも重複がない", info.unique === 198);
-    check("テスト1: COUNTRIESに存在するのに表示されていない国がない", info.missingCount === 0);
-    check("テスト1: COUNTRIESに存在しないidが混ざっていない", info.extraCount === 0);
+    check("テスト1: 216件(COUNTRIES198件+MAP_ONLY_REGIONS18件)すべてが表示される", info.total === 216);
+    check("テスト1: 216件とも重複がない", info.unique === 216);
+    check("テスト1: COUNTRIES+MAP_ONLY_REGIONSに存在するのに表示されていない国・地域がない", info.missingCount === 0);
+    check("テスト1: COUNTRIES+MAP_ONLY_REGIONSに存在しないidが混ざっていない", info.extraCount === 0);
     check("テスト1: 読み仮名基準の五十音順になっている", info.sorted);
 
     check("テスト1: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
@@ -254,12 +257,14 @@ async function answerState(page) {
     await page.click("#puzzle-search-clear");
     await page.waitForTimeout(200);
     const afterClearIds = await gridIds(page);
-    check("テスト5: 検索をクリアすると198件の一覧に戻る", afterClearIds.length === 198);
+    check("テスト5: 検索をクリアすると216件(COUNTRIES+MAP_ONLY_REGIONS)の一覧に戻る", afterClearIds.length === 216);
 
     await page.click('.puzzle-region-tab[data-region="asia"]');
     await page.waitForTimeout(200);
     const asiaIds = await gridIds(page);
-    const asiaCountInData = await page.evaluate(() => COUNTRIES.filter((c) => c.region === "asia").length);
+    const asiaCountInData = await page.evaluate(() =>
+      COUNTRIES.concat(typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : []).filter((c) => c.region === "asia").length
+    );
     check("テスト5: 地域フィルター(アジア)が正しく絞り込める", asiaIds.length === asiaCountInData && asiaIds.length > 0);
     const stateAfterRegion = await answerState(page);
     check("テスト5: 地域フィルター変更後も選択済みの回答は保持される", stateAfterRegion.count === "2 / 10");
@@ -271,7 +276,8 @@ async function answerState(page) {
     const expectedCombined = await page.evaluate(() => {
       function toHiragana(str) { return str.replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60)); }
       function norm(str) { return toHiragana(String(str).normalize("NFKC")).toLowerCase(); }
-      return COUNTRIES.filter((c) => c.region === "asia" && norm([c.name, c.englishName, ENCYCLOPEDIA_YOMIGANA[c.id] || ""].join(" ")).includes(norm("あ"))).length;
+      return COUNTRIES.concat(typeof MAP_ONLY_REGIONS !== "undefined" ? MAP_ONLY_REGIONS : [])
+        .filter((c) => c.region === "asia" && norm([c.name, c.englishName, ENCYCLOPEDIA_YOMIGANA[c.id] || ""].join(" ")).includes(norm("あ"))).length;
     });
     check("テスト5: 検索と地域フィルターを併用できる", combinedIds.length === expectedCombined && combinedIds.length > 0 && combinedIds.length < asiaIds.length);
 
@@ -619,9 +625,15 @@ async function answerState(page) {
     await page.waitForSelector("#btn-dev-puzzle-entry:not(.hidden)", { timeout: 5000 });
     await page.click("#btn-dev-puzzle-entry");
     const pickerButtonLabels = await page.$$eval(".puzzle-dev-question-btn", (els) => els.map((el) => ({ id: el.dataset.questionId, text: el.textContent })));
+    // 謎解きトロフィー118問追加(#263〜380)により、開発用の問題選択一覧は
+    // 既存3件(No.01・02・04)+新規118件の計121件になった
     check(
-      "テスト12: 開発用の問題選択一覧にNo.01・02・04の3件が表示される",
-      JSON.stringify(pickerButtonLabels.map((b) => b.id).sort()) === JSON.stringify(["puzzle-01", "puzzle-02", "puzzle-04"])
+      "テスト12: 開発用の問題選択一覧が121件(既存3件+新規118件)になっている",
+      pickerButtonLabels.length === 121
+    );
+    check(
+      "テスト12: 開発用の問題選択一覧に既存のNo.01・02・04が引き続き含まれる",
+      ["puzzle-01", "puzzle-02", "puzzle-04"].every((id) => pickerButtonLabels.some((b) => b.id === id))
     );
     check("テスト12: No.01の選択ボタンに正式名称が表示される", pickerButtonLabels.some((b) => b.id === "puzzle-01" && b.text.includes("世界三大料理")));
     check("テスト12: No.02の選択ボタンに正式名称が表示される", pickerButtonLabels.some((b) => b.id === "puzzle-02" && b.text.includes("人口の双璧")));

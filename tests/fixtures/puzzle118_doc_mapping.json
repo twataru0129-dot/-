@@ -1,0 +1,1173 @@
+[
+  {
+    "docNum": "002",
+    "title": "初代世界王者",
+    "trophyNumber": 263,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "uy",
+      "it"
+    ]
+  },
+  {
+    "docNum": "004",
+    "title": "音楽の神々",
+    "trophyNumber": 264,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "de",
+      "at"
+    ]
+  },
+  {
+    "docNum": "006",
+    "title": "赤い葉の国旗",
+    "trophyNumber": 265,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ca"
+    ]
+  },
+  {
+    "docNum": "007",
+    "title": "杉の木を探せ",
+    "trophyNumber": 266,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "lb"
+    ]
+  },
+  {
+    "docNum": "008",
+    "title": "太鼓と山の国",
+    "trophyNumber": 267,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "tz"
+    ]
+  },
+  {
+    "docNum": "009",
+    "title": "カカオの国",
+    "trophyNumber": 268,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ci",
+      "gh"
+    ]
+  },
+  {
+    "docNum": "010",
+    "title": "砂漠の王国",
+    "trophyNumber": 269,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ma"
+    ]
+  },
+  {
+    "docNum": "011",
+    "title": "海のない草原",
+    "trophyNumber": 270,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "mn"
+    ]
+  },
+  {
+    "docNum": "012",
+    "title": "南の細長い国",
+    "trophyNumber": 271,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "cl"
+    ]
+  },
+  {
+    "docNum": "013",
+    "title": "鳥の名を持つ国",
+    "trophyNumber": 272,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "nz"
+    ]
+  },
+  {
+    "docNum": "014",
+    "title": "二つの島の国",
+    "trophyNumber": 273,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "mt"
+    ]
+  },
+  {
+    "docNum": "015",
+    "title": "雷龍の王国",
+    "trophyNumber": 274,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "bt"
+    ]
+  },
+  {
+    "docNum": "016",
+    "title": "歌がつなぐ国",
+    "trophyNumber": 275,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "lv"
+    ]
+  },
+  {
+    "docNum": "017",
+    "title": "砂漠の半島",
+    "trophyNumber": 276,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "qa"
+    ]
+  },
+  {
+    "docNum": "018",
+    "title": "森と海の国",
+    "trophyNumber": 277,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ga"
+    ]
+  },
+  {
+    "docNum": "019",
+    "title": "大西洋の火山群島",
+    "trophyNumber": 278,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "cv"
+    ]
+  },
+  {
+    "docNum": "020",
+    "title": "消えた巨鳥の島",
+    "trophyNumber": 279,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "mu"
+    ]
+  },
+  {
+    "docNum": "021",
+    "title": "火山と砂絵の島々",
+    "trophyNumber": 280,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "vu"
+    ]
+  },
+  {
+    "docNum": "022",
+    "title": "七人の戦士たち",
+    "trophyNumber": 281,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "fj"
+    ]
+  },
+  {
+    "docNum": "023",
+    "title": "100年の恩義",
+    "trophyNumber": 282,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "jp",
+      "tr"
+    ]
+  },
+  {
+    "docNum": "024",
+    "title": "ラグビーの聖地",
+    "trophyNumber": 283,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "gb",
+      "nz"
+    ]
+  },
+  {
+    "docNum": "025",
+    "title": "自由の女神の約束",
+    "trophyNumber": 284,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "fr",
+      "us"
+    ]
+  },
+  {
+    "docNum": "026",
+    "title": "五輪の創始者",
+    "trophyNumber": 285,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "gr",
+      "fr"
+    ]
+  },
+  {
+    "docNum": "027",
+    "title": "悲劇の恋人たち",
+    "trophyNumber": 286,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "gb",
+      "it"
+    ]
+  },
+  {
+    "docNum": "028",
+    "title": "新たなる王者",
+    "trophyNumber": 287,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "fr",
+      "es"
+    ]
+  },
+  {
+    "docNum": "029",
+    "title": "神の手",
+    "trophyNumber": 288,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ar",
+      "gb"
+    ]
+  },
+  {
+    "docNum": "030",
+    "title": "緑の島と氷の島",
+    "trophyNumber": 289,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "gl",
+      "is"
+    ]
+  },
+  {
+    "docNum": "031",
+    "title": "リズムの故郷",
+    "trophyNumber": 290,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "jm",
+      "br",
+      "ar"
+    ]
+  },
+  {
+    "docNum": "032",
+    "title": "三つの王冠",
+    "trophyNumber": 291,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "uy",
+      "it",
+      "de"
+    ]
+  },
+  {
+    "docNum": "033",
+    "title": "国の中の国",
+    "trophyNumber": 292,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "va",
+      "sm",
+      "ls"
+    ]
+  },
+  {
+    "docNum": "034",
+    "title": "大地を切り開く三本の道",
+    "trophyNumber": 293,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "eg",
+      "pa",
+      "de"
+    ]
+  },
+  {
+    "docNum": "035",
+    "title": "大河の三つの魂",
+    "trophyNumber": 294,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "eg",
+      "br",
+      "cn"
+    ]
+  },
+  {
+    "docNum": "036",
+    "title": "三つの円の秘密",
+    "trophyNumber": 295,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "jp",
+      "bd",
+      "pw"
+    ]
+  },
+  {
+    "docNum": "037",
+    "title": "新世界の継承者",
+    "trophyNumber": 296,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "nz",
+      "pg",
+      "nc"
+    ]
+  },
+  {
+    "docNum": "038",
+    "title": "海を越えた言葉",
+    "trophyNumber": 297,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "pt",
+      "br",
+      "ao"
+    ]
+  },
+  {
+    "docNum": "039",
+    "title": "テニス四大聖地",
+    "trophyNumber": 298,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "au",
+      "fr",
+      "gb",
+      "us"
+    ]
+  },
+  {
+    "docNum": "040",
+    "title": "コーヒーの道",
+    "trophyNumber": 299,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "et",
+      "br"
+    ]
+  },
+  {
+    "docNum": "041",
+    "title": "赤道の名",
+    "trophyNumber": 300,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ec"
+    ]
+  },
+  {
+    "docNum": "042",
+    "title": "青い都と古代都市",
+    "trophyNumber": 301,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "uz"
+    ]
+  },
+  {
+    "docNum": "043",
+    "title": "チョコの山",
+    "trophyNumber": 302,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ch"
+    ]
+  },
+  {
+    "docNum": "044",
+    "title": "二つの海の門",
+    "trophyNumber": 303,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "dj"
+    ]
+  },
+  {
+    "docNum": "045",
+    "title": "青い街と石の教会",
+    "trophyNumber": 304,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ir"
+    ]
+  },
+  {
+    "docNum": "046",
+    "title": "コンドルの空",
+    "trophyNumber": 305,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "bo"
+    ]
+  },
+  {
+    "docNum": "047",
+    "title": "南太平洋の王国",
+    "trophyNumber": 306,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "to"
+    ]
+  },
+  {
+    "docNum": "048",
+    "title": "湖に浮かぶ島々",
+    "trophyNumber": 307,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ug"
+    ]
+  },
+  {
+    "docNum": "049",
+    "title": "白い寺院の国",
+    "trophyNumber": 308,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "kh"
+    ]
+  },
+  {
+    "docNum": "050",
+    "title": "二色の大地",
+    "trophyNumber": 309,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ua"
+    ]
+  },
+  {
+    "docNum": "051",
+    "title": "琥珀の海岸",
+    "trophyNumber": 310,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "lt"
+    ]
+  },
+  {
+    "docNum": "052",
+    "title": "黒い双頭の鷲",
+    "trophyNumber": 311,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "al"
+    ]
+  },
+  {
+    "docNum": "053",
+    "title": "デジタルの森",
+    "trophyNumber": 312,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ee"
+    ]
+  },
+  {
+    "docNum": "054",
+    "title": "氷河とフィヨルド",
+    "trophyNumber": 313,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "no"
+    ]
+  },
+  {
+    "docNum": "055",
+    "title": "天使の滝",
+    "trophyNumber": 314,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ve"
+    ]
+  },
+  {
+    "docNum": "056",
+    "title": "湖の中の火山島",
+    "trophyNumber": 315,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ni"
+    ]
+  },
+  {
+    "docNum": "057",
+    "title": "火山の国の波",
+    "trophyNumber": 316,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "sv"
+    ]
+  },
+  {
+    "docNum": "058",
+    "title": "五つ星の青白青",
+    "trophyNumber": 317,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "hn"
+    ]
+  },
+  {
+    "docNum": "059",
+    "title": "アフリカの縮図",
+    "trophyNumber": 318,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "cm"
+    ]
+  },
+  {
+    "docNum": "060",
+    "title": "サヘルの大地",
+    "trophyNumber": 319,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ne"
+    ]
+  },
+  {
+    "docNum": "061",
+    "title": "川に沿う細長い国",
+    "trophyNumber": 320,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "gm"
+    ]
+  },
+  {
+    "docNum": "062",
+    "title": "二重の牢獄",
+    "trophyNumber": 321,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "li",
+      "uz"
+    ]
+  },
+  {
+    "docNum": "063",
+    "title": "怪物を生みし者",
+    "trophyNumber": 322,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "gb",
+      "ro"
+    ]
+  },
+  {
+    "docNum": "064",
+    "title": "革命の旋律",
+    "trophyNumber": 323,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "fr",
+      "pl"
+    ]
+  },
+  {
+    "docNum": "065",
+    "title": "ベルリンの壁",
+    "trophyNumber": 324,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "de",
+      "us",
+      "ru"
+    ]
+  },
+  {
+    "docNum": "066",
+    "title": "F1の伝説",
+    "trophyNumber": 325,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "mc",
+      "gb",
+      "it"
+    ]
+  },
+  {
+    "docNum": "067",
+    "title": "三つの信仰の源流",
+    "trophyNumber": 326,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "np",
+      "il",
+      "sa"
+    ]
+  },
+  {
+    "docNum": "068",
+    "title": "世界を走る三大レース",
+    "trophyNumber": 327,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "fr",
+      "it",
+      "es"
+    ]
+  },
+  {
+    "docNum": "069",
+    "title": "鍵盤に刻まれた三つの栄冠",
+    "trophyNumber": 328,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "pl",
+      "ru",
+      "be"
+    ]
+  },
+  {
+    "docNum": "070",
+    "title": "文明の四つの夜明け",
+    "trophyNumber": 329,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "eg",
+      "iq",
+      "pk",
+      "cn"
+    ]
+  },
+  {
+    "docNum": "071",
+    "title": "方角の支配者",
+    "trophyNumber": 330,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "mk",
+      "tl",
+      "ss",
+      "eh"
+    ]
+  },
+  {
+    "docNum": "072",
+    "title": "三つの海峡",
+    "trophyNumber": 331,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "ma",
+      "my",
+      "tr"
+    ]
+  },
+  {
+    "docNum": "073",
+    "title": "香辛料の航路",
+    "trophyNumber": 332,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "in",
+      "lk",
+      "id"
+    ]
+  },
+  {
+    "docNum": "074",
+    "title": "南半球の三つの大地",
+    "trophyNumber": 333,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "pe",
+      "ke",
+      "zw"
+    ]
+  },
+  {
+    "docNum": "075",
+    "title": "砂漠と湿地",
+    "trophyNumber": 334,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "na",
+      "bw"
+    ]
+  },
+  {
+    "docNum": "076",
+    "title": "海の大航海",
+    "trophyNumber": 335,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "pt",
+      "es"
+    ]
+  },
+  {
+    "docNum": "077",
+    "title": "王冠と象",
+    "trophyNumber": 336,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "th",
+      "la"
+    ]
+  },
+  {
+    "docNum": "078",
+    "title": "アフリカ三地域の道",
+    "trophyNumber": 337,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "sn",
+      "rw",
+      "mz"
+    ]
+  },
+  {
+    "docNum": "079",
+    "title": "大洋を渡る鳥",
+    "trophyNumber": 338,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "ec",
+      "mg"
+    ]
+  },
+  {
+    "docNum": "080",
+    "title": "三つの伝統衣装",
+    "trophyNumber": 339,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "gb",
+      "in",
+      "kr"
+    ]
+  },
+  {
+    "docNum": "081",
+    "title": "草原と宇宙基地",
+    "trophyNumber": 340,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "kz"
+    ]
+  },
+  {
+    "docNum": "082",
+    "title": "石の十字架",
+    "trophyNumber": 341,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "am"
+    ]
+  },
+  {
+    "docNum": "083",
+    "title": "山国の白い帽子",
+    "trophyNumber": 342,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "kg"
+    ]
+  },
+  {
+    "docNum": "084",
+    "title": "燃える砂漠の穴",
+    "trophyNumber": 343,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "tm"
+    ]
+  },
+  {
+    "docNum": "085",
+    "title": "世界の屋根の東",
+    "trophyNumber": 344,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "tj"
+    ]
+  },
+  {
+    "docNum": "086",
+    "title": "古代都市の回廊",
+    "trophyNumber": 345,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "sy"
+    ]
+  },
+  {
+    "docNum": "087",
+    "title": "二つの海の岸",
+    "trophyNumber": 346,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ye"
+    ]
+  },
+  {
+    "docNum": "088",
+    "title": "島と大陸の国",
+    "trophyNumber": 347,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "gq"
+    ]
+  },
+  {
+    "docNum": "089",
+    "title": "双子のヤシの実",
+    "trophyNumber": 348,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "sc"
+    ]
+  },
+  {
+    "docNum": "090",
+    "title": "カルタゴの記憶",
+    "trophyNumber": 349,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "tn"
+    ]
+  },
+  {
+    "docNum": "091",
+    "title": "時の果てに立つ者",
+    "trophyNumber": 350,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "ki",
+      "nu"
+    ]
+  },
+  {
+    "docNum": "092",
+    "title": "世界を解く暗号",
+    "trophyNumber": 351,
+    "judgeMode": "initial-letter-ordered"
+  },
+  {
+    "docNum": "093",
+    "title": "数字に囚われし世界",
+    "trophyNumber": 352,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "cu",
+      "gr",
+      "tr",
+      "de",
+      "ci"
+    ]
+  },
+  {
+    "docNum": "094",
+    "title": "鏡の世界の住人",
+    "trophyNumber": 353,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "nz",
+      "th",
+      "cl",
+      "ke",
+      "pt"
+    ]
+  },
+  {
+    "docNum": "095",
+    "title": "三つの大瀑布",
+    "trophyNumber": 354,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ca",
+      "us",
+      "zm",
+      "zw",
+      "ar",
+      "br"
+    ]
+  },
+  {
+    "docNum": "096",
+    "title": "南米三つの足跡",
+    "trophyNumber": 355,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "co",
+      "py",
+      "uy"
+    ]
+  },
+  {
+    "docNum": "097",
+    "title": "島国の文字",
+    "trophyNumber": 356,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "lk",
+      "mv",
+      "tl"
+    ]
+  },
+  {
+    "docNum": "098",
+    "title": "世界の屋根",
+    "trophyNumber": 357,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "ar",
+      "tz",
+      "tr"
+    ]
+  },
+  {
+    "docNum": "099",
+    "title": "海を渡る年号",
+    "trophyNumber": 358,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "ng",
+      "bh",
+      "zw"
+    ]
+  },
+  {
+    "docNum": "100",
+    "title": "四大陸の頂",
+    "trophyNumber": 359,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "tz",
+      "ar",
+      "ru",
+      "id"
+    ]
+  },
+  {
+    "docNum": "101",
+    "title": "国名の中の色",
+    "trophyNumber": 360,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "gl",
+      "me"
+    ]
+  },
+  {
+    "docNum": "102",
+    "title": "映画の祭典",
+    "trophyNumber": 361,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "bf"
+    ]
+  },
+  {
+    "docNum": "103",
+    "title": "二つの隣国に囲まれた王国",
+    "trophyNumber": 362,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "sz"
+    ]
+  },
+  {
+    "docNum": "104",
+    "title": "赤道のカカオ諸島",
+    "trophyNumber": 363,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "st"
+    ]
+  },
+  {
+    "docNum": "105",
+    "title": "細長い西アフリカ",
+    "trophyNumber": 364,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "tg"
+    ]
+  },
+  {
+    "docNum": "106",
+    "title": "水上の村",
+    "trophyNumber": 365,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "bj"
+    ]
+  },
+  {
+    "docNum": "107",
+    "title": "川の名を持つ国",
+    "trophyNumber": 366,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "cg"
+    ]
+  },
+  {
+    "docNum": "108",
+    "title": "星界への扉を開きし者",
+    "trophyNumber": 367,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "ru",
+      "us",
+      "fr",
+      "jp",
+      "cn"
+    ]
+  },
+  {
+    "docNum": "109",
+    "title": "禁断の交信者",
+    "trophyNumber": 368,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "jp",
+      "de",
+      "fi",
+      "br",
+      "cu"
+    ]
+  },
+  {
+    "docNum": "110",
+    "title": "七つの驚異を巡りし者",
+    "trophyNumber": 369,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "cn",
+      "in",
+      "jo",
+      "it",
+      "br",
+      "pe",
+      "mx"
+    ]
+  },
+  {
+    "docNum": "111",
+    "title": "星の階段",
+    "trophyNumber": 370,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "vn",
+      "fm",
+      "cn",
+      "au"
+    ]
+  },
+  {
+    "docNum": "112",
+    "title": "消えた母音",
+    "trophyNumber": 371,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "np",
+      "rw",
+      "py"
+    ]
+  },
+  {
+    "docNum": "113",
+    "title": "海峡の鎖",
+    "trophyNumber": 372,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "om",
+      "id",
+      "fr"
+    ]
+  },
+  {
+    "docNum": "114",
+    "title": "砂漠の四つの顔",
+    "trophyNumber": 373,
+    "judgeMode": "grouped"
+  },
+  {
+    "docNum": "115",
+    "title": "独立の日を追え",
+    "trophyNumber": 374,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "dz",
+      "sg",
+      "ao",
+      "er"
+    ]
+  },
+  {
+    "docNum": "116",
+    "title": "四文字の道標",
+    "trophyNumber": 375,
+    "judgeMode": "initial-letter-ordered"
+  },
+  {
+    "docNum": "117",
+    "title": "五つの国境を越えて",
+    "trophyNumber": 376,
+    "judgeMode": "ordered",
+    "answerIds": [
+      "pt",
+      "es",
+      "fr",
+      "de",
+      "pl"
+    ]
+  },
+  {
+    "docNum": "118",
+    "title": "沈みゆく環礁",
+    "trophyNumber": 377,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "tv"
+    ]
+  },
+  {
+    "docNum": "119",
+    "title": "リン鉱石の島",
+    "trophyNumber": 378,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "nr"
+    ]
+  },
+  {
+    "docNum": "120",
+    "title": "星を刻む南の旗",
+    "trophyNumber": 379,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "ws"
+    ]
+  },
+  {
+    "docNum": "121",
+    "title": "環礁と核実験の記憶",
+    "trophyNumber": 380,
+    "judgeMode": "unordered",
+    "answerIds": [
+      "mh"
+    ]
+  }
+]
