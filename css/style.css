@@ -1575,6 +1575,10 @@ img { max-width: 100%; }
   text-align: left;
   line-height: 1.7;
   margin-top: 2px;
+  /* 高難度謎解き5問追加分(No.385「歴史の分岐点」)が、年号・数字・矢印を
+     改行付きの図として表示するための設定。改行を含まない既存の問題文は
+     normalと見た目が変わらないため、既存問題への影響はない */
+  white-space: pre-line;
 }
 .trophy-card-puzzle .trophy-description {
   text-align: left;
