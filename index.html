@@ -365,6 +365,48 @@
   </div>
 </section>
 
+<!-- ============ 世界7不思議: 解放演出画面 ============
+     通常謎解き(世界7不思議を除く)を全問獲得した瞬間、またはそれを
+     既に満たしている利用者の次回起動時に一度だけ表示する。既存の
+     screen-puzzle-trophy-award等とは別の、独立した専用画面 ============ -->
+<section id="screen-seven-wonders-unlock" class="screen">
+  <div class="panel seven-wonders-cinematic-panel seven-wonders-cinematic-unlock">
+    <div class="seven-wonders-seals" aria-hidden="true">
+      <span class="seven-wonders-seal"></span><span class="seven-wonders-seal"></span>
+      <span class="seven-wonders-seal"></span><span class="seven-wonders-seal"></span>
+      <span class="seven-wonders-seal"></span><span class="seven-wonders-seal"></span>
+      <span class="seven-wonders-seal"></span>
+    </div>
+    <h2 class="seven-wonders-cinematic-heading">世界の七不思議が解放された</h2>
+    <p class="seven-wonders-cinematic-sub">称号「<strong>ミステリーハンター</strong>」を獲得しました。</p>
+    <p id="seven-wonders-unlock-description" class="seven-wonders-cinematic-desc"></p>
+    <div class="result-buttons">
+      <button id="btn-seven-wonders-unlock-continue" class="btn btn-gold btn-large" type="button">七不思議を見る</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 世界7不思議: 全制覇演出画面 ============
+     7問すべてのトロフィーを獲得した瞬間(解く順序は問わない)に一度だけ
+     表示する、最高位の専用演出 ============ -->
+<section id="screen-seven-wonders-omniscient" class="screen">
+  <div class="panel seven-wonders-cinematic-panel seven-wonders-cinematic-omniscient">
+    <div id="seven-wonders-omniscient-confetti-wrap" class="confetti-canvas-wrap"></div>
+    <div class="seven-wonders-seals seven-wonders-seals-gold" aria-hidden="true">
+      <span class="seven-wonders-seal"></span><span class="seven-wonders-seal"></span>
+      <span class="seven-wonders-seal"></span><span class="seven-wonders-seal"></span>
+      <span class="seven-wonders-seal"></span><span class="seven-wonders-seal"></span>
+      <span class="seven-wonders-seal"></span>
+    </div>
+    <h2 class="seven-wonders-cinematic-heading">全知全能の神</h2>
+    <p class="seven-wonders-cinematic-sub">世界の七不思議、全7問を解き明かしました。</p>
+    <p id="seven-wonders-omniscient-description" class="seven-wonders-cinematic-desc"></p>
+    <div class="result-buttons">
+      <button id="btn-seven-wonders-omniscient-continue" class="btn btn-gold btn-large" type="button">トロフィー一覧へ</button>
+    </div>
+  </div>
+</section>
+
 <!-- ============ トロフィー刷新 Stage E: トロフィー一覧画面(新規・既存の称号コレクションとは別画面) ============ -->
 <section id="screen-trophy-list" class="screen">
   <div class="panel trophy-panel">
@@ -762,6 +804,32 @@
   </div>
 </div>
 
+<!-- 世界7不思議: 不正解確定前の確認モーダル。他の確認モーダルとは完全に
+     独立しており、ここでキャンセルしても選択内容・ロック状態は一切
+     変化しない(js/puzzle.jsのopenSevenWonderConfirm()/closeSevenWonderConfirm()
+     参照)。確定ボタンは、押した瞬間に自分自身を無効化して二重処理を防ぐ -->
+<div id="seven-wonder-confirm-modal" class="modal hidden">
+  <div class="modal-box">
+    <p class="modal-text">この答えで確定しますか？<br>不正解の場合、この謎には7日間再挑戦できません。</p>
+    <div class="modal-buttons">
+      <button id="seven-wonder-confirm-cancel" class="btn btn-plain">キャンセル</button>
+      <button id="seven-wonder-confirm-yes" class="btn btn-danger">この答えで確定する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 世界7不思議: ロック中カードをタップした際の、短い「鍵」演出モーダル
+     (回答画面を開かず、ここで案内だけを見せて閉じる) -->
+<div id="seven-wonder-locked-modal" class="modal hidden">
+  <div class="modal-box seven-wonder-locked-box">
+    <div class="seven-wonder-locked-icon" aria-hidden="true">🔒</div>
+    <p class="modal-text">全ての謎を解き明かしたい者のみが挑戦できる</p>
+    <div class="modal-buttons">
+      <button id="seven-wonder-locked-close" class="btn btn-plain">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <canvas id="hidden-render-canvas" style="display:none;"></canvas>
 
 <script src="./js/countries.js"></script>
@@ -769,6 +837,7 @@
      読み込んで謎解きトロフィー(#256〜)を自動生成するため、js/trophy.jsより
      前に読み込む必要がある(以前はjs/findcountry.jsの後にあった) -->
 <script src="./js/puzzle-questions.js"></script>
+<script src="./js/seven-wonders-questions.js"></script>
 <script src="./js/map-regions.js"></script>
 <script src="./js/map-colors.js"></script>
 <script src="./js/map-uk-regions.js"></script>

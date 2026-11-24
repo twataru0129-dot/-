@@ -423,3 +423,181 @@
 @media (prefers-reduced-motion: reduce) {
   .puzzle-flag-card, .puzzle-answer-submit { transition-duration: 0.001ms; }
 }
+
+/* ==========================================================
+   世界7不思議: 一覧カード専用デザイン(黒曜石・深い紺色・金を基調にした
+   神秘的な配色。既存の謎解きカード(.trophy-card-puzzle)・隠しトロフィー
+   (.trophy-card-secret)・#142/#158(.trophy-card-legend)のどの見た目も
+   一切変更せず、.trophy-card-sevenwonder系クラスだけを新規に追加する)
+   ========================================================== */
+.trophy-card-sevenwonder {
+  border: 1.5px solid #c9a95a;
+  background: linear-gradient(165deg, #171428 0%, #0c0a18 60%, #05040a 100%);
+  color: #f1e8d0;
+}
+.trophy-card-sevenwonder .trophy-number,
+.trophy-card-sevenwonder .trophy-name,
+.trophy-card-sevenwonder .trophy-cond,
+.trophy-card-sevenwonder .trophy-mark-date {
+  color: #f1e8d0;
+}
+.trophy-card-sevenwonder .trophy-category-badge {
+  background: rgba(201, 169, 90, 0.18);
+  color: #e9cf8d;
+}
+.trophy-card-sevenwonder .trophy-description {
+  color: #d9cdae;
+}
+
+/* ロック中(通常謎解きを全問獲得していない間): 封印された質感を強調し、
+   タップで「全ての謎を解き明かしたい者のみが挑戦できる」演出に誘導する */
+.trophy-card-sevenwonder-locked {
+  text-align: center;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  cursor: pointer;
+  border-style: dashed;
+}
+.seven-wonder-card-seal {
+  font-size: 2.4rem;
+  margin: 14px 0 10px;
+  filter: drop-shadow(0 0 10px rgba(201, 169, 90, 0.55));
+}
+.trophy-card-sevenwonder-locked .trophy-name {
+  letter-spacing: 0.1em;
+  opacity: 0.85;
+}
+
+/* 解放済み・未獲得(挑戦できる) */
+.trophy-card-sevenwonder-available .btn-sevenwonder-challenge {
+  background: linear-gradient(135deg, #e9cf8d, #c9a95a);
+  color: #1b1333;
+}
+
+/* 解放済み・不正解確定による7日間クールダウン中 */
+.seven-wonder-cooldown-text {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(201, 169, 90, 0.12);
+  border: 1px dashed rgba(201, 169, 90, 0.5);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #e9cf8d;
+}
+
+/* 隠し特別2種(ミステリーハンター・全知全能の神)。未獲得時は既存の
+   隠しトロフィー(.trophy-card-secret)と同じ「？？？？？？」マスキングを
+   このカードにも適用しつつ、黒曜石・金の専用配色を重ねる */
+.trophy-card-sevenwonder-special.trophy-card-secret {
+  border-style: dashed;
+}
+
+@media (min-width: 560px) {
+  .trophy-card-sevenwonder { grid-column: span 1; }
+}
+
+/* ==========================================================
+   世界7不思議専用の獲得演出(既存の謎解き獲得演出#screen-puzzle-trophy-award
+   を土台に、より豪華な配色だけを重ねる。構造・ボタン・スキップ動作・
+   prefers-reduced-motion対応は既存のpuzzle-award-*のものをそのまま使う)
+   ========================================================== */
+#screen-puzzle-trophy-award.screen-puzzle-trophy-award-wonder {
+  background: radial-gradient(circle at 50% 20%, #211c3d 0%, #130f24 50%, #060509 100%);
+}
+.puzzle-award-panel.puzzle-award-panel-wonder .puzzle-award-icon-wrap {
+  background: radial-gradient(circle at 32% 26%, #2c2550 0%, #15102a 55%, #080611 100%);
+  box-shadow: 0 0 0 3px #c9a95a, 0 0 32px 6px rgba(201, 169, 90, .5), inset 0 -8px 0 rgba(0,0,0,.3);
+}
+.puzzle-award-panel.puzzle-award-panel-wonder .puzzle-award-heading,
+.puzzle-award-panel.puzzle-award-panel-wonder .puzzle-award-subheading strong {
+  color: #e9cf8d;
+}
+.puzzle-award-panel.puzzle-award-panel-wonder .puzzle-award-description {
+  border-color: rgba(201, 169, 90, .4);
+}
+
+/* ==========================================================
+   世界7不思議: 解放演出(screen-seven-wonders-unlock)・全制覇演出
+   (screen-seven-wonders-omniscient)。既存のscreen-puzzle-trophy-awardより
+   さらに荘厳な「暗転+7つの封印+金の光」の専用演出にする
+   ========================================================== */
+#screen-seven-wonders-unlock,
+#screen-seven-wonders-omniscient {
+  background: radial-gradient(circle at 50% 18%, #1b1636 0%, #0b0915 55%, #030205 100%);
+}
+.seven-wonders-cinematic-panel {
+  text-align: center;
+  padding-top: 56px;
+  position: relative;
+  overflow: hidden;
+  color: #f1e8d0;
+}
+.seven-wonders-seals {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 auto 20px;
+  max-width: 420px;
+  flex-wrap: wrap;
+}
+.seven-wonders-seal {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, #4a3f7a 0%, #211c3d 60%, #0c0a18 100%);
+  box-shadow: 0 0 0 2px #c9a95a, 0 0 14px 2px rgba(201, 169, 90, .55);
+  opacity: 0;
+  animation: sevenWonderSealIn .6s ease both;
+}
+.seven-wonders-seals-gold .seven-wonders-seal {
+  background: radial-gradient(circle at 32% 26%, #6b5420 0%, #2e2510 60%, #130f06 100%);
+  box-shadow: 0 0 0 2px #ffe9a8, 0 0 18px 3px rgba(255, 233, 168, .65);
+}
+.seven-wonders-seal:nth-child(1) { animation-delay: .1s; }
+.seven-wonders-seal:nth-child(2) { animation-delay: .25s; }
+.seven-wonders-seal:nth-child(3) { animation-delay: .4s; }
+.seven-wonders-seal:nth-child(4) { animation-delay: .55s; }
+.seven-wonders-seal:nth-child(5) { animation-delay: .7s; }
+.seven-wonders-seal:nth-child(6) { animation-delay: .85s; }
+.seven-wonders-seal:nth-child(7) { animation-delay: 1s; }
+@keyframes sevenWonderSealIn {
+  0% { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+  70% { opacity: 1; transform: scale(1.12) rotate(6deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.seven-wonders-cinematic-heading {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #e9cf8d;
+  margin: 4px 0 10px;
+}
+.seven-wonders-cinematic-sub {
+  font-size: 1.05rem;
+  margin: 0 0 16px;
+}
+.seven-wonders-cinematic-sub strong { color: #ffe9a8; font-size: 1.2rem; }
+.seven-wonders-cinematic-desc {
+  max-width: 480px;
+  margin: 0 auto 28px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(201, 169, 90, .4);
+  color: #e3d8ba;
+  font-style: italic;
+  line-height: 1.7;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+@media (prefers-reduced-motion: reduce) {
+  .seven-wonders-seal { animation: none; opacity: 1; }
+}
+@media (max-width: 420px) {
+  .seven-wonders-cinematic-heading { font-size: 1.35rem; }
+  .seven-wonders-seal { width: 28px; height: 28px; }
+}
+
+/* 世界7不思議: ロック中タップ案内モーダルの鍵アイコン */
+.seven-wonder-locked-box { text-align: center; }
+.seven-wonder-locked-icon { font-size: 2.6rem; margin-bottom: 8px; }
