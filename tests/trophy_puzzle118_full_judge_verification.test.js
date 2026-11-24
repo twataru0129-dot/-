@@ -1,10 +1,12 @@
 // ==========================================================
 // マージ前最終点検1: 謎解きトロフィー118問追加(No.263〜380)の全数検証。
+// 高難度謎解き5問追加(No.381〜385)後も、PUZZLE_QUESTIONS全体を機械的に
+// 走査する本ファイルの仕組みは変更なしで新問題を自動的に対象に含める。
 //
 // tests/trophy_puzzle118_logic.test.js は代表的なケース・特殊問題
 // (No.092・100・109・114・116等)を狙い撃ちで検証しているが、本ファイルは
-// PUZZLE_QUESTIONSに登録されている「全121問」(既存3問+新規118問)を
-// 1問も漏らさず機械的に走査し、各問題について
+// PUZZLE_QUESTIONSに登録されている全問題(既存3問+謎解き118問+高難度5問=
+// 126問)を1問も漏らさず機械的に走査し、各問題について
 //   1. 正解データ(answerIds/answerGroups/requiredInitials)から動的に
 //      生成した有効な正解の組み合わせで、PuzzleJudgeModule.judge()が
 //      correct===trueを返すこと
@@ -51,7 +53,7 @@ function check(name, cond) {
 
 const { assertFailures, Judge, questions, countries, regions } = freshSandbox();
 check("自己検証: puzzle-questions.js/puzzle-judge.js読み込み時のassertFailuresが0件", assertFailures.length === 0);
-check("自己検証: PUZZLE_QUESTIONSが121件(既存3問+新規118問)", questions.length === 121);
+check("自己検証: PUZZLE_QUESTIONSが126件(既存3問+謎解き118問+高難度5問)", questions.length === 126);
 
 // requiredInitials用: js/puzzle-judge.jsのbuildInitialLetterIndexと同じ
 // ロジックを、テスト側でも独立に組み立てて正解を動的生成する(判定ロジック
@@ -107,15 +109,20 @@ questions.forEach((q) => {
   });
 });
 
-check("全121問でinitial-letter-ordered問題の頭文字に該当する国が1件も見つからない欠落がない", missingInitialLetterIds.length === 0);
+check("全126問でinitial-letter-ordered問題の頭文字に該当する国が1件も見つからない欠落がない", missingInitialLetterIds.length === 0);
 
 const newProblems = results.filter((r) => r.trophyNumber >= 263 && r.trophyNumber <= 380);
-check("新規118問が過不足なく対象に含まれる(trophyNumber 263〜380)", newProblems.length === 118);
-check("新規118問すべてで正解判定が成功している", newProblems.every((r) => r.correctPass));
-check("新規118問すべてで不正解判定も成功している(明確な不正解を誤って正解にしていない)", newProblems.every((r) => r.wrongPass));
+check("謎解き118問が過不足なく対象に含まれる(trophyNumber 263〜380)", newProblems.length === 118);
+check("謎解き118問すべてで正解判定が成功している", newProblems.every((r) => r.correctPass));
+check("謎解き118問すべてで不正解判定も成功している(明確な不正解を誤って正解にしていない)", newProblems.every((r) => r.wrongPass));
+
+const hardProblems = results.filter((r) => r.trophyNumber >= 381 && r.trophyNumber <= 385);
+check("高難度5問が過不足なく対象に含まれる(trophyNumber 381〜385)", hardProblems.length === 5);
+check("高難度5問すべてで正解判定が成功している", hardProblems.every((r) => r.correctPass));
+check("高難度5問すべてで不正解判定も成功している(明確な不正解を誤って正解にしていない)", hardProblems.every((r) => r.wrongPass));
 
 const allOk = results.every((r) => r.correctPass && r.wrongPass);
-check("既存3問を含む全121問で正解/不正解判定が両方とも想定どおり", allOk);
+check("既存3問・謎解き118問・高難度5問を含む全126問で正解/不正解判定が両方とも想定どおり", allOk);
 
 console.log(`\n対象問題数: ${results.length}件(うち新規118問: ${newProblems.length}件)`);
 console.log(`Total: ${pass + fail} Pass: ${pass} Fail: ${fail}`);

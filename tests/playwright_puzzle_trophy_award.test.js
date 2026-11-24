@@ -266,13 +266,13 @@ async function getPuzzleCardInfo(page, questionId) {
     await openTrophyList(page, base);
 
     const totalCards = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-    check("テスト6: トロフィー総数が407件になっている(既存286件+謎解き121件)", totalCards === 407);
+    check("テスト6: トロフィー総数が412件になっている(既存286件+謎解き126件)", totalCards === 412);
 
     const summary = await page.evaluate(() => TrophyModule.getProgressSummary());
-    check("テスト6: getProgressSummary().totalCountが407になっている", summary.totalCount === 407);
+    check("テスト6: getProgressSummary().totalCountが412になっている", summary.totalCount === 412);
 
     const puzzleCardCount = await page.$$eval("#trophy-grid .trophy-card-puzzle", (els) => els.length);
-    check("テスト6: 謎解きトロフィーのカードが121件描画される(既存3件+新規118件)", puzzleCardCount === 121);
+    check("テスト6: 謎解きトロフィーのカードが126件描画される(既存3件+謎解き118件+高難度5件)", puzzleCardCount === 126);
 
     // 既存の隠しトロフィー(secretLocked)の表示は変更されていない
     const secretCard = await page.$eval("#trophy-grid .trophy-card-secret .trophy-name", (el) => el.textContent);

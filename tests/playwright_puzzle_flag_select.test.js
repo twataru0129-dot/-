@@ -625,11 +625,12 @@ async function answerState(page) {
     await page.waitForSelector("#btn-dev-puzzle-entry:not(.hidden)", { timeout: 5000 });
     await page.click("#btn-dev-puzzle-entry");
     const pickerButtonLabels = await page.$$eval(".puzzle-dev-question-btn", (els) => els.map((el) => ({ id: el.dataset.questionId, text: el.textContent })));
-    // 謎解きトロフィー118問追加(#263〜380)により、開発用の問題選択一覧は
-    // 既存3件(No.01・02・04)+新規118件の計121件になった
+    // 謎解きトロフィー118問追加(#263〜380)・高難度5問追加(#381〜385)に
+    // より、開発用の問題選択一覧は既存3件(No.01・02・04)+謎解き118件+
+    // 高難度5件の計126件になった
     check(
-      "テスト12: 開発用の問題選択一覧が121件(既存3件+新規118件)になっている",
-      pickerButtonLabels.length === 121
+      "テスト12: 開発用の問題選択一覧が126件(既存3件+謎解き118件+高難度5件)になっている",
+      pickerButtonLabels.length === 126
     );
     check(
       "テスト12: 開発用の問題選択一覧に既存のNo.01・02・04が引き続き含まれる",

@@ -78,14 +78,14 @@ function check(name, cond) {
     // 30〜39の13種類も分割対象に追加)により269件から282件、謎解きトロフィー
     // 第3段階(No.01/02/04の3件)の追加により282件から285件に変わり、
     // 世界図鑑トロフィー追加分(#259〜262、計4件)により289件になった後、
-    // 謎解きトロフィー118問追加(#263〜380、計121件に増加)で407件に変わった。
+    // 謎解きトロフィー118問追加(#263〜380、計121件に増加)で412件に変わった。
     // これは今回の追加の一部であり、既存トロフィーの「称号コレクション」
     // カテゴリー(legacy、12件)自体には変更がない)
     await page.click("#btn-trophy-list");
     await page.waitForSelector("#trophy-grid .trophy-card");
     check(`[${label}] トロフィー一覧の固定ヘッダーが維持されている`, (await page.$(".trophy-list-header")) !== null);
     const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-    check(`[${label}] トロフィー総数が407件(153件+findcountry専用36件+隠しトロフィー61件+分割対象32件+謎解き121件+世界図鑑追加4件)になっている`, totalCount === 407);
+    check(`[${label}] トロフィー総数が412件(153件+findcountry専用36件+隠しトロフィー61件+分割対象32件+謎解き126件+世界図鑑追加4件)になっている`, totalCount === 412);
     const legacyTab = await page.$('#trophy-category-tabs [data-category="legacy"]');
     check(`[${label}] 「称号コレクション」カテゴリータブ(#101〜112、legacy)が維持されている`, !!legacyTab);
     if (legacyTab) {

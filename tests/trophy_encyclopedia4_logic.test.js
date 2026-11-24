@@ -174,17 +174,18 @@ function findDef(Trophy, number) {
 }
 
 // ---- シナリオE: 既存トロフィー(250件)・世界図鑑既存16件への無影響 ----
-// 【謎解きトロフィー118問追加(#263〜380)に伴う期待値更新】
-// このテストは実際のjs/puzzle-questions.jsを読み込むため、謎解き
-// トロフィーが3問(#256〜258)から121問(#256〜258・263〜380)に増えたことで
-// 総数が257→375、dual-split計算を含むtotalCountが289→407に変わった
+// 【謎解きトロフィー118問追加(#263〜380)・高難度5問追加(#381〜385)に
+// 伴う期待値更新】このテストは実際のjs/puzzle-questions.jsを読み込むため、
+// 謎解きトロフィーが3問(#256〜258)から126問(#256〜258・263〜380・381〜385)
+// に増えたことで総数が257→380、dual-split計算を含むtotalCountが289→412に
+// 変わった
 {
   const { Trophy, assertFailures } = freshSandbox();
   check("E: 自己検証のassertFailuresが0件", assertFailures.length === 0);
   const total = Trophy.getAllDefinitions().length;
-  check("E: トロフィー総数が375件(既存253件+世界図鑑追加4件+謎解き121件)", total === 375);
+  check("E: トロフィー総数が380件(既存254件+謎解き126件)", total === 380);
   const summary = Trophy.getProgressSummary();
-  check("E: getProgressSummary().totalCountが407件", summary.totalCount === 407);
+  check("E: getProgressSummary().totalCountが412件", summary.totalCount === 412);
   const existing16 = [143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158];
   check("E: 既存世界図鑑16件すべてが引き続きTROPHIESに存在する", existing16.every((n) => !!Trophy.getDefinition(`trophy_${n}`)));
 }
