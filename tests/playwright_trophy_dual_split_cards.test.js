@@ -111,8 +111,8 @@ async function getPairSideRects(page, numberLabel) {
     await openTrophyList(page);
 
     const progressText = await page.textContent("#trophy-progress-summary");
-    check("テスト1: 進捗表示の分母が421件になっている", /\/\s*421\s*件/.test(progressText || ""));
-    check("テスト1: 初期状態の獲得数は0件", /🏆\s*0\s*\/\s*421/.test(progressText || ""));
+    check("テスト1: 進捗表示の分母が452件になっている(共通トロフィー31件追加後)", /\/\s*452\s*件/.test(progressText || ""));
+    check("テスト1: 初期状態の獲得数は0件", /🏆\s*0\s*\/\s*452/.test(progressText || ""));
 
     await openCategory(page, "progress");
     const totalSplitCards = await page.$$eval('#trophy-grid .trophy-card-split:not(.hidden)', (els) => els.length);
@@ -154,7 +154,7 @@ async function getPairSideRects(page, numberLabel) {
 
     await openTrophyList(page);
     const progressText = await page.textContent("#trophy-progress-summary");
-    check("テスト2: 獲得数が3件(No.1国旗+No.5両方)になっている", /🏆\s*3\s*\/\s*421/.test(progressText || ""));
+    check("テスト2: 獲得数が3件(No.1国旗+No.5両方)になっている", /🏆\s*3\s*\/\s*452/.test(progressText || ""));
 
     await openCategory(page, "progress");
     const cards = await readProgressCards(page);

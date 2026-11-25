@@ -96,7 +96,7 @@ function trophyIdByQuestionId(Trophy, questionId) {
   check("シナリオC(No.03追加): 新規No.03はtrophy_263になる", trophyIdByQuestionId(Trophy, "puzzle-03") === "trophy_263");
   check("シナリオC: 自己検証のassertFailuresが0件", assertFailures.length === 0);
   const total = Trophy.getAllDefinitions().length;
-  check("シナリオC: トロフィー総数が258件(254+4問)になっている", total === 258);
+  check("シナリオC: トロフィー総数が289件(254+4問+共通トロフィー31件)になっている", total === 289);
 }
 
 // ---- シナリオD: trophyNumberの重複は自己検証で検出される ----
@@ -125,7 +125,7 @@ function trophyIdByQuestionId(Trophy, questionId) {
 // ---- シナリオG: 問題が1件も無い場合(PUZZLE_QUESTIONS未読込相当)は謎解きトロフィー0件 ----
 {
   const { assertFailures, Trophy } = buildSandbox("");
-  check("シナリオG(0件): 謎解きトロフィーが0件でも既存254件(世界図鑑追加分込み)は壊れない", Trophy.getAllDefinitions().length === 254);
+  check("シナリオG(0件): 謎解きトロフィーが0件でも既存254件(世界図鑑追加分込み)+共通トロフィー31件は壊れない", Trophy.getAllDefinitions().length === 285);
   check("シナリオG: 自己検証のassertFailuresが0件", assertFailures.length === 0);
 }
 

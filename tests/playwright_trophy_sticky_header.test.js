@@ -103,9 +103,9 @@ async function runForViewport(browser, base, viewport, label) {
   // 3件)の追加により282件から285件に変わり、世界図鑑トロフィー追加分
   // (#259〜262、計4件)により289件になった後、謎解きトロフィー118問追加
   // (#263〜380、計121件に増加)で412件に変わり、世界7不思議(7問+隠し特別2種、
-  // 計9件)の追加で421件になった)
+  // 計9件)の追加で452件になった)
   const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-  check(`[${label}] トロフィー421件が全てDOMに存在する`, totalCount === 421);
+  check(`[${label}] トロフィー452件が全てDOMに存在する`, totalCount === 452);
 
   // 8. 隠しトロフィーの表示仕様が維持されている(「？？？？？？」のまま)。
   // 既存14件+隠しトロフィー61種類のうちNo.220を除く60件+世界7不思議隠し特別

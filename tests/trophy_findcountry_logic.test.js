@@ -109,9 +109,9 @@ function miss(kind, opts) {
   // 0件扱いとなり、定義総数自体は254件のまま変わらない(カテゴリの種類数
   // のみ、PUZZLE_QUESTIONSの件数に関わらずTROPHY_CATEGORIESの固定分類
   // として11→12件に増える)
-  check("total trophies = 254", defs.length === 254);
+  check("total trophies = 285(既存254+共通トロフィー31件)", defs.length === 285);
   const cats = Trophy.getCategories();
-  check("category count = 13", cats.length === 13);
+  check("category count = 14(既存13+共通トロフィーカテゴリー)", cats.length === 14);
   check("findcountry category exists", cats.some((c) => c.id === "findcountry"));
   const fcDefs = defs.filter((d) => d.number >= 159 && d.number <= 194);
   check("findcountry defs count = 36", fcDefs.length === 36);

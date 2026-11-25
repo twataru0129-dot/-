@@ -95,6 +95,13 @@ function initTopScreen() {
       if (mode === "map") {
         showScreen("screen-map");
         MapModule.open();
+        // 共通トロフィー(四つの扉): 世界地図モードの画面を実際に表示した
+        // 時点で「世界地図を使用する」条件を満たす
+        try {
+          if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordCommonModeUsed === "function") {
+            TrophyModule.recordCommonModeUsed("map");
+          }
+        } catch (e) { /* noop */ }
         return;
       }
       if (mode === "encyclopedia") {
@@ -187,6 +194,13 @@ function startQuiz(count) {
   // トロフィー刷新 Stage C: このプレイの開始時刻と回答時間記録をリセットする
   state.quizStartedAt = new Date().toISOString();
   state.answerTimings = [];
+  // 共通トロフィー(四つの扉): 実際に問題を開始した時点(設定画面を開くだけ
+  // では呼ばれない)で、国旗/首都クイズを使用したことを記録する
+  try {
+    if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordCommonModeUsed === "function") {
+      TrophyModule.recordCommonModeUsed(state.mode);
+    }
+  } catch (e) { /* noop */ }
   showScreen("screen-quiz");
   renderQuestion();
 }
@@ -434,6 +448,15 @@ function handleAnswer(selectedId) {
     const elapsedSeconds = (performance.now() - state.timer.startTime) / 1000;
     state.answerTimings.push({ countryId: correctCountry.id, correct: isCorrect, elapsedSeconds });
   }
+
+  // 共通トロフィー(累積がんばり系): 回答確定時に記録し、中断しても
+  // この問題までの正解・誤答は保持する。時間切れはパスと同じく誤答に
+  // 数えない(企画書の指示どおり)
+  try {
+    if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordCommonTally === "function") {
+      TrophyModule.recordCommonTally(state.mode, isCorrect ? "correct" : (isTimeout ? null : "wrong"));
+    }
+  } catch (e) { /* noop */ }
 
   buttons.forEach((b) => {
     if (b.dataset.id === correctCountry.id) {
@@ -875,17 +898,47 @@ const GREAT_LEGEND_ICON_SVG = `<svg viewBox="0 0 100 100" class="legend-svg lege
   </g>
 </svg>`;
 
-// #142「都の神話」・#158「世界の叡智」はどちらも最高級デザイン(専用
-// アイコン+専用の達成演出画面screen-trophy-legend)を使う特別な隠し
-// トロフィーのため、ここで両方を対象として扱う。#142単体の表示・判定は
-// 一切変更していない(対象をもう1件増やしただけ)
+// 共通トロフィー#425「世界の真理 ～アカシック・レコード～」専用アイコン
+// (全トロフィーの頂点=宇宙・星・黄金の光をテーマに、八条の光を放つ星+
+// その中心に地球儀)。#142・#158の演出・判定・アイコンには一切触れず、
+// 対象が#425の時だけ新しいアイコンに切り替える(新しい画像・音声アセットは
+// 追加せず、既存と同じインラインSVG+既存のfanfare/confettiのみで表現する)
+const TRUTH_TROPHY_NUMBER = 425;
+const TRUTH_ICON_SVG = `<svg viewBox="0 0 100 100" class="legend-svg legend-svg-truth" aria-hidden="true" focusable="false">
+  <g class="truth-rays">
+    <line x1="50" y1="2" x2="50" y2="18"></line>
+    <line x1="50" y1="98" x2="50" y2="82"></line>
+    <line x1="2" y1="50" x2="18" y2="50"></line>
+    <line x1="98" y1="50" x2="82" y2="50"></line>
+    <line x1="15" y1="15" x2="26" y2="26"></line>
+    <line x1="85" y1="85" x2="74" y2="74"></line>
+    <line x1="85" y1="15" x2="74" y2="26"></line>
+    <line x1="15" y1="85" x2="26" y2="74"></line>
+  </g>
+  <circle cx="50" cy="50" r="24" class="truth-globe"></circle>
+  <ellipse cx="50" cy="50" rx="24" ry="10" class="truth-globe-line"></ellipse>
+  <ellipse cx="50" cy="50" rx="10" ry="24" class="truth-globe-line"></ellipse>
+  <line x1="26" y1="50" x2="74" y2="50" class="truth-globe-line"></line>
+  <g class="truth-stars">
+    <circle cx="20" cy="30" r="1.6"></circle>
+    <circle cx="80" cy="28" r="1.3"></circle>
+    <circle cx="78" cy="72" r="1.5"></circle>
+    <circle cx="22" cy="74" r="1.2"></circle>
+  </g>
+</svg>`;
+
+// #142「都の神話」・#158「世界の叡智」・#425「世界の真理」はいずれも
+// 最高級デザイン(専用アイコン+専用の達成演出画面screen-trophy-legend)を
+// 使う特別なトロフィーのため、ここで3件を対象として扱う。#142・#158単体の
+// 表示・判定は一切変更していない(対象をもう1件増やしただけ)
 function isLegendTrophyId(id) {
-  return id === `trophy_${LEGEND_TROPHY_NUMBER}` || id === `trophy_${GREAT_LEGEND_TROPHY_NUMBER}`;
+  return id === `trophy_${LEGEND_TROPHY_NUMBER}` || id === `trophy_${GREAT_LEGEND_TROPHY_NUMBER}` || id === `trophy_${TRUTH_TROPHY_NUMBER}`;
 }
 function isLegendTrophyNumber(number) {
-  return number === LEGEND_TROPHY_NUMBER || number === GREAT_LEGEND_TROPHY_NUMBER;
+  return number === LEGEND_TROPHY_NUMBER || number === GREAT_LEGEND_TROPHY_NUMBER || number === TRUTH_TROPHY_NUMBER;
 }
 function legendIconSvgForNumber(number) {
+  if (number === TRUTH_TROPHY_NUMBER) return TRUTH_ICON_SVG;
   return number === GREAT_LEGEND_TROPHY_NUMBER ? GREAT_LEGEND_ICON_SVG : LEGEND_ICON_SVG;
 }
 
@@ -893,6 +946,19 @@ function trophyModeIcon(mode) {
   if (mode === "flag" || mode === "flag_only") return "🌍";
   if (mode === "capital" || mode === "capital_only") return "🏙️";
   if (mode === "findcountry") return "🧭"; // ホーム画面の「世界の国どこかな？」モードカードと同じアイコン
+  return "🏆";
+}
+
+// 共通トロフィー31種類(#395〜425)用: 種類・達成難易度に応じたアイコン。
+// #425「世界の真理」は専用の演出画面・専用アイコン(COMMON_TRUTH_ICON_SVG)を
+// 別途使うため、ここでは一覧カードの小アイコンとしてのみ✨を割り当てる
+function commonTrophyIcon(number) {
+  if (number >= 395 && number <= 402) return "🏅"; // 累計獲得数系
+  if (number >= 403 && number <= 406) return "🔑"; // モード横断系
+  if (number >= 407 && number <= 418) return "⏳"; // 累積プレイ・努力系
+  if (number >= 419 && number <= 422) return "👑"; // 各モード完全制覇
+  if (number === 423 || number === 424) return "🌌"; // 最終到達(90%/95%)
+  if (number === 425) return "✨"; // 世界の真理(最高難易度)
   return "🏆";
 }
 
@@ -1026,7 +1092,9 @@ function renderTrophyAwardScreen(overrideData) {
     // (国旗/首都)の達成かをcontextのmodeで表す(evaluate()はcontext.modeに
     // 対応する側しか判定しないため、このプレイで新規獲得できるのは必ず
     // mode(今回プレイしたモード)側のみ)
-    const markIcon = isLegend ? legendIconSvgForNumber(def.number) : (def.mode === "both" ? trophyModeIcon(mode) : trophyModeIcon(def.mode));
+    const markIcon = isLegend
+      ? legendIconSvgForNumber(def.number)
+      : (def.category === "common" ? commonTrophyIcon(def.number) : (def.mode === "both" ? trophyModeIcon(mode) : trophyModeIcon(def.mode)));
     const markLabel = def.mode === "both" ? (mode === "capital" ? "首都クイズで達成" : "国旗クイズで達成") : "";
     // 隠しトロフィーの発見演出: 鍵アイコンが外れて本来のトロフィーアイコンが
     // 現れるアニメーション(CSS側の@keyframesで表現、過度な点滅・長時間化は避ける)
@@ -1106,20 +1174,40 @@ function initTrophyAwardScreen() {
 function renderLegendAwardScreen(number) {
   const n = number || LEGEND_TROPHY_NUMBER;
   const isGreat = n === GREAT_LEGEND_TROPHY_NUMBER;
+  const isTruth = n === TRUTH_TROPHY_NUMBER; // #425「世界の真理」(トロフィー機能の最終到達点)
   const def = TrophyModule.getDefinition(`trophy_${n}`);
-  $("trophy-legend-description").textContent = def ? def.description : "";
-  $("trophy-legend-heading").textContent = isGreat ? "世界図鑑 完全制覇！" : "首都トリビア完全制覇！";
-  $("trophy-legend-subheading").innerHTML = isGreat ? "その名は――<strong>世界の叡智</strong>。" : "その名は――<strong>都の神話</strong>。";
+  // #425のみ、正式名称を大きく掲げたうえで、最終獲得数・100%達成の表示を
+  // 解説文の下に追加する(getProgressSummary()は一覧画面と全く同じ集計元
+  // のため、ここでも必ず「獲得数/総数(100%)」になる)
+  let descriptionHtml = def ? def.description : "";
+  if (isTruth) {
+    const summary = TrophyModule.getProgressSummary();
+    descriptionHtml += `<br><br><strong>最終獲得数: ${summary.earnedCount} / ${summary.totalCount}(100%)</strong>`;
+  }
+  $("trophy-legend-description").innerHTML = descriptionHtml;
+  $("trophy-legend-heading").textContent = isTruth ? "全トロフィー コンプリート！" : (isGreat ? "世界図鑑 完全制覇！" : "首都トリビア完全制覇！");
+  $("trophy-legend-subheading").innerHTML = isTruth
+    ? "その名は――<strong>世界の真理 ～アカシック・レコード～</strong>。"
+    : (isGreat ? "その名は――<strong>世界の叡智</strong>。" : "その名は――<strong>都の神話</strong>。");
   $("legend-icon-wrap").innerHTML = legendIconSvgForNumber(n);
-  $("screen-trophy-legend").querySelector(".legend-panel").classList.toggle("legend-panel-great", isGreat);
+  const panel = $("screen-trophy-legend").querySelector(".legend-panel");
+  panel.classList.toggle("legend-panel-great", isGreat);
+  panel.classList.toggle("legend-panel-truth", isTruth);
   // 図鑑経由(trophyAwardOnContinueが設定されている)は結果画面に戻らないため、
   // ボタンの文言もそれに合わせて変える(クイズ経由=#142の既存文言は変更しない)
   $("btn-trophy-legend-continue").textContent = trophyAwardOnContinue ? "図鑑に戻る" : "結果画面へ";
-  // 既存の紙吹雪・ファンファーレをそのまま再利用する(新しい音声・画像アセットは追加しない)
+  // 既存の紙吹雪・ファンファーレをそのまま再利用する(新しい音声・画像アセットは追加しない)。
+  // データ(獲得状態)の保存はこの演出より前に完了済みのため、万一ここで例外が
+  // 発生しても獲得データ自体が失われることはないが、画面操作不能を避けるため
+  // try/catchで囲み、失敗時も「続ける」ボタンは必ず機能する状態を保つ
   const confettiWrap = $("trophy-legend-confetti-wrap");
   confettiWrap.innerHTML = "";
-  SoundManager.playFanfare();
-  runConfetti(confettiWrap);
+  try {
+    SoundManager.playFanfare();
+    runConfetti(confettiWrap);
+  } catch (e) {
+    console.warn("達成演出(紙吹雪/ファンファーレ)の再生に失敗しました", e);
+  }
 }
 
 function initLegendAwardScreen() {
@@ -1681,7 +1769,7 @@ function buildTrophyCardElement(def, earnedEntry) {
         </div>
       </div>`;
   } else {
-    const icon = trophyModeIcon(def.mode);
+    const icon = def.category === "common" ? commonTrophyIcon(def.number) : trophyModeIcon(def.mode);
     marksHtml = `
       <div class="trophy-marks">
         <div class="trophy-mark-col">
@@ -1710,6 +1798,10 @@ function buildTrophyCardElement(def, earnedEntry) {
       ${pairLabel ? `<p class="trophy-pair">${pairLabel}</p>` : ""}
       <p class="trophy-description${isLegend ? " trophy-description-legend" : ""}">${def.description}</p>`
     : "";
+  // 共通トロフィー31種類(#395〜425)は未獲得でも名称・条件を表示する公開仕様
+  // のため、達成状況の数値進捗もここで未獲得時のみ追加表示する(獲得済みは
+  // 他のトロフィーと同じ「獲得マーク+日付」のみで十分なため省略する)
+  const progressHtml = !earnedOverall && def.category === "common" ? buildCommonTrophyProgressHtml(def.number) : "";
   card.innerHTML = `
     <div class="trophy-card-top">
       <span class="trophy-number">No.${def.number}</span>
@@ -1721,8 +1813,36 @@ function buildTrophyCardElement(def, earnedEntry) {
     ${marksHtml}
     <p class="trophy-name">${nameHtml}</p>
     ${condHtml}
+    ${progressHtml}
     ${descHtml}`;
   return card;
+}
+
+// 共通トロフィー31種類用の進捗表示HTML。TrophyModule.getCommonTrophyProgress()
+// が返す形(単一current/total、または複数条件のparts配列、percent付き)の
+// いずれにも対応する。対象外・取得失敗時は何も表示しない(推測で埋めない)
+function buildCommonTrophyProgressHtml(number) {
+  let p = null;
+  try { p = TrophyModule.getCommonTrophyProgress(number); } catch (e) { p = null; }
+  if (!p) return "";
+  const rows = [];
+  if (Array.isArray(p.parts)) {
+    p.parts.forEach((part) => {
+      if (typeof part.current === "number" && typeof part.total === "number") {
+        rows.push(`<p class="trophy-common-progress-row">${part.label}: ${part.current}/${part.total}</p>`);
+      } else {
+        rows.push(`<p class="trophy-common-progress-row">${part.label}: ${part.done ? "達成" : "未達成"}</p>`);
+      }
+    });
+  } else if (typeof p.current === "number" && typeof p.total === "number") {
+    const unit = p.unit || "";
+    const text = typeof p.percent === "number"
+      ? `現在${p.percent.toFixed(1)}%(${p.current}/${p.total}${unit})`
+      : `${p.current}/${p.total}${unit}`;
+    rows.push(`<p class="trophy-common-progress-row">${text}</p>`);
+  }
+  if (rows.length === 0) return "";
+  return `<div class="trophy-common-progress">${rows.join("")}</div>`;
 }
 
 let TROPHY_CATEGORY_LABELS = {};
@@ -2196,6 +2316,14 @@ function initMapEncyclopediaLink() {
     });
     showScreen("screen-map");
     MapModule.open(mapOpenOptionsFromStack(id));
+    // 共通トロフィー(四つの扉): 世界図鑑の詳細画面からの地図連携でも、
+    // ホーム画面の「世界地図」カードから開いた場合と同じく、地図画面を
+    // 実際に表示した時点で「世界地図を使用する」条件を満たす
+    try {
+      if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordCommonModeUsed === "function") {
+        TrophyModule.recordCommonModeUsed("map");
+      }
+    } catch (e) { /* noop */ }
   });
 
   // 世界図鑑トロフィー(No.154・155「地図連携」)用: 図鑑の詳細画面から
@@ -2274,6 +2402,21 @@ function initApp() {
     showSevenWondersUnlockScreen(() => showScreen("screen-top"));
   } else {
     showScreen("screen-top");
+  }
+  // 共通トロフィー31種類: 本更新より前からすでに条件を満たしていた利用者
+  // (累計獲得数・各モード完全制覇・四天王・世界一周の旅・最終到達3種)を、
+  // 次回起動時に静かに評価・付与する。画面がまだ何も表示されていない
+  // 状態から直接演出を出すとレイアウトが崩れるため、screen-top(または
+  // 世界7不思議の解放演出)の表示が確定した直後に呼ぶ
+  try {
+    if (typeof TrophyModule !== "undefined" && typeof TrophyModule.evaluateCommonTrophiesCatchUp === "function") {
+      const commonCatchUpResult = TrophyModule.evaluateCommonTrophiesCatchUp();
+      if (commonCatchUpResult && Array.isArray(commonCatchUpResult) && commonCatchUpResult.length) {
+        notifyNonQuizTrophyAward(commonCatchUpResult);
+      }
+    }
+  } catch (e) {
+    console.warn("共通トロフィーの起動時評価に失敗しました", e);
   }
 }
 

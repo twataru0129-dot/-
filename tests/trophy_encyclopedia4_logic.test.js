@@ -183,9 +183,9 @@ function findDef(Trophy, number) {
   const { Trophy, assertFailures } = freshSandbox();
   check("E: 自己検証のassertFailuresが0件", assertFailures.length === 0);
   const total = Trophy.getAllDefinitions().length;
-  check("E: トロフィー総数が380件(既存254件+謎解き126件)", total === 380);
+  check("E: トロフィー総数が411件(既存254件+謎解き126件+共通トロフィー31件)", total === 411);
   const summary = Trophy.getProgressSummary();
-  check("E: getProgressSummary().totalCountが412件", summary.totalCount === 412);
+  check("E: getProgressSummary().totalCountが443件", summary.totalCount === 443);
   const existing16 = [143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158];
   check("E: 既存世界図鑑16件すべてが引き続きTROPHIESに存在する", existing16.every((n) => !!Trophy.getDefinition(`trophy_${n}`)));
 }
