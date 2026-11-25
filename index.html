@@ -715,6 +715,10 @@
       </div>
       <div id="puzzle-answer-list" class="puzzle-answer-list"></div>
       <p id="puzzle-answer-message" class="puzzle-answer-message hidden"></p>
+      <!-- 世界7不思議: 不正解確定(7日間ロック)・既に獲得済み等でこの問題に
+           回答できなくなった場合だけ表示する、トロフィー一覧への案内リンク。
+           既存の通常謎解きでは常にhiddenのまま(js/puzzle.js参照) -->
+      <button id="puzzle-seven-wonder-return" class="puzzle-seven-wonder-return hidden" type="button">トロフィー一覧へ戻る</button>
       <button id="puzzle-answer-submit" class="puzzle-answer-submit" type="button" disabled>謎を解き明かす！</button>
     </div>
   </div>

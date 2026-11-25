@@ -248,6 +248,41 @@ async function answerCurrentFlagScreen(page, answerIds) {
     check("他の問題(wonder-02)はavailableのまま", stateWonder2 === "available");
   }
 
+  // ---------- テスト8.5: 不正解確定後、同じ画面で正解国に変更して
+  // 再送信してもトロフィーを取得できない(PR#85レビュー指摘のセキュリティ
+  // 回帰テスト)。テスト8の時点でwonder-01はcooldown済みで、画面は
+  // まだ#screen-puzzle-flag-selectのまま(自動では遷移しない)ことを
+  // 利用し、実際に「同じ画面で正解の国旗へ選び直して再送信する」操作を
+  // 再現する ----------
+  {
+    const page = sharedPage;
+    const lockBefore = await page.evaluate(() => TrophyModule.getSevenWonderUnlockAt("wonder-01"));
+    await page.click(".puzzle-answer-chip"); // 誤答(jp)の選択を取り除く
+    await page.click('.puzzle-flag-card[data-id="pe"]'); // 正解(ペルー)を選び直す
+    await page.click("#puzzle-answer-submit");
+    await page.waitForTimeout(200);
+    const earnedAfterExploit = await page.evaluate(() => TrophyModule.isEarned("trophy_386"));
+    check("不正解確定→同じ画面で正解国に変更→再送信してもトロフィーを獲得できない", earnedAfterExploit === false);
+    const stateAfterExploit = await page.evaluate(() => TrophyModule.getSevenWonderState("wonder-01"));
+    check("再送信を試みてもwonder-01はcooldown状態のまま", stateAfterExploit === "cooldown");
+    const lockAfter = await page.evaluate(() => TrophyModule.getSevenWonderUnlockAt("wonder-01"));
+    check("再送信してもロック解除時刻が変化しない(再ロック・延長されない)", lockAfter === lockBefore);
+    const returnLinkVisible = await page.isVisible("#puzzle-seven-wonder-return");
+    check("回答できない旨とトロフィー一覧へ戻るリンクが表示される", returnLinkVisible === true);
+
+    // 連続で複数回再送信を試みても状態が変わらないことも確認する(多重送信対策)
+    await page.click("#puzzle-answer-submit");
+    await page.click("#puzzle-answer-submit");
+    await page.waitForTimeout(200);
+    const earnedAfterRepeated = await page.evaluate(() => TrophyModule.isEarned("trophy_386"));
+    check("複数回連続で再送信してもトロフィーを獲得できない", earnedAfterRepeated === false);
+
+    // 「トロフィー一覧へ戻る」リンクから実際にトロフィー一覧へ戻れる
+    await page.click("#puzzle-seven-wonder-return");
+    await page.waitForSelector("#screen-trophy-list.active", { timeout: 3000 });
+    check("「トロフィー一覧へ戻る」でトロフィー一覧画面に戻る", true);
+  }
+
   // ---------- テスト9: 一覧でcooldown表示、他の問題へ正解できる ----------
   {
     const page = sharedPage;

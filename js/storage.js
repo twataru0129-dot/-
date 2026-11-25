@@ -3,7 +3,18 @@
 // 効果音設定・称号・挑戦回数・最高記録などをここで扱う
 // ==========================================================
 
-const STORAGE_PREFIX = "wfq_v1_";
+// 世界7不思議テストラボ(dev/seven-wonders-lab.html、本番には一切含めない
+// 開発専用ページ)専用のフック。このファイルより前に読み込まれるスクリプトが
+// window.__WFQ_LAB_STORAGE_PREFIX__ を設定していた場合だけ、保存キーの
+// 接頭辞をそれに差し替える。本番(index.html)はこのグローバル変数を一切
+// 設定しないため、production向けの挙動・保存キーは従来どおり完全に同じ
+// ("wfq_v1_"のまま)。これにより、このファイル・js/trophy.js等が使う
+// すべてのキー(StorageKeys・TROPHY_KEY・SEVEN_WONDERS_LOCK_KEY等、
+// 全てSTORAGE_PREFIXから派生)が、テストラボ使用時だけ自動的に別の
+// 名前空間("wfq_v1_lab_"等)になり、本番の保存データと一切重ならない
+const STORAGE_PREFIX = (typeof window !== "undefined" && typeof window.__WFQ_LAB_STORAGE_PREFIX__ === "string" && window.__WFQ_LAB_STORAGE_PREFIX__)
+  ? window.__WFQ_LAB_STORAGE_PREFIX__
+  : "wfq_v1_";
 
 // 国旗クイズ(既存)のキーは今までどおり据え置き、既存ユーザーのデータを壊さない。
 // 首都クイズは "wfq_v1_capital_xxx" という別キーで完全に分けて保存する。
@@ -784,6 +795,12 @@ const Storage = {
   // 世界7不思議: 7日間(168時間)ロックの読み書き
   getSevenWonderLock(questionId) { return sevenWondersLockStore.get(questionId); },
   recordSevenWonderFailure(questionId, failedAtMs) { return sevenWondersLockStore.recordFailure(questionId, failedAtMs); },
+  // 世界7不思議テストラボ(dev/seven-wonders-lab.html)専用。js/trophy.jsの
+  // resetSevenWondersProgress()から呼ばれ、7日間ロックの保存領域だけを
+  // 削除する(他の保存キーには一切触れない)
+  resetSevenWondersLocks() {
+    try { localStorage.removeItem(SEVEN_WONDERS_LOCK_KEY); return true; } catch (e) { return false; }
+  },
   SEVEN_WONDERS_LOCK_DURATION_MS,
 
   // ---- データリセット(国旗・首都両方の称号・記録だけを消す) ----

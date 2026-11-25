@@ -381,6 +381,23 @@
   cursor: not-allowed;
 }
 
+/* 世界7不思議: 回答できなくなった(7日間ロック確定・獲得済み等)ときだけ
+   表示する、トロフィー一覧への案内リンク。通常の謎解きでは常にhiddenの
+   ままなので、既存126問の見た目には一切影響しない */
+.puzzle-seven-wonder-return {
+  display: block;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 /* ---------- 開発用・一時的な入口(本番非公開) ----------
    トロフィー一覧画面のヘッダーに表示する仮ボタン。
    js/puzzle.jsのPUZZLE_DEV_ENTRY_ENABLEDがfalseの間は.hiddenのまま */

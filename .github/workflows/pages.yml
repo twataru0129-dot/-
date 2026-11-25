@@ -1,0 +1,67 @@
+name: Deploy to GitHub Pages (production files only)
+
+# 世界7不思議テストラボ(dev/)を、GitHub Pagesで公開される本番サイトから
+# 確実に除外するためのワークフロー。
+#
+# このワークフローを実際に有効化するには、リポジトリ側で1回だけ、以下の
+# 手動設定が必要です(このファイルをpushしただけでは切り替わりません)。
+#   GitHubのリポジトリ画面 → Settings → Pages → Build and deployment →
+#   Source を「Deploy from a branch」から「GitHub Actions」に変更する。
+#
+# この手動設定が済むまでは、既存のPages設定(ブランチを直接配信する方式)が
+# 引き続き使われ、このワークフローは実行されても公開には反映されません。
+# ブランチを直接配信する設定のままだと、このリポジトリに含まれるファイルは
+# dev/フォルダを含めてすべてそのまま公開されてしまう点に注意してください
+# (完了報告を参照)。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble production-only site (excludes dev/, tests/, .claude/, docs/)
+        run: |
+          set -eu
+          mkdir -p site
+          # 本番に必要なファイル・フォルダだけを明示的にコピーする
+          # (「除外リスト」ではなく「許可リスト」方式にすることで、将来
+          # 新しいフォルダが増えても、ここに追記するまでは誤って公開
+          # されない安全側の構成にしている)
+          cp index.html manifest.json site/
+          cp "apple-touch-icon.png.PNG" site/ 2>/dev/null || true
+          cp -r assets site/
+          cp -r css site/
+          cp -r js site/
+          # dev/・tests/・.claude/・docs/・README.md・THIRD_PARTY_LICENSES.md は
+          # 意図的にコピーしない(本番サイトに含めない)
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

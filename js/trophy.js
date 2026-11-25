@@ -3246,6 +3246,35 @@ const TrophyModule = (() => {
     try { localStorage.removeItem(TROPHY_STATS_KEY); } catch (e) { /* noop */ }
   }
 
+  // 世界7不思議テストラボ(dev/seven-wonders-lab.html)専用。通常謎解き126問
+  // (#1〜385)の獲得記録や称号・ランキング等は一切変更せず、世界7不思議
+  // 7問(#386〜392)・全知全能の神(#394)の獲得記録と、7日間ロックの保存
+  // 領域(js/storage.jsのSEVEN_WONDERS_LOCK_KEY)だけを削除する。これにより
+  // 「通常126問は獲得済みのまま、世界7不思議だけを繰り返しテストする」こと
+  // ができる。
+  // ミステリーハンター(#393)はあえて対象に含めない: この番号は
+  // isSevenWondersUnlocked()が「解放済みフラグ」としてそのまま再利用して
+  // おり(「一度解放されたら二度とロックしない」という本番の設計そのもの)、
+  // ここで一緒に消すと世界7不思議全体が再び未解放状態に戻ってしまい、
+  // 「7問だけを繰り返しテストする」という目的と矛盾する。本番でこの関数を
+  // 呼ぶ入口は存在しない(一般利用者向けの「全データリセット」はresetAll()
+  // のみを使う)
+  function resetSevenWondersProgress() {
+    try {
+      const data = loadTrophyData();
+      const idsToClear = SEVEN_WONDERS_TROPHY_NUMBERS
+        .concat([OMNISCIENT_GOD_NUMBER])
+        .map((n) => `trophy_${n}`);
+      idsToClear.forEach((id) => { delete data.earned[id]; });
+      saveTrophyData(data);
+    } catch (e) { /* noop */ }
+    try {
+      if (typeof Storage !== "undefined" && typeof Storage.resetSevenWondersLocks === "function") {
+        Storage.resetSevenWondersLocks();
+      }
+    } catch (e) { /* noop */ }
+  }
+
   return {
     getAllDefinitions,
     getDefinition,
@@ -3277,6 +3306,7 @@ const TrophyModule = (() => {
     getSevenWonderUnlockAt,
     isAllNormalPuzzlesEarned,
     isAllSevenWondersEarned,
+    resetSevenWondersProgress,
     SEVEN_WONDERS_TROPHY_NUMBERS,
     MYSTERY_HUNTER_NUMBER,
     OMNISCIENT_GOD_NUMBER,
