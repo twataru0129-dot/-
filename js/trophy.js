@@ -2360,13 +2360,17 @@ const TrophyModule = (() => {
   }
   // プレイ完了のたびに呼ぶ。同じ日に何度呼んでも(同日重複なし)、連続日数・
   // 累計日数は1回しか増えない。端末時刻が逆行して過去の(未記録の)日付に
-  // なった場合でも、その日をplayedDatesへ1回だけ追加するが、
-  // currentStreakDays/lastPlayedDateは「より新しい日付」方向にしか進めない
-  // ため、将来(時刻が正しく戻った後)の連続記録を壊さない
+  // なった場合は、その日をplayedDates(累計プレイ日数)へ1回だけ追加する
+  // だけにとどめ、currentStreakDays/lastPlayedDateには一切触れない(この
+  // 「today <= lastPlayedDate」のガードが無いと、diffが1にならないために
+  // currentStreakDaysが誤って1にリセットされ、既存の連続記録・最大連続
+  // 日数を不必要に破壊してしまう)。連続日数・lastPlayedDateは、記録済みの
+  // 最新日付より真に新しい日付を記録した場合にしか更新しない
   function recordCommonDatePlayed(data) {
     const today = getLocalDateString();
     if (data.playedDates[today]) return;
     data.playedDates[today] = true;
+    if (data.lastPlayedDate && today <= data.lastPlayedDate) return;
     if (data.lastPlayedDate) {
       const diff = dateStringDiffDays(data.lastPlayedDate, today);
       data.currentStreakDays = diff === 1 ? data.currentStreakDays + 1 : 1;
@@ -2374,7 +2378,7 @@ const TrophyModule = (() => {
       data.currentStreakDays = 1;
     }
     if (data.currentStreakDays > data.maxStreakDays) data.maxStreakDays = data.currentStreakDays;
-    if (!data.lastPlayedDate || today > data.lastPlayedDate) data.lastPlayedDate = today;
+    data.lastPlayedDate = today;
   }
   // 三位一体用。「今日」のクリア記録だけを保持する(日付が変わったら
   // その日の記録だけを新しく作り直すため、無制限にデータが増えない)
@@ -2420,9 +2424,16 @@ const TrophyModule = (() => {
   }
   // 1プレイが「正式な終了処理を経て結果画面に到達」した時点(戻る操作・
   // 再読み込みによる中断では呼ばれない経路)で、呼び出し元(evaluateQuizFinish/
-  // evaluateFindCountryResult)から1回だけ呼ぶ。プレイ完了回数・30問
-  // パーフェクト・198問クリア・どこかな？上級30問クリア・プレイ日・
-  // 三位一体用の当日クリア記録を、この1回でまとめて更新する
+  // evaluateFindCountryResult)から1回だけ呼ぶ。プレイ完了回数(累計プレイ系
+  // 用。「プレイ完了」はゲームオーバーを含む)・30問パーフェクト・198問
+  // クリア・どこかな？上級30問クリア・プレイ日を、この1回でまとめて更新する。
+  //
+  // 三位一体(#417)用の当日クリア記録(recordCommonDailyClear)だけは別扱いに
+  // する。国旗・首都クイズは全問に回答すれば(明確な失敗状態が無いため)
+  // 完了=クリアと見なせるが、どこかな？は規定ミス数到達によるゲームオーバー
+  // でもこの関数が呼ばれるため、「プレイ完了」と「クリア」を区別する必要が
+  // ある。呼び出し元がopts.isClearを明示的に渡した場合はその値を使い、
+  // 省略時(国旗・首都からの呼び出し)はtrue扱いにする
   function recordCommonPlayCompletion(mode, opts) {
     try {
       const data = loadCommonProgress();
@@ -2431,7 +2442,8 @@ const TrophyModule = (() => {
       if (opts && opts.clear198 && (mode === "flag" || mode === "capital")) data.clear198Achieved[mode] = true;
       if (opts && opts.clearAdvanced30) data.clearAdvanced30Achieved = true;
       recordCommonDatePlayed(data);
-      recordCommonDailyClear(data, mode);
+      const isClear = !(opts && opts.isClear === false);
+      if (isClear) recordCommonDailyClear(data, mode);
       saveCommonProgress(data);
     } catch (e) {
       console.warn("共通トロフィーのプレイ完了記録に失敗しました", e);
@@ -2622,16 +2634,16 @@ const TrophyModule = (() => {
       description: "何度間違えても、立ち上がり続けた。その挑戦の積み重ねが、確かな力となる。",
       check: () => sumCommonModeValues(loadCommonProgress().wrongCount) >= 1000 },
 
-    419: { name: "万国の覇者", condition: "国旗専用・国旗トリビア・国旗側分割カード・国旗単独で獲得可能な報酬すべて。", mode: "commonTrophy",
+    419: { name: "万国の覇者", condition: "国旗クイズのすべてのトロフィーを獲得する。", mode: "commonTrophy",
       description: "世界中にはためく旗のすべてを知り、国旗の頂点に立った者。",
       check: (s) => { const u = getFlagOnlyUnits(); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
-    420: { name: "万都の支配者", condition: "首都専用・首都トリビア・首都側分割カード・都の神話・首都単独で獲得可能な報酬すべて。", mode: "commonTrophy",
+    420: { name: "万都の支配者", condition: "首都クイズのすべてのトロフィーを獲得する(「都の神話」を含む)。", mode: "commonTrophy",
       description: "世界の都を知り尽くし、その知識を極限まで高めた者。",
       check: (s) => { const u = getCapitalOnlyUnits(); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
-    421: { name: "世界を統べる者", condition: "どこかな？通常36＋隠し61（PRO含む）＝97件予定。", mode: "commonTrophy",
+    421: { name: "世界を統べる者", condition: "世界の国どこかな？のすべてのトロフィーを獲得する。", mode: "commonTrophy",
       description: "地球上に、もはや知らぬ場所はない。",
       check: (s) => { const u = getFindCountryUnits(); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
-    422: { name: "全知の探究者", condition: "図鑑20＋通常謎解き126＋No.393＋七不思議7＋No.394＝155件予定。", mode: "commonTrophy",
+    422: { name: "全知の探究者", condition: "世界図鑑・謎解き・世界7不思議のすべてのトロフィーを獲得する。", mode: "commonTrophy",
       description: "世界の知識を集め、隠されたすべての謎を解き明かした者。",
       check: (s) => { const u = getOmniscientSeekerUnits(); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
 
@@ -2641,7 +2653,7 @@ const TrophyModule = (() => {
     424: { name: "殿堂入り", condition: "全トロフィーの95％以上を獲得。", mode: "commonTrophy",
       description: "あなたの偉業は永遠に刻まれ、世界の歴史にその名を残す。",
       check: (s) => { const u = getAllValidUnits(); return countEarnedUnitsInSnapshot(u, s) >= Math.ceil(u.length * 0.95); } },
-    425: { name: "世界の真理 ～アカシック・レコード～", condition: "自身を除くすべての獲得単位を獲得。", mode: "commonTrophy",
+    425: { name: "世界の真理 ～アカシック・レコード～", condition: "このトロフィーを除く、すべてのトロフィーを獲得する。", mode: "commonTrophy",
       description: "すべての知識、すべての記憶、すべての謎。その先にある世界の真理へ、あなたはたどり着いた。",
       check: (s) => { const u = getValidUnitsExcludingNumbers([425]); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
   };
@@ -2686,24 +2698,41 @@ const TrophyModule = (() => {
   // 既存の獲得済みトロフィー・国別正解履歴など、今回新設した保存領域
   // (COMMON_PROGRESS_KEY)に依存しない共通トロフィー(累計獲得数8種・
   // 各モード完全制覇4種・四天王・世界一周の旅・最終到達3種)は、この
-  // 呼び出しだけで正しく評価・付与される。四つの扉・トリプルスリー・
-  // 三冠王・累積がんばり系11種(世界一周の旅を除く)は、新規保存領域に
-  // 履歴が無いため、このタイミングでは付与されない(今回の更新以降の
-  // 実績から記録を開始する、という既存仕様どおりの正しい挙動であり、
-  // 「過去の実績を正確に復元できない場合は推測で補完しない」という
-  // 指示に従っている)
+  // 呼び出しだけで正しく評価・付与される。
+  //
+  // 四つの扉・トリプルスリー・三冠王についても、既存の保存データから
+  // 過去の実績が確実に証明できるものは、推測せずこの関数で復元する
+  // (「過去の実績を正確に復元できない場合は推測で補完しない」指示を
+  // 守ったうえで、証明できるものまで記録しないと、既に条件を満たして
+  // いるユーザーに不要な再プレイを要求してしまうため)。
+  //   - usedFlag/usedCapital: 挑戦回数(Storage.getAttempts)が1回以上あれば、
+  //     過去に必ず国旗/首都クイズを開始している
+  //   - usedFindCountry: 「世界の国どこかな？」専用のトロフィーを1件でも
+  //     獲得していれば、過去に必ずプレイを完了している
+  //   - usedEncyclopedia: 世界図鑑の閲覧記録が1件以上あれば、過去に必ず
+  //     詳細ページを開いている
+  //   - usedMap: 世界図鑑の詳細画面から「地図で場所を見る」を実際に使った
+  //     記録(Storage.getEncyclopediaMapCheckedCount、#154の判定と同じ
+  //     データ)が1件以上あれば、過去に必ず地図画面を表示している。ホーム
+  //     画面の「世界地図」カードからの利用履歴は今回の更新以前には保存
+  //     されていないため、そちらは証明できない(推測で補完しない)
+  //   - perfect30Achieved.flag/capital: 問題数ごとの最高記録
+  //     (Storage.getBestRecords)に30問コースの記録があり、その正解数が
+  //     30(満点)であれば、過去に必ず30問パーフェクトを達成している
+  //     (finishQuiz()は毎回のプレイでupdateBestRecordを呼ぶため、
+  //     記録に残っている最高正解数がそのまま「過去に到達した最高の結果」
+  //     を表す)
+  //   - clear198Achieved.flag/capital: 同じ最高記録に198問コースの記録が
+  //     「存在する」だけで、過去に必ず198問コースを完了している(三冠王の
+  //     198問クリアはパーフェクトを要件にしないため、正解数は問わない)
+  //   - perfect30Achieved.findcountry: どこかな？の初級/中級/上級いずれかの
+  //     30問コースについて、ノーミスクリア記録(Storage.
+  //     isFindCountryCourseNoMissCleared)が1件でもあれば、過去に必ず
+  //     (isNormalClearかつノーミスの)30問パーフェクトを達成している
+  //   - clearAdvanced30Achieved: どこかな？上級30問コースの通常クリア記録
+  //     (Storage.isFindCountryCourseCleared)があれば、過去に必ず上級30問
+  //     をクリアしている(パーフェクトは問わない)
   function evaluateCommonTrophiesCatchUp() {
-    // 四つの扉の「usedFlag/usedCapital/usedFindCountry/usedEncyclopedia」の
-    // うち、既存データから過去の利用が確実に証明できるものだけを、推測せず
-    // 復元する(「正確に復元できない実績は推測で補完しない」指示のため、
-    // 証拠の無いusedMapは復元しない。今後、実際に世界地図を開いた時点から
-    // 記録を開始する)。
-    //   - usedFlag/usedCapital: 挑戦回数(StorageKeys/CapitalStorageKeys.
-    //     ATTEMPTS)が1回以上あれば、過去に必ず国旗/首都クイズを開始している
-    //   - usedFindCountry: 「世界の国どこかな？」専用のトロフィーを1件でも
-    //     獲得していれば、過去に必ずプレイを完了している
-    //   - usedEncyclopedia: 世界図鑑の閲覧記録(ENCYCLOPEDIA_VISITED_KEY)が
-    //     1件以上あれば、過去に必ず詳細ページを開いている
     try {
       if (typeof Storage !== "undefined") {
         const data = loadCommonProgress();
@@ -2719,10 +2748,41 @@ const TrophyModule = (() => {
           data.usedEncyclopedia = true;
           changed = true;
         }
+        if (!data.usedMap && typeof Storage.getEncyclopediaMapCheckedCount === "function" && Storage.getEncyclopediaMapCheckedCount() > 0) {
+          data.usedMap = true;
+          changed = true;
+        }
+        if (typeof Storage.getBestRecords === "function") {
+          ["flag", "capital"].forEach((mode) => {
+            const records = Storage.getBestRecords(mode) || {};
+            const r30 = records["30"];
+            if (!data.perfect30Achieved[mode] && r30 && r30.correct === 30) {
+              data.perfect30Achieved[mode] = true;
+              changed = true;
+            }
+            if (!data.clear198Achieved[mode] && records["198"]) {
+              data.clear198Achieved[mode] = true;
+              changed = true;
+            }
+          });
+        }
+        if (typeof Storage.findCountryCourseKey === "function") {
+          if (!data.perfect30Achieved.findcountry && typeof Storage.isFindCountryCourseNoMissCleared === "function") {
+            const everNoMissCleared30 = ["beginner", "intermediate", "advanced"].some((id) =>
+              Storage.isFindCountryCourseNoMissCleared(Storage.findCountryCourseKey(id, 30)));
+            if (everNoMissCleared30) { data.perfect30Achieved.findcountry = true; changed = true; }
+          }
+          if (!data.clearAdvanced30Achieved && typeof Storage.isFindCountryCourseCleared === "function") {
+            if (Storage.isFindCountryCourseCleared(Storage.findCountryCourseKey("advanced", 30))) {
+              data.clearAdvanced30Achieved = true;
+              changed = true;
+            }
+          }
+        }
         if (changed) saveCommonProgress(data);
       }
     } catch (e) {
-      console.warn("共通トロフィー(四つの扉)の遡及復元に失敗しました", e);
+      console.warn("共通トロフィーの遡及復元に失敗しました", e);
     }
     return evaluateCommonTrophiesChain();
   }
@@ -3774,13 +3834,21 @@ const TrophyModule = (() => {
     // 共通トロフィー: showResult()は「戻る」等による途中中断(abandoned)では
     // 呼ばれず、通常クリア・規定ミス数到達によるゲームオーバー・出題対象を
     // 使い切った場合にだけ呼ばれるため、ここが「プレイ完了」の正しい記録
-    // タイミングになる。30問パーフェクト(トリプルスリー用、PROは対象外)・
-    // 上級30問クリア(三冠王用)
+    // タイミングになる(累計プレイ完了回数にはゲームオーバーも含める)。
+    // 30問パーフェクト(トリプルスリー用、PROは対象外)・上級30問クリア
+    // (三冠王用)はisNormalClearを要件にしているため元から正しい。
+    // 三位一体(#417)用の当日クリア記録(recordCommonDailyClear)だけは、
+    // 「プレイ完了」(ゲームオーバーを含む)ではなく「実際のクリア」
+    // (js/findcountry.js側のendReasonと全く同じ定義: isNormalClear||
+    // isProComplete)の場合のみ記録する必要があるため、isClearとして
+    // context.endReasonをそのまま渡す(ゲームオーバー時はendReasonが
+    // "gameover"になり、isClear===falseとなってdailyClearを更新しない)
     try {
       if (context) {
         recordCommonPlayCompletion("findcountry", {
           perfect30: context.target === 30 && context.difficultyId !== "pro" && !!context.isNormalClear && !!context.noMistakes,
           clearAdvanced30: context.difficultyId === "advanced" && context.target === 30 && !!context.isNormalClear,
+          isClear: context.endReason === "clear",
         });
       }
     } catch (e) {

@@ -43,6 +43,54 @@ function freshSandbox() {
   return { assertFailures, Trophy: sandbox.__exports__.TrophyModule, Storage: sandbox.__exports__.Storage };
 }
 
+// 連続プレイ日数(月末・年末・うるう年・日付逆行等)のテスト用。sandbox内の
+// Date(js/trophy.jsのgetLocalDateString()が引数なしで呼ぶnew Date()を含む)
+// だけを、setClockDate()で指定した「端末の現在日時」に差し替える。
+// new Date(文字列)等、引数ありの呼び出しは本物のDateと同じ挙動を保つ(
+// dateStringDiffDays()の日付パース処理に影響を与えないため)
+function freshSandboxWithClock(initialDateStr) {
+  const RealDate = Date;
+  let nowMs = new RealDate(`${initialDateStr}T00:00:00`).getTime();
+  class MockDate extends RealDate {
+    constructor(...args) {
+      if (args.length === 0) return new RealDate(nowMs);
+      return new RealDate(...args);
+    }
+    static now() { return nowMs; }
+  }
+  const sandbox = {};
+  sandbox.window = sandbox;
+  sandbox.Date = MockDate;
+  sandbox.localStorage = (function () {
+    let store = {};
+    return {
+      getItem(k) { return Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null; },
+      setItem(k, v) { store[k] = String(v); },
+      removeItem(k) { delete store[k]; },
+      clear() { store = {}; },
+    };
+  })();
+  const assertFailures = [];
+  sandbox.console = { assert(cond, msg) { if (!cond) assertFailures.push(msg); }, warn() {}, log() {} };
+  sandbox.document = { addEventListener() {}, dispatchEvent() {}, getElementById() { return null; }, querySelector() { return null; } };
+  vm.createContext(sandbox);
+  let code = "";
+  FILES.forEach((f) => { code += fs.readFileSync(path.join(ROOT, f), "utf8") + "\n"; });
+  code += "\nvar __exports__ = { TrophyModule: TrophyModule, Storage: Storage };";
+  vm.runInContext(code, sandbox, { filename: "bundle.js" });
+  return {
+    assertFailures,
+    Trophy: sandbox.__exports__.TrophyModule,
+    Storage: sandbox.__exports__.Storage,
+    setClockDate(dateStr) { nowMs = new RealDate(`${dateStr}T00:00:00`).getTime(); },
+  };
+}
+
+// 1プレイ完了(国旗クイズ10問パーフェクト)を記録させるための最小呼び出し
+function playFlagQuizOnce(Trophy) {
+  Trophy.evaluateQuizFinish({ mode: "flag", total: 10, correct: 10, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
+}
+
 let pass = 0, fail = 0;
 function check(name, cond) { if (cond) { pass += 1; } else { fail += 1; console.log("FAIL:", name); } }
 
@@ -168,8 +216,23 @@ function check(name, cond) { if (cond) { pass += 1; } else { fail += 1; console.
   Trophy.evaluateQuizFinish({ mode: "flag", total: 10, correct: 10, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
   Trophy.evaluateQuizFinish({ mode: "capital", total: 10, correct: 10, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
   check("三位一体: 2クイズのみクリア(どこかな？未クリア)では未獲得", !Trophy.isEarned("trophy_417"));
-  Trophy.evaluateFindCountryResult({ difficultyId: "beginner", correctCount: 5, answered: 5, target: 5, maxLives: 5, maxStreak: 5, isNormalClear: true, isProComplete: false, noMistakes: false });
+  Trophy.evaluateFindCountryResult({ difficultyId: "beginner", correctCount: 5, answered: 5, target: 5, maxLives: 5, maxStreak: 5, isNormalClear: true, isProComplete: false, noMistakes: false, endReason: "clear" });
   check("三位一体: 同日に3クイズすべてクリアで獲得される", Trophy.isEarned("trophy_417"));
+}
+// ---- 三位一体: どこかな？がゲームオーバー(クリアではない)の場合は、
+// 国旗・首都を同日にクリアしていても獲得されないことを確認する(レビュー
+// 指摘事項: 「プレイ完了」(ゲームオーバーを含む)と「クリア」を区別する) ----
+{
+  const { Trophy } = freshSandbox();
+  Trophy.evaluateQuizFinish({ mode: "flag", total: 10, correct: 10, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
+  Trophy.evaluateQuizFinish({ mode: "capital", total: 10, correct: 10, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
+  // isNormalClear/isProCompleteがどちらもfalse(規定ミス数到達によるゲーム
+  // オーバー)の、実際のjs/findcountry.js側のendReason計算と同じ値を渡す
+  Trophy.evaluateFindCountryResult({ difficultyId: "beginner", correctCount: 2, answered: 5, target: 5, maxLives: 5, maxStreak: 2, isNormalClear: false, isProComplete: false, noMistakes: false, gameOver: true, endReason: "gameover" });
+  check("三位一体: どこかな？がゲームオーバー(クリアではない)の場合は未獲得のまま", !Trophy.isEarned("trophy_417"));
+  // 累計プレイ完了回数(#407等)には、クリアかどうかに関わらずゲームオーバーも
+  // 1回として数える(国旗1+首都1+どこかな？のゲームオーバー1=合計3回)
+  check("累計プレイ完了回数には、どこかな？のゲームオーバーも1回として数えられている", Trophy.getCommonTrophyProgress(407).current === 3);
 }
 
 // ---- 累積がんばり系: 誤答のうちパス・時間切れは数えない ----
@@ -205,6 +268,160 @@ function check(name, cond) { if (cond) { pass += 1; } else { fail += 1; console.
   Trophy.awardIfNew(`trophy_${encOnly[19]}`);
   Trophy.evaluateCommonTrophiesCatchUp();
   check("四天王: 各分野20件で獲得される", Trophy.isEarned("trophy_406"));
+}
+
+// ---- 既存ユーザーへの遡及付与: 既存の保存データから確実に証明できる
+// 実績(30問パーフェクト・198問クリア・どこかな？30問パーフェクト・
+// どこかな？上級30問クリア・世界地図の使用経験)が、推測なしで正しく
+// 復元されることを確認する。特にトリプルスリー(#404)・三冠王(#405)は、
+// 既に条件を満たしているユーザーに不要な再プレイを要求してはならない ----
+{
+  const { Trophy, Storage } = freshSandbox();
+  // トリプルスリー(#404): 国旗・首都の既存ベスト記録(30問パーフェクト)+
+  // どこかな？のノーミスクリア記録(初級30問)から、再プレイなしで獲得される
+  Storage.updateBestRecord(30, 30, 30, "flag");
+  Storage.updateBestRecord(30, 30, 30, "capital");
+  Storage.markFindCountryCourseCleared(Storage.findCountryCourseKey("beginner", 30));
+  Storage.markFindCountryCourseNoMissCleared(Storage.findCountryCourseKey("beginner", 30));
+  Trophy.evaluateCommonTrophiesCatchUp();
+  check("トリプルスリー: 既存の30問パーフェクト記録(国旗・首都・どこかな？初級)から再プレイなしで獲得される", Trophy.isEarned("trophy_404") === true);
+}
+{
+  // トリプルスリーの否定側: 国旗・首都はパーフェクトでも、どこかな？の
+  // 該当コースがノーミスクリアされていなければ遡及付与されないこと
+  const { Trophy, Storage } = freshSandbox();
+  Storage.updateBestRecord(30, 30, 30, "flag");
+  Storage.updateBestRecord(30, 30, 30, "capital");
+  Storage.markFindCountryCourseCleared(Storage.findCountryCourseKey("beginner", 30)); // 通常クリアのみ(ノーミスではない)
+  Trophy.evaluateCommonTrophiesCatchUp();
+  check("トリプルスリー: どこかな？がノーミスクリアでない場合は遡及付与されない", Trophy.isEarned("trophy_404") === false);
+}
+{
+  // 三冠王(#405): 国旗・首都の198問コース完了記録(パーフェクト不要)+
+  // どこかな？上級30問の通常クリア記録(パーフェクト不要)から、
+  // 再プレイなしで獲得される
+  const { Trophy, Storage } = freshSandbox();
+  Storage.updateBestRecord(198, 150, 198, "flag"); // パーフェクトではないが完了した記録
+  Storage.updateBestRecord(198, 198, 198, "capital");
+  Storage.markFindCountryCourseCleared(Storage.findCountryCourseKey("advanced", 30)); // パーフェクトではない通常クリア
+  Trophy.evaluateCommonTrophiesCatchUp();
+  check("三冠王: 既存の198問クリア記録(パーフェクト不要)+どこかな？上級30問クリア記録から再プレイなしで獲得される", Trophy.isEarned("trophy_405") === true);
+}
+{
+  // 世界地図の使用経験(四つの扉用usedMap): 世界図鑑の「地図で場所を見る」
+  // 利用記録(#154と同じデータ)から遡及復元され、他の4条件も満たせば
+  // 四つの扉が再プレイなしで獲得されることを確認する
+  const { Trophy, Storage } = freshSandbox();
+  Storage.recordEncyclopediaMapChecked("jp");
+  ["flag", "capital", "findcountry", "encyclopedia"].forEach((k) => Trophy.recordCommonModeUsed(k));
+  Trophy.evaluateCommonTrophiesCatchUp();
+  check("四つの扉: 世界図鑑の地図連携利用記録からusedMapが遡及復元され獲得される", Trophy.isEarned("trophy_403") === true);
+}
+{
+  // usedMapの否定側: 地図連携の利用記録が一切無い場合は、他の4条件を
+  // 満たしても四つの扉は獲得されない(推測で補完しないことの確認)
+  const { Trophy } = freshSandbox();
+  ["flag", "capital", "findcountry", "encyclopedia"].forEach((k) => Trophy.recordCommonModeUsed(k));
+  Trophy.evaluateCommonTrophiesCatchUp();
+  check("四つの扉: 世界地図の利用記録が無い場合は遡及付与されない", Trophy.isEarned("trophy_403") === false);
+}
+{
+  // getCommonTrophyProgress経由でも、遡及復元したperfect30Achieved/
+  // clear198Achieved/clearAdvanced30Achievedが実際に保存されていることを
+  // 直接確認する(トリプルスリー・三冠王の内部フラグの検証)
+  const { Trophy, Storage } = freshSandbox();
+  Storage.updateBestRecord(30, 30, 30, "flag");
+  Storage.updateBestRecord(198, 100, 198, "flag");
+  Trophy.evaluateCommonTrophiesCatchUp();
+  Storage.updateBestRecord(30, 30, 30, "capital");
+  Storage.updateBestRecord(198, 198, 198, "capital");
+  Storage.markFindCountryCourseNoMissCleared(Storage.findCountryCourseKey("intermediate", 30));
+  Storage.markFindCountryCourseCleared(Storage.findCountryCourseKey("advanced", 30));
+  Trophy.evaluateCommonTrophiesCatchUp();
+  check("遡及復元後、トリプルスリー(#404)が獲得される(中級30問のノーミスクリアでも成立)", Trophy.isEarned("trophy_404") === true);
+  check("遡及復元後、三冠王(#405)が獲得される", Trophy.isEarned("trophy_405") === true);
+}
+
+// ==========================================================
+// 連続プレイ日数(recordCommonDatePlayed)のレビュー指摘事項テスト。
+// #413(7日連続)・#414(30日連続)のgetCommonTrophyProgress().current
+// (=currentStreakDaysのmin)、#415(累計プレイ日数)のcurrentで検証する。
+// ==========================================================
+{
+  // 同日重複: 同じ日に何度プレイ完了しても、連続日数・累計日数は1回しか増えない
+  const { Trophy, setClockDate } = freshSandboxWithClock("2024-06-10");
+  playFlagQuizOnce(Trophy);
+  playFlagQuizOnce(Trophy);
+  playFlagQuizOnce(Trophy);
+  check("同日重複: 同じ日に3回プレイしても連続日数は1のまま", Trophy.getCommonTrophyProgress(413).current === 1);
+  check("同日重複: 同じ日に3回プレイしても累計プレイ日数は1日のまま", Trophy.getCommonTrophyProgress(415).current === 1);
+}
+{
+  // 日付逆行: 端末時刻が過去の未記録日付に戻った場合、累計プレイ日数には
+  // その日が1回だけ追加されるが、連続日数(currentStreakDays)は破壊されない
+  const { Trophy, setClockDate } = freshSandboxWithClock("2024-06-10");
+  playFlagQuizOnce(Trophy);
+  check("日付逆行・前提: 2024-06-10プレイ直後は連続日数1", Trophy.getCommonTrophyProgress(413).current === 1);
+  setClockDate("2024-06-05"); // 端末時刻が逆行(未記録の過去日付)
+  playFlagQuizOnce(Trophy);
+  check("日付逆行: 過去の未記録日付でのプレイ後も、連続日数が1のまま破壊されない", Trophy.getCommonTrophyProgress(413).current === 1);
+  check("日付逆行: 過去の未記録日付も累計プレイ日数には1日として追加される(2日になる)", Trophy.getCommonTrophyProgress(415).current === 2);
+  setClockDate("2024-06-11"); // 最新の記録日(06-10)の翌日に進める
+  playFlagQuizOnce(Trophy);
+  check("日付逆行からの復帰: 逆行前の最新記録日(06-10)を基準に連続日数が正しく2に伸びる", Trophy.getCommonTrophyProgress(413).current === 2);
+}
+{
+  // 日付復帰(間隔あり): 連続日数が途切れた場合は、意図通り1にリセットされる
+  // (「既存の連続記録を不必要に破壊しない」とは、ガード漏れによる誤リセット
+  // (日付逆行時)を指すのであって、実際に間隔が空いた場合の正しいリセットは
+  // 妨げない)。また、累計プレイ日数(playedDates)は間隔が空いても正しく
+  // 積み上げられ続けることを確認する
+  const { Trophy, setClockDate } = freshSandboxWithClock("2024-01-01");
+  for (let i = 0; i < 5; i++) {
+    setClockDate(`2024-01-${String(1 + i).padStart(2, "0")}`);
+    playFlagQuizOnce(Trophy);
+  }
+  check("日付復帰・前提: 5日連続プレイで連続日数5", Trophy.getCommonTrophyProgress(413).current === 5);
+  setClockDate("2024-01-10"); // 5日空けてプレイ(連続日数は途切れる)
+  playFlagQuizOnce(Trophy);
+  check("日付復帰: 間隔が空いた後のプレイでは、現在の連続日数は1にリセットされる", Trophy.getCommonTrophyProgress(413).current === 1);
+  check("日付復帰: 間隔が空いた日も累計プレイ日数には加算される(5日+1日=6日)", Trophy.getCommonTrophyProgress(415).current === 6);
+}
+{
+  // 月末境界: 1/31→2/1のように月をまたいでも「翌日」として正しく連続と判定される
+  const { Trophy, setClockDate } = freshSandboxWithClock("2024-01-31");
+  playFlagQuizOnce(Trophy);
+  setClockDate("2024-02-01");
+  playFlagQuizOnce(Trophy);
+  check("月末境界: 1/31→2/1のプレイが連続日数2としてカウントされる", Trophy.getCommonTrophyProgress(413).current === 2);
+}
+{
+  // 年末境界: 12/31→1/1のように年をまたいでも「翌日」として正しく連続と判定される
+  const { Trophy, setClockDate } = freshSandboxWithClock("2023-12-31");
+  playFlagQuizOnce(Trophy);
+  setClockDate("2024-01-01");
+  playFlagQuizOnce(Trophy);
+  check("年末境界: 2023-12-31→2024-01-01のプレイが連続日数2としてカウントされる", Trophy.getCommonTrophyProgress(413).current === 2);
+}
+{
+  // うるう年境界: うるう年の2/28→2/29→3/1が、いずれも「翌日」として
+  // 正しく連続と判定される(2/29が存在しない年と誤認しない)
+  const { Trophy, setClockDate } = freshSandboxWithClock("2024-02-28");
+  playFlagQuizOnce(Trophy); // うるう年(2024年)の2/28
+  setClockDate("2024-02-29"); // うるう日
+  playFlagQuizOnce(Trophy);
+  setClockDate("2024-03-01");
+  playFlagQuizOnce(Trophy);
+  check("うるう年境界: 2/28→2/29(うるう日)→3/1が連続日数3としてカウントされる", Trophy.getCommonTrophyProgress(413).current === 3);
+}
+{
+  // うるう年境界(平年): 平年(2023年)は2/29が存在しないため、2/28の翌日は
+  // 3/1になる。この場合も正しく「翌日」として連続と判定されることを確認する
+  const { Trophy, setClockDate } = freshSandboxWithClock("2023-02-28");
+  playFlagQuizOnce(Trophy); // 平年(2023年)の2/28
+  setClockDate("2023-03-01"); // 平年なので2/29は存在せず、翌日は3/1
+  playFlagQuizOnce(Trophy);
+  check("うるう年境界(平年): 2023年(平年)の2/28→3/1が連続日数2としてカウントされる", Trophy.getCommonTrophyProgress(413).current === 2);
 }
 
 console.log(`\n合計: ${pass + fail}件 / 成功: ${pass}件 / 失敗: ${fail}件`);

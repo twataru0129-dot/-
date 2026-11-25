@@ -311,19 +311,22 @@
       case "cross-triple-three":
         TrophyModule.evaluateQuizFinish({ mode: "flag", total: 30, correct: 30, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
         TrophyModule.evaluateQuizFinish({ mode: "capital", total: 30, correct: 30, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
-        TrophyModule.evaluateFindCountryResult({ difficultyId: "beginner", correctCount: 30, answered: 30, target: 30, maxLives: 5, maxStreak: 30, isNormalClear: true, isProComplete: false, noMistakes: true });
+        TrophyModule.evaluateFindCountryResult({ difficultyId: "beginner", correctCount: 30, answered: 30, target: 30, maxLives: 5, maxStreak: 30, isNormalClear: true, isProComplete: false, noMistakes: true, endReason: "clear" });
         renderPanel();
         return;
       case "cross-triple-crown":
         TrophyModule.evaluateQuizFinish({ mode: "flag", total: 198, correct: 198, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
         TrophyModule.evaluateQuizFinish({ mode: "capital", total: 198, correct: 198, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
-        TrophyModule.evaluateFindCountryResult({ difficultyId: "advanced", correctCount: 30, answered: 30, target: 30, maxLives: 3, maxStreak: 30, isNormalClear: true, isProComplete: false, noMistakes: false });
+        TrophyModule.evaluateFindCountryResult({ difficultyId: "advanced", correctCount: 30, answered: 30, target: 30, maxLives: 3, maxStreak: 30, isNormalClear: true, isProComplete: false, noMistakes: false, endReason: "clear" });
         renderPanel();
         return;
       case "cross-trinity":
         TrophyModule.evaluateQuizFinish({ mode: "flag", total: 10, correct: 10, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
         TrophyModule.evaluateQuizFinish({ mode: "capital", total: 10, correct: 10, rate: 100, perfect: true, wrongIds: [], correctIds: [], questionIds: [] });
-        TrophyModule.evaluateFindCountryResult({ difficultyId: "beginner", correctCount: 5, answered: 5, target: 5, maxLives: 5, maxStreak: 5, isNormalClear: true, isProComplete: false, noMistakes: false });
+        // endReasonは本番のjs/findcountry.jsが実際に渡す値と同じ("clear"=
+        // isNormalClear||isProComplete)を明示する(三位一体はゲームオーバー
+        // では成立しないため)
+        TrophyModule.evaluateFindCountryResult({ difficultyId: "beginner", correctCount: 5, answered: 5, target: 5, maxLives: 5, maxStreak: 5, isNormalClear: true, isProComplete: false, noMistakes: false, endReason: "clear" });
         renderPanel();
         return;
       case "cross-four-kings": {

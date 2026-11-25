@@ -6,6 +6,227 @@
 で実際に実行して測定した値であり、仮定や企画書の想定値をそのまま転記したもの
 ではない。
 
+## 0. PR #88レビュー対応(今回の追加修正)
+
+PR #88のレビューで指摘された6項目について、以下のとおり修正・点検を行った。
+既存の共通トロフィー31種類・トロフィー総数452件・既存機能はすべて維持している。
+
+### 0-1. 三位一体(#417)の誤判定修正
+
+`recordCommonPlayCompletion()`が「プレイ完了」(ゲームオーバーを含む)のたびに
+無条件で`recordCommonDailyClear()`を呼んでいたため、どこかな？が規定ミス数
+到達でゲームオーバーになった場合も三位一体のクリア条件を満たしてしまう不具合
+があった。「プレイ完了」(累計プレイ回数用。ゲームオーバーを含む)と「クリア」
+(三位一体用。実際のクリア条件を満たした場合のみ)を明確に区別するよう修正した。
+
+- `recordCommonPlayCompletion(mode, opts)`に`opts.isClear`を追加し、`false`の
+  場合は`recordCommonDailyClear()`を呼ばないようにした(省略時はtrue扱いの
+  ため、国旗・首都クイズからの既存の呼び出しは変更なし)。
+- `evaluateFindCountryResult()`から呼ぶ際、`isClear: context.endReason === "clear"`
+  を渡す。`endReason`はjs/findcountry.js側が既に計算している
+  `(isNormalClear || isProComplete) ? "clear" : (gameOver ? "gameover" : "pool_exhausted")`
+  と全く同じ値で、新しい判定基準を追加したわけではない。
+- 累計プレイ完了回数(#407〜409等)は、この修正後も引き続きゲームオーバーを
+  1回として数える(`playCompletedCount`自体の加算は変更していない)。
+
+テスト(`tests/trophy_common_logic.test.js`): 同日に国旗・首都をクリアし、
+どこかな？が規定ミス数到達でゲームオーバーになった場合に三位一体が獲得され
+ないこと、かつ累計プレイ完了回数にはそのゲームオーバーも1回として数えられる
+ことを確認した。
+
+### 0-2. 連続プレイ日数の端末時刻逆行対応
+
+`recordCommonDatePlayed()`が、端末時刻が逆行して未記録の過去日付になった
+場合、`currentStreakDays`を1にリセットしてしまう不具合があった(コメントに
+書かれていた「将来の連続記録を壊さない」という意図と実装が一致していな
+かった)。
+
+修正後は、記録対象の日付(today)が`lastPlayedDate`より真に新しい場合のみ
+`currentStreakDays`・`lastPlayedDate`を更新し、それ以外(今日と同日、または
+過去の未記録日付)の場合は、その日付を`playedDates`(累計プレイ日数用)に
+追加するだけにとどめ、連続記録には一切触れないようにした。
+
+```js
+function recordCommonDatePlayed(data) {
+  const today = getLocalDateString();
+  if (data.playedDates[today]) return;
+  data.playedDates[today] = true;
+  if (data.lastPlayedDate && today <= data.lastPlayedDate) return; // 逆行時はここで止める
+  // ...(以降は従来どおり、today > lastPlayedDateの場合のみ連続記録を更新)
+}
+```
+
+三位一体用の当日クリア記録(`recordCommonDailyClear`)は、記録対象の日付が
+`dailyClear.date`と一致しない場合にその日専用の記録へ作り直す、既存の設計
+のままで日付の前後関係に依存しないため、今回の修正と矛盾しないことを確認
+した(変更なし)。
+
+テスト: `tests/trophy_common_logic.test.js`に、`js/trophy.js`内の`new Date()`
+(引数なし呼び出しのみ)を差し替えられるモック時計付きのテスト用サンドボックス
+(`freshSandboxWithClock()`)を追加し、以下の境界ケースを実クイズ完了イベント
+(`evaluateQuizFinish()`)経由で検証した。いずれも`getCommonTrophyProgress(413)`
+(7日連続)・`getCommonTrophyProgress(415)`(累計プレイ日数)の値で確認している。
+
+| ケース | 結果 |
+|---|---|
+| 同日重複(同じ日に複数回プレイ完了) | 連続日数・累計日数とも1回しか増えない |
+| 日付逆行(未記録の過去日付でプレイ) | 連続日数は破壊されず、累計日数のみ1日加算される |
+| 日付逆行から最新記録日の翌日に復帰 | 逆行前の最新記録日を基準に連続日数が正しく継続する |
+| 日付復帰(間隔が空いた後のプレイ) | 連続日数は(意図通り)1にリセットされ、累計日数は加算され続ける |
+| 月末境界(1/31→2/1) | 連続日数2(翌日として正しく継続) |
+| 年末境界(2023-12-31→2024-01-01) | 連続日数2(翌日として正しく継続) |
+| うるう年境界(2024年2/28→2/29→3/1) | 連続日数3(うるう日を挟んでも正しく継続) |
+| うるう年境界・平年(2023年2/28→3/1) | 連続日数2(平年の2/29欠番でも翌日として正しく継続) |
+
+全8ケースとも想定通りの結果となり、`dateStringDiffDays()`の日付差分計算
+(`new Date(文字列)`による標準的な日付パースに依存しており、月末・年末・
+うるう年を特別扱いしていない)が、これらの境界をすべて正しく処理できている
+ことを確認した。
+
+### 0-3. 既存ユーザーへの遡及付与の追加
+
+既存の保存データから確実に証明できる、以下の実績を新たに遡及復元できるよう
+`evaluateCommonTrophiesCatchUp()`を拡張した(推測による補完は一切行っていない)。
+
+| 実績 | 証明に使った既存データ |
+|---|---|
+| 国旗/首都30問パーフェクト | `Storage.getBestRecords(mode)["30"]`が存在し、`correct === 30` |
+| 国旗/首都198問クリア(パーフェクト不要) | `Storage.getBestRecords(mode)["198"]`が存在する(正解数は問わない) |
+| どこかな？30問パーフェクト | 初級/中級/上級いずれかの30問コースの`Storage.isFindCountryCourseNoMissCleared()`がtrue |
+| どこかな？上級30問クリア(パーフェクト不要) | 上級30問コースの`Storage.isFindCountryCourseCleared()`がtrue |
+| 世界地図の使用経験(四つの扉用usedMap) | 世界図鑑の地図連携利用記録`Storage.getEncyclopediaMapCheckedCount() > 0`(#154と同じデータ) |
+
+これにより、トリプルスリー(#404)・三冠王(#405)は、既にこれらの条件を実質的
+に満たしているユーザーが不要な再プレイを要求されることなく、アプリ起動時に
+自動的に獲得されるようになった。
+
+なお、ホーム画面の「世界地図」カードからの利用履歴は今回の更新以前には保存
+されていないため遡及復元できないが、世界図鑑の詳細画面から地図連携で地図を
+開いた履歴があればそれを根拠にする。また、今回の修正に合わせて、世界図鑑の
+地図連携(`encyclopediamodule:view-on-map`)からも実際に地図画面を表示した
+時点で`recordCommonModeUsed("map")`を呼ぶように`js/app.js`を修正した(従来は
+ホーム画面の「世界地図」カードからの利用だけが記録されており、図鑑経由で
+地図を開いた場合は四つの扉用の利用記録が付かなかった)。
+
+テスト: `tests/trophy_common_logic.test.js`に、トリプルスリー・三冠王それぞれ
+「既存記録から再プレイなしで獲得される」ケースと「条件を満たさない既存記録
+では遡及付与されない」否定ケース、四つの扉の`usedMap`遡及復元の肯定・否定
+ケースを追加した。
+
+### 0-4. プレイ実績の二重集計防止の確認
+
+既存の呼び出し元のガード処理により、以下のとおり二重集計は構造的に防止され
+ていることをコード調査で確認した(新たなガードの追加は不要と判断した)。
+
+- `js/app.js`の`handleAnswer()`は先頭で`if (state.answered) return;`を確認し、
+  同じ問題への複数回の回答処理自体を防いでいる。`recordCommonTally()`の
+  呼び出しはこのガードの内側にあるため、1問につき1回しか呼ばれない。
+- `js/findcountry.js`の`finalizeAnswer()`・`handleWrongTap()`も、同様に
+  `quizState.answered`ガード(タップハンドラ側)により、同一の回答イベントで
+  複数回呼ばれることがない(既存コードのコメントで明記されている既存設計)。
+- `js/findcountry.js`の`showResult()`は先頭で`if (quizState.resultShown) return;`
+  を確認しており、「結果を見る」の連打等でこの関数が多重に呼ばれても、
+  `evaluateFindCountryResult()`(プレイ完了記録を含む)は1プレイにつき1回しか
+  実行されない。
+- `js/app.js`の`finishQuiz()`は`goToNextQuestion()`の唯一の呼び出し元から、
+  最後の問題の回答確定後に1回だけ呼ばれる構造になっており、同一プレイ内で
+  多重に呼ばれる経路が無い。
+
+これらはいずれも既存コードに元々存在していたガードであり、今回の共通トロ
+フィー実装のために新設したものではない。
+
+実際のクイズ操作(本物のDOM要素への実クリック)を通じた確認として、新規
+Playwrightテスト`tests/playwright_common_trophy_double_count.test.js`を追加
+した。保存関数を直接呼ぶのではなく、国旗クイズの回答ボタンを実際にクリック
+して検証している。
+
+- 同じ正解ボタンを同一タスク内で連続して2回`click()`しても、累計正解数は
+  1問につき1回しか増えないこと
+- クイズを2問目の途中で「✕」から中断した場合、累計プレイ完了回数は増えない
+  が、既に確定した2問分の正解数は失われずに保持されること
+- 10問を実際に全問正解でクリアした場合、累計正解数・累計プレイ完了回数が
+  実際のクリック回数と正確に一致すること(二重集計も過少集計もない)
+
+すべて成功した(7件/7件)。
+
+途中中断直前に累計正解数の閾値(例: #410の累計10,000問正解)を満たした場合
+についても、`recordCommonTally()`は回答確定(`handleAnswer()`/`finalizeAnswer()`)
+の時点で即座に保存されるため、その後に中断してもカウントは保持される。また
+連鎖判定(`evaluateCommonTrophiesChain()`)は`evaluateQuizFinish()`/
+`evaluateFindCountryResult()`等の呼び出し時にのみ実行されるため、中断した
+プレイでは連鎖判定自体が走らず、該当トロフィーはその場では解放されない
+(次にいずれかのクイズを完了した時点、またはアプリ再起動時の遡及評価で
+解放される)。これは既存の「中断時は判定を行わない」という仕様と一貫して
+おり、データが失われるわけではない。
+
+### 0-5. プレイヤー向け文言の修正
+
+以下の共通トロフィーの獲得条件から、開発段階の内部的な表現(「〜件予定」
+「獲得単位」「分割カード」等)を取り除き、プレイヤー向けの自然な文言に修正
+した。内部の判定ロジック(`check`関数)は一切変更していない。
+
+| No. | 修正前 | 修正後 |
+|---|---|---|
+| 419 | 国旗専用・国旗トリビア・国旗側分割カード・国旗単独で獲得可能な報酬すべて。 | 国旗クイズのすべてのトロフィーを獲得する。 |
+| 420 | 首都専用・首都トリビア・首都側分割カード・都の神話・首都単独で獲得可能な報酬すべて。 | 首都クイズのすべてのトロフィーを獲得する(「都の神話」を含む)。 |
+| 421 | どこかな？通常36＋隠し61（PRO含む）＝97件予定。 | 世界の国どこかな？のすべてのトロフィーを獲得する。 |
+| 422 | 図鑑20＋通常謎解き126＋No.393＋七不思議7＋No.394＝155件予定。 | 世界図鑑・謎解き・世界7不思議のすべてのトロフィーを獲得する。 |
+| 425 | 自身を除くすべての獲得単位を獲得。 | このトロフィーを除く、すべてのトロフィーを獲得する。 |
+
+他の26種類(#395〜418・423・424)の獲得条件文言を点検し、開発者向けの表現は
+残っていないことを確認した。
+
+### 0-6. パフォーマンス・保存処理の追加点検
+
+Node環境で実際に計測した結果は以下のとおり(測定条件: 既存421件すべて獲得
+済みの、ほぼ全件達成に近い状態)。
+
+| 処理 | 計測結果 |
+|---|---|
+| `evaluateQuizFinish()`/`evaluateFindCountryResult()`(連鎖判定込み) | 約150ms/回 |
+| `getProgressSummary()` | 約0.5ms/回 |
+| `getCommonTrophyProgress()`を共通トロフィー31件分まとめて呼ぶ | 約15ms(31件合計) |
+
+(未獲得が多い状態ではいずれも1桁ms未満で、コストは獲得済み件数にほぼ比例する。
+既存の`getEarned()`が保存データの再読込+420件の走査を行う既存設計に起因する
+もので、今回新設した連鎖判定が追加のオーバーヘッドを載せている)
+
+- **クイズ中のタイマーへの影響**: `finishQuiz()`は`state.timer.stop()`を呼んだ
+  後に`evaluateQuizFinish()`を呼ぶため、約150msの処理中はタイマーは既に停止
+  しており、タイマーの精度に影響しない。
+- **正解・誤答時の画面応答**: 回答確定時に呼ばれる`recordCommonTally()`は
+  連鎖判定を含まない軽い処理(保存データの読み込み+1件加算+保存のみ)で、
+  重い処理(連鎖判定)はプレイ完了時(`evaluateQuizFinish`等)にしか発生しない
+  ため、回答ごとの画面応答には影響しない。
+- **連鎖判定による不要な保存データの再読み込み**: 既存の対応(findcountryの
+  高頻度な`onlyStage:"hidden61"`呼び出し時は連鎖判定自体をスキップする)を
+  維持している。それ以外の呼び出し(プレイ完了時)は1プレイにつき1回だけ発生
+  する設計のまま変更していない。
+- **トロフィー一覧の進捗表示時の処理負荷**: 共通トロフィー31件すべての進捗
+  表示を計算しても約15ms(ほぼ全件獲得済みの重い状態)で、画面を開く際の
+  1回だけの処理のため、人が感知できるような遅延にはならない。
+- **スマートフォンでの動作への影響**: 実機での厳密な計測は行っていないが、
+  処理はいずれも同期的なJavaScript処理(通信・描画待ちを含まない)であり、
+  発生タイミングもプレイ完了時・画面表示時の1回限りであるため、PCでの計測値
+  (最大約150ms)から大きく外れる体感遅延にはならないと判断した。実機での
+  最終確認は引き続き必要(14節参照)。
+- **保存失敗時の挙動**: `recordCommonTally`/`recordCommonPlayCompletion`/
+  `recordCommonDatePlayed`/`evaluateCommonTrophiesChain`はいずれも既存の
+  try/catchで囲まれ、失敗時は`console.warn`を出すのみでクイズ・結果画面の
+  進行自体を止めない(既存の設計方針どおり)。
+- **将来のプロフィール別保存への対応**: 既存の報告書14節のとおり、
+  `wfq_v1_common_progress`はプロフィールIDをキーに付加する形で分割できる、
+  フラットな1オブジェクト構造を維持している(今回変更なし)。
+- **Service Workerの確認**: 本リポジトリには、実際には`sw.js`等のService
+  Worker登録コード自体が存在しない(`manifest.json`によるPWAインストール対応
+  のみ)。したがって「Service Workerの更新によって新旧JavaScript/CSSが混在
+  する」というリスクは、現状のこのアプリには当てはまらない。将来Service
+  Workerを導入する場合は、キャッシュ更新時に新旧ファイルが混在しないよう
+  個別に設計・検証する必要がある。
+
+大規模なリファクタリングは行わず、上記はすべて既存設計の確認と実測にとど
+めた(新たなキャッシュ機構の追加等は見送った)。
+
 ## 1. 実装した31種類の一覧
 
 | No. | 名称 | 獲得条件(要約) |
@@ -199,9 +420,14 @@ awardしない状態で、実際の連鎖判定ロジック(`evaluateCommonTroph
 - `js/findcountry.js`: 利用履歴記録・正解/誤答集計フックを追加
 - `css/style.css`: 共通トロフィーの進捗表示・#425専用演出のCSSを追加
 - `dev/common-trophy-lab.html` / `dev/common-trophy-lab.js` / `dev/common-trophy-lab-boot.js`: 新規(開発者向けテスト環境)
-- `tests/trophy_common_logic.test.js`: 新規(Node単体テスト、34件)
+- `tests/trophy_common_logic.test.js`: 新規(Node単体テスト。PR #88レビュー対応で
+  三位一体の誤判定防止・連続プレイ日数の境界(同日重複・日付逆行・日付復帰・
+  月末・年末・うるう年)・遡及付与のテストを追加し、34件→56件に拡張)
 - `tests/trophy_common_full_conquest.test.js`: 新規(全452件完全制覇シミュレーション、37件)
 - `tests/playwright_common_trophy_lab.test.js`: 新規(テストラボの動作確認、22件)
+- `tests/playwright_common_trophy_double_count.test.js`: 新規(PR #88レビュー対応。
+  保存関数を直接呼ぶのではなく実際のクイズ操作(実クリック)を通じて、正解・
+  プレイ完了回数の二重集計防止を確認する、7件)
 - `tests/playwright_trophy_dual_split_cards.test.js` / `playwright_trophy_sticky_header.test.js` /
   `playwright_puzzle_trophy_award.test.js` / `playwright_findcountry_hidden_trophy_display.test.js` /
   `playwright_title_collection_removed.test.js`: トロフィー総数のハードコード値を
@@ -209,10 +435,10 @@ awardしない状態で、実際の連鎖判定ロジック(`evaluateCommonTroph
 
 ## 12. 自動テスト結果
 
-- 新規作成したNode単体テスト2件: 合計71件すべて成功
-  (`trophy_common_logic.test.js` 34件、`trophy_common_full_conquest.test.js` 37件)
-- 新規作成したPlaywright UIテスト1件: 22件すべて成功
-  (`playwright_common_trophy_lab.test.js`)
+- 新規作成したNode単体テスト2件: 合計93件すべて成功
+  (`trophy_common_logic.test.js` 56件、`trophy_common_full_conquest.test.js` 37件)
+- 新規作成したPlaywright UIテスト2件: 合計29件すべて成功
+  (`playwright_common_trophy_lab.test.js` 22件、`playwright_common_trophy_double_count.test.js` 7件)
 - 既存のNode単体テスト全12ファイルを再実行し、すべて成功(今回の総数変更
   (420/452)に伴い、トロフィー総数・カテゴリー数をハードコードしていた5ファイル
   ――`trophy_dual_split_aggregation_logic.test.js`・`trophy_encyclopedia_logic.test.js`・

@@ -2316,6 +2316,14 @@ function initMapEncyclopediaLink() {
     });
     showScreen("screen-map");
     MapModule.open(mapOpenOptionsFromStack(id));
+    // 共通トロフィー(四つの扉): 世界図鑑の詳細画面からの地図連携でも、
+    // ホーム画面の「世界地図」カードから開いた場合と同じく、地図画面を
+    // 実際に表示した時点で「世界地図を使用する」条件を満たす
+    try {
+      if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordCommonModeUsed === "function") {
+        TrophyModule.recordCommonModeUsed("map");
+      }
+    } catch (e) { /* noop */ }
   });
 
   // 世界図鑑トロフィー(No.154・155「地図連携」)用: 図鑑の詳細画面から
