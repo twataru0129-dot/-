@@ -1492,9 +1492,12 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
 }
 
 // ========================================================
-// 世界7不思議(def.category === "sevenWonders"、#386〜394)専用のカード。
+// 世界7不思議(7問本体+隠し特別2種、#386〜394)専用のカード。
 // 既存のbuildPuzzleTrophyCardElement()・buildTrophyCardElement()は一切
-// 変更せず、renderTrophyGrid()がcategoryで分岐してこの関数を呼ぶ。
+// 変更せず、renderTrophyGrid()がdef.stage/def.categoryで分岐してこの関数を
+// 呼ぶ(【トロフィーカテゴリー修正】隠し特別2種はdef.stage ===
+// "sevenWondersSpecial"で判定するため、#393のdef.categoryが「謎解き
+// トロフィー」に変わっても、このカードの判定自体には影響しない)。
 // 既存の謎解き・隠しトロフィーのどちらとも異なる、黒曜石・金を基調にした
 // 専用デザイン(CSS側、trophy-card-sevenwonder系クラス)を使う。
 //
@@ -1600,10 +1603,17 @@ function buildSevenWonderSpecialCard(card, def, st) {
   const condHtml = secretLocked ? "" : `<p class="trophy-cond">${def.condition}</p>`;
   const descHtml = !secretLocked && def.description ? `<p class="trophy-description">${def.description}</p>` : "";
   const dateStr = st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "";
+  // 【トロフィーカテゴリー修正】カード上部のカテゴリーバッジは、従来の
+  // 固定文字列「世界7不思議」ではなく、def.category(表示用タブ分類)に
+  // 対応する実際のラベルを表示する。これにより、#393「ミステリーハンター」
+  // (category: "puzzle")は「謎解きトロフィー」、#394「全知全能の神」
+  // (category: "sevenWonders")は従来どおり「世界7不思議」と表示され、
+  // バッジの見た目と一覧タブでの絞り込み結果が常に一致する
+  const categoryBadgeLabel = TROPHY_CATEGORY_LABELS[def.category] || "世界7不思議";
   card.innerHTML = `
     <div class="trophy-card-top">
       <span class="trophy-number">No.${def.number}</span>
-      <div class="trophy-card-badges"><span class="trophy-category-badge">世界7不思議</span></div>
+      <div class="trophy-card-badges"><span class="trophy-category-badge">${categoryBadgeLabel}</span></div>
     </div>
     <div class="trophy-marks">
       <div class="trophy-mark-col">
@@ -1764,6 +1774,19 @@ function renderTrophyGrid() {
   const defs = TrophyModule.getAllDefinitions();
   const earned = TrophyModule.getEarned();
   defs.forEach((def) => {
+    // 世界7不思議 隠し特別2種(ミステリーハンター・全知全能の神、
+    // def.stage === "sevenWondersSpecial")は、他のどの分岐よりも先に
+    // 専用カード(buildSevenWonderCardElement→buildSevenWonderSpecialCard、
+    // 未発見時は？？？？？？で完全に伏せる既存仕様)で描画する。
+    // 【トロフィーカテゴリー修正】#393は一覧の表示用タブ分類(def.category)
+    // こそ「謎解きトロフィー」に変わったが、カードの見た目・未発見時の
+    // 伏せ方・獲得演出は従来の世界7不思議専用デザインのまま変更しない
+    // ため、この判定はdef.categoryではなくdef.stage(カテゴリー変更の
+    // 影響を受けない内部分類)を見て行う
+    if (def.stage === "sevenWondersSpecial") {
+      grid.appendChild(buildSevenWonderCardElement(def, earned[def.id]));
+      return;
+    }
     // 謎解きトロフィー(#256〜、第3段階)は、隠しトロフィーのsecretLocked
     // 処理とは異なる専用の表示(未獲得でも問題文を見せる)が必要なため、
     // 他のどの分岐よりも先にbuildPuzzleTrophyCardElement()へ回す
@@ -1771,8 +1794,8 @@ function renderTrophyGrid() {
       grid.appendChild(buildPuzzleTrophyCardElement(def, earned[def.id]));
       return;
     }
-    // 世界7不思議(7問+隠し特別2種、#386〜394)は、通常の謎解き・隠し
-    // トロフィーのどちらとも異なる専用カードで描画する
+    // 世界7不思議7問(#386〜392)+#394は、通常の謎解き・隠しトロフィーの
+    // どちらとも異なる専用カードで描画する
     if (def.category === "sevenWonders") {
       grid.appendChild(buildSevenWonderCardElement(def, earned[def.id]));
       return;

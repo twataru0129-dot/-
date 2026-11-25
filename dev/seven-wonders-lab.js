@@ -41,7 +41,11 @@
   // 「挑戦する」ボタンから、未解放の問題を即座に挑戦可能にするためにも使う
   function ensureNormalPuzzlesCompleted() {
     if (TrophyModule.isSevenWondersUnlocked()) return;
-    const defs = TrophyModule.getAllDefinitions().filter((d) => d.category === "puzzle");
+    // 【トロフィーカテゴリー修正】ミステリーハンター(#393)の表示用カテゴリーが
+    // 「謎解きトロフィー」になったため、category === "puzzle"だけで絞り込むと
+    // 挑戦先を持たない#393自身(puzzleQuestionId: null)も含まれてしまう。
+    // 実際に挑戦できる通常謎解き126問だけを対象にする
+    const defs = TrophyModule.getAllDefinitions().filter((d) => d.category === "puzzle" && d.puzzleQuestionId);
     defs.forEach((d) => TrophyModule.evaluatePuzzleAnswer({ questionId: d.puzzleQuestionId, correct: true }));
   }
 
