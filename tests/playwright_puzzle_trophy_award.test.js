@@ -130,7 +130,7 @@ async function getPuzzleCardInfo(page, questionId) {
 
     const puzzleCategoryExists = await page.evaluate(() => TrophyModule.getCategories().some((c) => c.id === "puzzle"));
     check("テスト1: カテゴリー一覧に「puzzle」が追加されている", puzzleCategoryExists === true);
-    const puzzleTab = await page.$('#trophy-category-tabs .trophy-tab[data-category="puzzle"]');
+    const puzzleTab = await page.$('#trophy-category-grid .trophy-category-chip[data-category="puzzle"]');
     check("テスト1: カテゴリータブに謎解きトロフィーのタブが表示される", !!puzzleTab);
 
     check("テスト1: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
@@ -241,8 +241,12 @@ async function getPuzzleCardInfo(page, questionId) {
     // 再挑戦して正解しても、初回獲得演出(screen-puzzle-trophy-award)は
     // 再実行されない
     await page.click('#trophy-grid [data-trophy-id="' + infoAfterReload.trophyId + '"]');
-    // 獲得済みのカードはクリックしても画面を開かない(「この謎に挑む」
-    // ボタンが無いため)。開発用入口から同じ問題を開いて再挑戦する
+    // 獲得済みのカードをクリックすると、UI刷新で追加された詳細モーダルが
+    // 開くだけで、謎解き画面への遷移は起きない(「この謎に挑む」ボタンが
+    // 無いため)。モーダルを閉じてから、開発用入口から同じ問題を開いて再挑戦する
+    await page.waitForSelector("#trophy-detail-modal:not(.hidden)", { timeout: 3000 });
+    await page.click("#trophy-detail-close");
+    await page.waitForSelector("#trophy-detail-modal", { state: "hidden", timeout: 3000 });
     await page.click("#screen-trophy-list .btn-back");
     await page.waitForSelector("#screen-top.active");
     await openPuzzleFromTrophyList(page, base, "puzzle-01");

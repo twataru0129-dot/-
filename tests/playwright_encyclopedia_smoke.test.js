@@ -131,8 +131,13 @@ function check(name, cond) {
     await page.waitForSelector("#screen-top.active");
     await page.click("#btn-trophy-list");
     await page.waitForSelector("#trophy-grid .trophy-card");
+    // UI刷新: カテゴリー別進捗カードは既定で8枚までの折りたたみ表示になる
+    // ため、encyclopediaのように折りたたみ範囲外のカテゴリーをクリックする
+    // 前に「すべて表示」を開いておく
+    const categoryToggle = await page.$("#trophy-category-toggle");
+    if (categoryToggle) await categoryToggle.click();
 
-    const specialTab = await page.$('#trophy-category-tabs [data-category="special"]');
+    const specialTab = await page.$('#trophy-category-grid [data-category="special"]');
     check('trophy list has a "特別チャレンジ" (special) category tab', !!specialTab);
     if (specialTab) {
       await specialTab.click();
@@ -143,7 +148,7 @@ function check(name, cond) {
       'unearned hidden trophies show the name as exactly "？？？？？？"',
       hiddenNames.length > 0 && hiddenNames.every((t) => (t || "").trim() === "？？？？？？")
     );
-    const encTab = await page.$('#trophy-category-tabs [data-category="encyclopedia"]');
+    const encTab = await page.$('#trophy-category-grid [data-category="encyclopedia"]');
     check('trophy list has a "世界図鑑" category tab', !!encTab);
     if (encTab) {
       await encTab.click();

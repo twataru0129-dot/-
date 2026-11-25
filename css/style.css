@@ -21,6 +21,23 @@
   --radius-sm: 10px;
   --shadow-card: 0 4px 16px rgba(30, 40, 60, 0.08);
   --font-main: system-ui, -apple-system, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+
+  /* ---------- トロフィー一覧・詳細画面専用(UI刷新)のダークネイビー×ゴールド
+       配色。既存の--color-*はこの画面のためには一切変更せず、新しい変数名
+       (--tl-*)だけを追加する。これらはscreen-trophy-list・trophy-detail-modal
+       の中でしか参照しないため、他の画面の見た目には影響しない ---------- */
+  --tl-bg: #0a0f1e;
+  --tl-bg-soft: #0f1630;
+  --tl-card-bg: #141c35;
+  --tl-card-bg-locked: #10172c;
+  --tl-border: rgba(212, 175, 55, 0.22);
+  --tl-border-strong: rgba(231, 196, 104, 0.55);
+  --tl-text: #eef1fb;
+  --tl-text-sub: #8d98bd;
+  --tl-gold: #e7c468;
+  --tl-gold-strong: #ffd76a;
+  --tl-gold-deep: #b8860b;
+  --tl-shadow: 0 10px 28px rgba(2, 5, 15, 0.55);
 }
 
 * { box-sizing: border-box; }
@@ -955,9 +972,18 @@ img { max-width: 100%; }
    ========================================================== */
 
 /* ---------- トロフィー一覧画面 ---------- */
-.trophy-panel { max-width: 1100px; }
+/* ==========================================================
+   トロフィー一覧・詳細画面(UI刷新): ダークネイビー×ゴールド
+   ==========================================================
+   このセクション(#screen-trophy-list内と#trophy-detail-modal)だけに
+   適用され、--color-*を参照する他の画面には一切影響しない。 */
+#screen-trophy-list {
+  background: var(--tl-bg);
+  color: var(--tl-text);
+}
+.trophy-panel { max-width: 1320px; }
 
-/* トロフィー一覧(153件)を下までスクロールしても「戻る」まで迷わないよう、
+/* 453件規模のカードを下までスクロールしても「戻る」まで迷わないよう、
    戻るボタン+タイトルだけをposition: stickyで画面上部に固定する。
    .screenが実際のスクロールコンテナ(window/body)の祖先であり、
    .panel/.trophy-panelにoverflow・transformが設定されていないため、
@@ -970,9 +996,8 @@ img { max-width: 100%; }
      iPhoneのノッチ・Dynamic Island・ステータスバーに重ならないよう
      内容を下にずらす(ヘッダー自体の背景は0から開始するため、
      ノッチ部分も背景色で途切れなく覆われる)
-   - background: ページ全体と同じ色にし、スクロール中にカードの文字が
-     ヘッダーの下を透けて見えないようにする(スクロール位置に関わらず
-     文字が読みやすい状態を保つ) */
+   - background: この画面と同じ色にし、スクロール中にカードの文字が
+     ヘッダーの下を透けて見えないようにする */
 .trophy-list-header {
   position: sticky;
   top: 0;
@@ -982,8 +1007,8 @@ img { max-width: 100%; }
   gap: 12px;
   margin: -24px -20px 20px;
   padding: calc(14px + env(safe-area-inset-top)) 20px 14px;
-  background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--tl-bg);
+  border-bottom: 1px solid var(--tl-border);
 }
 /* 既存の.btn-back(position: absolute)は他の画面(図鑑・地図・復習等)で
    そのまま使われているため、グローバルなルールは変更せず、この固定
@@ -996,124 +1021,363 @@ img { max-width: 100%; }
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  color: var(--tl-gold);
+  border-color: var(--tl-border-strong);
 }
 .trophy-list-header .screen-title {
   flex: 1;
   margin: 0;
   font-size: 1.15rem;
+  color: var(--tl-text);
 }
 
-.trophy-progress-summary {
-  text-align: center;
-  font-weight: 800;
-  color: var(--color-primary-dark);
-  margin: 0 0 16px;
+/* ---------- ヒーローカード: 全体獲得数・円形達成率・進捗バー・次の目標 ---------- */
+.trophy-hero-card {
+  background: linear-gradient(160deg, var(--tl-card-bg) 0%, var(--tl-bg-soft) 100%);
+  border: 1px solid var(--tl-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 18px;
+  box-shadow: var(--tl-shadow);
 }
-
-/* ---------- 共通トロフィー31種類(#395〜425)用: 達成状況の数値進捗 ---------- */
-.trophy-common-progress {
-  margin: 4px 0 0;
-  padding: 6px 10px;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 8px);
-}
-.trophy-common-progress-row {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--color-text-sub);
-}
-.trophy-common-progress-row + .trophy-common-progress-row {
-  margin-top: 2px;
-}
-
-.trophy-category-tabs {
+.trophy-hero-top {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  margin-bottom: 10px;
-  scrollbar-width: thin;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
-.trophy-tab {
+.trophy-hero-kicker {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--tl-text-sub);
+}
+.trophy-hero-count {
+  margin: 4px 0 0;
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: var(--tl-gold-strong);
+  line-height: 1.1;
+}
+.trophy-hero-slash { font-size: 1.3rem; color: var(--tl-text-sub); font-weight: 700; }
+.trophy-hero-count .trophy-hero-slash + span { color: var(--tl-text); }
+.trophy-hero-label { margin: 2px 0 0; font-size: 0.82rem; color: var(--tl-text-sub); }
+
+.trophy-hero-ring-wrap {
+  position: relative;
+  width: 108px;
+  height: 108px;
   flex-shrink: 0;
-  padding: 9px 14px;
-  border: 1px solid var(--color-border);
+}
+.trophy-ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.trophy-ring-track {
+  fill: none;
+  stroke: rgba(255,255,255,0.08);
+  stroke-width: 10;
+}
+.trophy-ring-fill {
+  fill: none;
+  stroke: var(--tl-gold-strong);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s ease;
+}
+.trophy-ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.trophy-ring-percent { font-size: 1.05rem; font-weight: 800; color: var(--tl-text); }
+.trophy-ring-sub { font-size: 0.56rem; font-weight: 700; letter-spacing: 0.08em; color: var(--tl-text-sub); }
+
+.trophy-hero-bar-track {
+  margin-top: 16px;
+  height: 10px;
   border-radius: 999px;
-  background: #fff;
-  color: var(--color-text-sub);
-  font-size: 0.85rem;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.trophy-hero-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--tl-gold-deep), var(--tl-gold-strong));
+  transition: width 0.6s ease;
+}
+
+.trophy-hero-next {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(231, 196, 104, 0.08);
+  border: 1px dashed var(--tl-border-strong);
+  border-radius: var(--radius-md);
+}
+.trophy-hero-next-icon { font-size: 1.3rem; flex-shrink: 0; }
+.trophy-hero-next-text { flex: 1; min-width: 0; margin: 0; font-size: 0.85rem; line-height: 1.5; }
+.trophy-hero-next-label { color: var(--tl-text-sub); }
+.trophy-hero-next-name { font-weight: 800; color: var(--tl-text); }
+.trophy-hero-next-sub { display: block; font-size: 0.78rem; color: var(--tl-gold); }
+.trophy-hero-next-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--tl-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tl-gold);
+  font-size: 0.78rem;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
 }
-.trophy-tab.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
+.trophy-hero-next-btn:hover { background: rgba(231, 196, 104, 0.12); }
+
+/* ---------- 共通の見出し行(カテゴリー・一覧セクション) ---------- */
+.trophy-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 22px 0 10px;
+}
+.trophy-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--tl-text);
+}
+.trophy-section-toggle {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--tl-gold);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.trophy-toggle-caret { display: inline-block; transition: transform 0.2s ease; }
+.trophy-toggle-caret-up { transform: rotate(-90deg); }
+
+/* ---------- カテゴリー別の獲得数・進捗(折りたたみ) ---------- */
+.trophy-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+@media (min-width: 480px) {
+  .trophy-category-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (min-width: 720px) {
+  .trophy-category-grid { grid-template-columns: repeat(4, 1fr); }
+}
+.trophy-category-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  background: var(--tl-card-bg);
+  border: 1px solid var(--tl-border);
+  border-radius: var(--radius-md);
+  color: var(--tl-text);
+  cursor: pointer;
+  text-align: left;
+}
+.trophy-category-chip.active {
+  border-color: var(--tl-gold-strong);
+  background: linear-gradient(160deg, rgba(231,196,104,0.16), var(--tl-card-bg) 70%);
+  box-shadow: 0 0 0 1px var(--tl-gold-strong) inset;
+}
+.trophy-category-chip-icon { font-size: 1.2rem; }
+.trophy-category-chip-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.trophy-category-chip-count { font-size: 0.78rem; color: var(--tl-text-sub); font-weight: 700; }
+.trophy-category-chip-bar-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+  display: block;
+}
+.trophy-category-chip-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--tl-gold-deep), var(--tl-gold-strong));
+}
+
+/* ---------- トロフィー一覧: 表示切替・絞り込み・検索 ---------- */
+.trophy-view-toggle { display: flex; gap: 6px; flex-shrink: 0; }
+.trophy-view-btn {
+  padding: 7px 12px;
+  border: 1px solid var(--tl-border);
+  border-radius: 999px;
+  background: var(--tl-card-bg);
+  color: var(--tl-text-sub);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.trophy-view-btn.active {
+  background: var(--tl-gold-strong);
+  border-color: var(--tl-gold-strong);
+  color: #1b1333;
 }
 
 .trophy-status-filter {
   display: flex;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 .trophy-status-btn {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 68px;
   padding: 9px 8px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--tl-border);
   border-radius: 999px;
-  background: #fff;
-  color: var(--color-text-sub);
+  background: var(--tl-card-bg);
+  color: var(--tl-text-sub);
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
 }
 .trophy-status-btn.active {
-  background: var(--color-gold);
-  border-color: var(--color-gold);
-  color: #fff;
+  background: var(--tl-gold-strong);
+  border-color: var(--tl-gold-strong);
+  color: #1b1333;
+}
+
+.trophy-search-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+.trophy-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+.trophy-search-input {
+  width: 100%;
+  padding: 10px 12px 10px 34px;
+  border: 1px solid var(--tl-border);
+  border-radius: 999px;
+  background: var(--tl-card-bg);
+  color: var(--tl-text);
+  font-size: 0.88rem;
+}
+.trophy-search-input::placeholder { color: var(--tl-text-sub); }
+.trophy-search-input:focus {
+  outline: none;
+  border-color: var(--tl-gold-strong);
 }
 
 .trophy-result-count {
   font-size: 0.82rem;
-  color: var(--color-text-sub);
+  color: var(--tl-text-sub);
   margin: 0 2px 12px;
 }
+.trophy-empty-message {
+  text-align: center;
+  color: var(--tl-text-sub);
+  padding: 32px 12px;
+  font-size: 0.9rem;
+}
 
+/* ---------- カードグリッド本体 ----------
+   画面幅に応じて自動的に列数が変わるようminmax+auto-fillを使う
+   (スマホ: 約2〜3列・タブレット: 約4〜5列・PC: 約5〜6列相当になる
+   カード最小幅を採用している。固定のブレークポイント数に頼らず、実際の
+   幅で列数が決まるため、途中の幅でも不自然に1列だけ余ったりしない) ---------- */
+/* 国旗/首都分割カード(.trophy-dual-pair)が1マスの中でさらに2枚に割れる
+   構造のため、極端に列数を増やすと分割後の1枚あたりの幅が文字・バッジ
+   よりも狭くなってしまう。560px未満は1列・900px未満は2列・900px以上は
+   3列という段階は分割カードの可読性を確認済みの幅のため変更せず、
+   より広いPC領域だけ追加の段階(4〜6列)を設けて列数を増やす */
 .trophy-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 @media (min-width: 560px) {
   .trophy-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (min-width: 900px) {
-  .trophy-grid { grid-template-columns: repeat(3, 1fr); }
+  .trophy-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
 }
+@media (min-width: 1100px) {
+  .trophy-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (min-width: 1320px) {
+  .trophy-grid { grid-template-columns: repeat(5, 1fr); gap: 18px; }
+}
+@media (min-width: 1600px) {
+  .trophy-grid { grid-template-columns: repeat(6, 1fr); }
+}
+/* 一覧(リスト)表示: 横長1列・カード内部を横並びにして情報密度を上げる */
+.trophy-grid.trophy-grid-list {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.trophy-grid-list .trophy-card:not(.trophy-card-split) {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 12px 16px;
+}
+.trophy-grid-list .trophy-card .trophy-card-top { flex-direction: column; align-items: flex-start; margin: 0; gap: 4px; order: 3; flex-shrink: 0; }
+.trophy-grid-list .trophy-card .trophy-marks { margin: 0; flex-shrink: 0; order: 1; }
+.trophy-grid-list .trophy-card .trophy-name,
+.trophy-grid-list .trophy-card .trophy-cond,
+.trophy-grid-list .trophy-card .trophy-description,
+.trophy-grid-list .trophy-card .trophy-pair,
+.trophy-grid-list .trophy-card .trophy-common-progress { text-align: left; }
+.trophy-grid-list .trophy-card > :not(.trophy-card-top):not(.trophy-marks) { order: 2; }
+.trophy-grid-list .trophy-card-badges { justify-content: flex-start; }
+.trophy-grid-list .trophy-dual-pair { flex-direction: column; }
+.trophy-grid-list .trophy-dual-pair .trophy-card-split { flex-basis: auto; }
 
 .trophy-card {
-  background: var(--color-bg-card);
+  background: var(--tl-card-bg);
+  border: 1px solid var(--tl-border);
   border-radius: var(--radius-md);
   padding: 16px;
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--tl-shadow);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
 }
-.trophy-card.locked { opacity: 0.85; }
+.trophy-card:hover { border-color: var(--tl-border-strong); transform: translateY(-2px); }
+.trophy-card.locked {
+  background: var(--tl-card-bg-locked);
+  opacity: 0.82;
+}
 .trophy-card-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
 }
-.trophy-number { font-size: 0.78rem; font-weight: 800; color: var(--color-text-sub); }
+.trophy-number { font-size: 0.78rem; font-weight: 800; color: var(--tl-text-sub); }
 .trophy-category-badge {
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--color-primary-dark);
-  background: var(--color-bg);
+  color: var(--tl-gold);
+  background: rgba(231, 196, 104, 0.12);
   border-radius: 999px;
   padding: 3px 10px;
 }
@@ -1161,26 +1425,36 @@ img { max-width: 100%; }
   align-items: center;
   justify-content: center;
   font-size: 1.3rem;
-  border: 3px solid rgba(255,255,255,0.6);
-  box-shadow: inset 0 -4px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.15);
+  overflow: hidden;
+  border: 3px solid rgba(255,255,255,0.12);
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.35);
 }
 .trophy-mark.earned {
   background: linear-gradient(135deg, #ffe27a, #d4a017);
+  border-color: rgba(255, 215, 106, 0.5);
 }
 .trophy-mark.locked {
-  background: #cbd5e1;
+  background: rgba(255,255,255,0.06);
   filter: grayscale(1);
-  opacity: 0.6;
+  opacity: 0.55;
+}
+/* 将来、トロフィー固有画像(TROPHY_ICON_IMAGE_URLS)が登録された場合に
+   表示される画像アイコン。丸いマークの内側いっぱいに収める */
+.trophy-mark-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 .trophy-mark-date {
   font-size: 0.68rem;
-  color: var(--color-text-sub);
+  color: var(--tl-text-sub);
   margin: 0;
   text-align: center;
 }
 
-.trophy-name { font-weight: 800; margin: 0 0 4px; text-align: center; }
-.trophy-cond { font-size: 0.85rem; color: var(--color-text-sub); margin: 0; text-align: center; }
+.trophy-name { font-weight: 800; margin: 0 0 4px; text-align: center; color: var(--tl-text); }
+.trophy-cond { font-size: 0.85rem; color: var(--tl-text-sub); margin: 0; text-align: center; }
 
 /* ---------- トロフィー一覧 集計方式A案: 国旗/首都分割カード ----------
    同じ番号の国旗クイズカード・首都クイズカードを横並びの2枚にし、
@@ -1208,8 +1482,8 @@ img { max-width: 100%; }
 .trophy-split-mode-badge {
   font-size: 0.62rem;
   font-weight: 700;
-  color: var(--color-primary-dark);
-  background: var(--color-bg);
+  color: var(--tl-gold);
+  background: rgba(231, 196, 104, 0.12);
   border-radius: 999px;
   padding: 2px 7px;
   white-space: nowrap;
@@ -1245,20 +1519,75 @@ img { max-width: 100%; }
 .trophy-pair {
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--color-primary-dark);
+  color: var(--tl-gold);
   margin: 8px 0 0;
   text-align: center;
   word-break: break-word;
 }
 .trophy-description {
   font-size: 0.8rem;
-  color: var(--color-text-sub);
+  color: var(--tl-text-sub);
   margin: 4px 0 0;
   text-align: left;
   line-height: 1.5;
   word-break: break-word;
   overflow-wrap: anywhere;
 }
+
+/* ---------- トロフィー詳細モーダル(新規) ---------- */
+#trophy-detail-modal .trophy-detail-box {
+  background: var(--tl-card-bg);
+  color: var(--tl-text);
+  max-width: 420px;
+  max-height: 86vh;
+  overflow-y: auto;
+  position: relative;
+  text-align: left;
+  border: 1px solid var(--tl-border-strong);
+}
+.trophy-detail-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.08);
+  color: var(--tl-text);
+  font-size: 1rem;
+  cursor: pointer;
+  z-index: 1;
+}
+.trophy-detail-status {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+.trophy-detail-status.earned { background: rgba(231, 196, 104, 0.18); color: var(--tl-gold-strong); }
+.trophy-detail-status.locked { background: rgba(255,255,255,0.08); color: var(--tl-text-sub); }
+.trophy-detail-category {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--tl-text-sub);
+}
+/* 複製したカードをモーダル内で大きく見せる(クリック可能カーソル・
+   ホバー移動・カーソルポインタは詳細表示では不要なので打ち消す) */
+.trophy-detail-content.trophy-card {
+  cursor: default;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: none;
+}
+.trophy-detail-content.trophy-card:hover { transform: none; }
+.trophy-detail-content .trophy-mark { width: 76px; height: 76px; font-size: 2rem; }
+.trophy-detail-content .trophy-name { font-size: 1.15rem; }
+.trophy-detail-content .trophy-cond { font-size: 0.92rem; }
 
 /* ---------- 新トロフィー獲得演出画面 ---------- */
 .trophy-award-list {
@@ -1313,7 +1642,7 @@ img { max-width: 100%; }
 /* 一覧画面: 未発見の隠しトロフィーカード(通常のlockedより少し上品に強調する) */
 .trophy-card-secret {
   border: 1.5px dashed #a78bfa;
-  background: linear-gradient(180deg, #faf7ff, var(--color-bg-card) 60%);
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.12), var(--tl-card-bg) 60%);
 }
 
 /* 獲得演出画面: 隠しトロフィー発見時のバナー・アイテム・鍵解除アニメーション */
@@ -1664,7 +1993,7 @@ img { max-width: 100%; }
    問題でも余計な空白・ラベルは表示されない */
 .trophy-card-puzzle .trophy-note {
   font-size: 0.72rem;
-  color: var(--color-text-sub);
+  color: var(--tl-text-sub);
   text-align: left;
   line-height: 1.5;
   margin: 6px 0 0;
@@ -1694,7 +2023,7 @@ img { max-width: 100%; }
   animation: puzzleCardHighlight 2.2s ease;
 }
 @keyframes puzzleCardHighlight {
-  0%, 100% { box-shadow: var(--shadow-card); }
+  0%, 100% { box-shadow: var(--tl-shadow); }
   15%, 60% { box-shadow: 0 0 0 3px #ffd76a, 0 0 20px 4px rgba(255, 215, 106, .6); }
 }
 @media (prefers-reduced-motion: reduce) {

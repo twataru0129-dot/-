@@ -86,7 +86,7 @@ function check(name, cond) {
     check(`[${label}] トロフィー一覧の固定ヘッダーが維持されている`, (await page.$(".trophy-list-header")) !== null);
     const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
     check(`[${label}] トロフィー総数が452件(153件+findcountry専用36件+隠しトロフィー61件+分割対象32件+謎解き126件+世界図鑑追加4件+世界7不思議9件+共通トロフィー31件)になっている`, totalCount === 452);
-    const legacyTab = await page.$('#trophy-category-tabs [data-category="legacy"]');
+    const legacyTab = await page.$('#trophy-category-grid [data-category="legacy"]');
     check(`[${label}] 「称号コレクション」カテゴリータブ(#101〜112、legacy)が維持されている`, !!legacyTab);
     if (legacyTab) {
       await legacyTab.click();

@@ -47,10 +47,30 @@ async function newPage(browser, consoleErrors) {
 async function openTrophyList(page) {
   await page.click("#btn-trophy-list");
   await page.waitForSelector("#trophy-grid .trophy-card");
+  await expandCategorySection(page);
+}
+
+// UI刷新: カテゴリー別進捗カードは既定で8枚までの折りたたみ表示になるため、
+// findcountry/findcountry_hiddenのように折りたたみ範囲外のカテゴリーを
+// クリックする前に「すべて表示」を開いておく(既に展開済みなら何もしない)
+async function expandCategorySection(page) {
+  const toggle = await page.$("#trophy-category-toggle");
+  if (!toggle) return;
+  const alreadyExpanded = await toggle.evaluate((el) => el.textContent.includes("少なく"));
+  if (!alreadyExpanded) await toggle.click();
+}
+
+// UI刷新: 旧#trophy-progress-summary(「🏆 X / Y 件 獲得」)は廃止され、
+// 新ヒーローカードの#trophy-hero-earned/#trophy-hero-totalに分かれたため、
+// 同じ形式の文字列を組み立てて返す(既存の正規表現マッチをそのまま使う)
+async function readTrophyProgressText(page) {
+  const earned = (await page.textContent("#trophy-hero-earned")).trim();
+  const total = (await page.textContent("#trophy-hero-total")).trim();
+  return `🏆 ${earned} / ${total} 件 獲得`;
 }
 
 async function openHiddenCategoryTab(page) {
-  await page.click('#trophy-category-tabs [data-category="findcountry_hidden"]');
+  await page.click('#trophy-category-grid [data-category="findcountry_hidden"]');
   await page.waitForTimeout(150);
 }
 
@@ -80,7 +100,7 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     // 世界7不思議(7問+隠し特別2種、計9件)の追加で452件になった
     check("テスト1: トロフィー総数が452件(既存189件+隠しトロフィー61件+分割対象32件+謎解き126件+世界図鑑追加4件+世界7不思議9件+共通トロフィー31件)", totalCount === 452);
 
-    const hiddenTab = await page.$('#trophy-category-tabs [data-category="findcountry_hidden"]');
+    const hiddenTab = await page.$('#trophy-category-grid [data-category="findcountry_hidden"]');
     check("テスト1: 「世界の国どこかな？ 隠しトロフィー」カテゴリータブが存在する", !!hiddenTab);
 
     await openHiddenCategoryTab(page);
@@ -115,7 +135,7 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     });
 
     // 既存の「世界の国どこかな？」専用36種類(非隠し)の表示に影響がないこと
-    await page.click('#trophy-category-tabs [data-category="findcountry"]');
+    await page.click('#trophy-category-grid [data-category="findcountry"]');
     await page.waitForTimeout(150);
     const normalCards = await page.$$eval(
       '#trophy-grid .trophy-card[data-category="findcountry"]:not(.hidden)',
@@ -125,7 +145,7 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     check("テスト1: 既存findcountry専用36件は正式名称のまま表示される(隠し扱いされていない)", normalCards.every((c) => c.name !== "？？？？？？" && !c.secret));
 
     // 進捗表示(🏆 X / 452 件 獲得)が新しい総数に追従していること
-    const progressText = await page.textContent("#trophy-progress-summary");
+    const progressText = await readTrophyProgressText(page);
     check("テスト1: 進捗表示が「/ 452 件」になっている", /\/\s*452\s*件/.test(progressText || ""));
 
     check("テスト1: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
@@ -144,7 +164,7 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
 
     // 獲得前の進捗件数を記録
     await openTrophyList(page);
-    const before = await page.textContent("#trophy-progress-summary");
+    const before = await readTrophyProgressText(page);
     const beforeCount = Number((before || "").match(/🏆\s*(\d+)/)?.[1] || "-1");
     await page.click(".trophy-list-header .btn-back");
     await page.waitForTimeout(150);
@@ -206,7 +226,7 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     check("テスト2: 獲得後はアイコンが🔒ではない", !!card235Info && card235Info.icon !== "🔒");
 
     // 進捗件数がちょうど1件増えていること
-    const after = await page.textContent("#trophy-progress-summary");
+    const after = await readTrophyProgressText(page);
     const afterCount = Number((after || "").match(/🏆\s*(\d+)/)?.[1] || "-1");
     check("テスト2: 進捗の獲得件数がちょうど1件増えている", afterCount === beforeCount + 1);
 

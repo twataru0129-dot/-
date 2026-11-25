@@ -63,11 +63,22 @@ async function newPage(browser, consoleErrors) {
   return page;
 }
 
+// UI刷新: カテゴリー別進捗カードは既定で8枚までの折りたたみ表示になる
+// ため、sevenWonders/findcountry_hiddenのように折りたたみ範囲外の
+// カテゴリーをクリックする前に「すべて表示」を開いておく
+async function expandCategorySection(page) {
+  const toggle = await page.$("#trophy-category-toggle");
+  if (!toggle) return;
+  const alreadyExpanded = await toggle.evaluate((el) => el.textContent.includes("少なく"));
+  if (!alreadyExpanded) await toggle.click();
+}
+
 async function openTrophyList(page, base) {
   await page.goto(base, { waitUntil: "load" });
   await page.click("#btn-trophy-list");
   await page.waitForSelector("#screen-trophy-list.active");
-  await page.click('.trophy-tab[data-category="sevenWonders"]');
+  await expandCategorySection(page);
+  await page.click('.trophy-category-chip[data-category="sevenWonders"]');
   await page.waitForTimeout(150);
 }
 
@@ -108,7 +119,8 @@ async function answerCurrentFlagScreen(page, answerIds) {
     await page.goto(base, { waitUntil: "load" });
     await page.click("#btn-trophy-list");
     await page.waitForSelector("#screen-trophy-list.active");
-    await page.click('.trophy-tab[data-category="findcountry_hidden"]');
+    await expandCategorySection(page);
+    await page.click('.trophy-category-chip[data-category="findcountry_hidden"]');
     await page.waitForTimeout(150);
     // 汎用カード(buildTrophyCardElement)はdata-trophy-id属性を持たないため、
     // 表示中の.trophy-number「No.220」を含むカードをテキストで特定する

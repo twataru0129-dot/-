@@ -87,6 +87,14 @@ async function openTrophyList(page) {
   await page.evaluate(() => showScreen("screen-top"));
   await page.click("#btn-trophy-list");
   await page.waitForSelector("#trophy-grid .trophy-card");
+  // UI刷新: カテゴリー別進捗カードは既定で8枚までの折りたたみ表示になる
+  // ため、encyclopediaのように折りたたみ範囲外のカテゴリーをクリックする
+  // 前に「すべて表示」を開いておく(既に展開済みなら何もしない)
+  const toggle = await page.$("#trophy-category-toggle");
+  if (toggle) {
+    const alreadyExpanded = await toggle.evaluate((el) => el.textContent.includes("少なく"));
+    if (!alreadyExpanded) await toggle.click();
+  }
 }
 
 async function openEncyclopedia(page) {
@@ -110,7 +118,7 @@ async function openEncyclopedia(page) {
     await page.goto(base, { waitUntil: "load" });
     await openTrophyList(page);
 
-    const encTab = await page.$('#trophy-category-tabs [data-category="encyclopedia"]');
+    const encTab = await page.$('#trophy-category-grid [data-category="encyclopedia"]');
     check("テスト1: 「世界図鑑」カテゴリータブが存在する", !!encTab);
     await encTab.click();
     await page.waitForTimeout(150);
@@ -404,7 +412,7 @@ async function openEncyclopedia(page) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto(base, { waitUntil: "load" });
       await openTrophyList(page);
-      const encTab = await page.$('#trophy-category-tabs [data-category="encyclopedia"]');
+      const encTab = await page.$('#trophy-category-grid [data-category="encyclopedia"]');
       await encTab.click();
       await page.waitForTimeout(150);
 

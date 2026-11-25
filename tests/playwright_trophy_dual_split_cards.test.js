@@ -52,8 +52,17 @@ async function openTrophyList(page) {
 }
 
 async function openCategory(page, categoryId) {
-  await page.click(`#trophy-category-tabs [data-category="${categoryId}"]`);
+  await page.click(`#trophy-category-grid [data-category="${categoryId}"]`);
   await page.waitForTimeout(150);
+}
+
+// UI刷新: 旧#trophy-progress-summary(「🏆 X / Y 件 獲得」)は廃止され、
+// 新ヒーローカードの#trophy-hero-earned/#trophy-hero-totalに分かれたため、
+// 同じ形式の文字列を組み立てて返す(既存の正規表現マッチをそのまま使う)
+async function readTrophyProgressText(page) {
+  const earned = (await page.textContent("#trophy-hero-earned")).trim();
+  const total = (await page.textContent("#trophy-hero-total")).trim();
+  return `🏆 ${earned} / ${total} 件 獲得`;
 }
 
 async function readProgressCards(page) {
@@ -110,7 +119,7 @@ async function getPairSideRects(page, numberLabel) {
     await page.goto(base, { waitUntil: "load" });
     await openTrophyList(page);
 
-    const progressText = await page.textContent("#trophy-progress-summary");
+    const progressText = await readTrophyProgressText(page);
     check("テスト1: 進捗表示の分母が452件になっている(共通トロフィー31件追加後)", /\/\s*452\s*件/.test(progressText || ""));
     check("テスト1: 初期状態の獲得数は0件", /🏆\s*0\s*\/\s*452/.test(progressText || ""));
 
@@ -153,7 +162,7 @@ async function getPairSideRects(page, numberLabel) {
     await page.reload({ waitUntil: "load" });
 
     await openTrophyList(page);
-    const progressText = await page.textContent("#trophy-progress-summary");
+    const progressText = await readTrophyProgressText(page);
     check("テスト2: 獲得数が3件(No.1国旗+No.5両方)になっている", /🏆\s*3\s*\/\s*452/.test(progressText || ""));
 
     await openCategory(page, "progress");
