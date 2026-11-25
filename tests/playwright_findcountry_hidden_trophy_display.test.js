@@ -47,17 +47,6 @@ async function newPage(browser, consoleErrors) {
 async function openTrophyList(page) {
   await page.click("#btn-trophy-list");
   await page.waitForSelector("#trophy-grid .trophy-card");
-  await expandCategorySection(page);
-}
-
-// UI刷新: カテゴリー別進捗カードは既定で8枚までの折りたたみ表示になるため、
-// findcountry/findcountry_hiddenのように折りたたみ範囲外のカテゴリーを
-// クリックする前に「すべて表示」を開いておく(既に展開済みなら何もしない)
-async function expandCategorySection(page) {
-  const toggle = await page.$("#trophy-category-toggle");
-  if (!toggle) return;
-  const alreadyExpanded = await toggle.evaluate((el) => el.textContent.includes("少なく"));
-  if (!alreadyExpanded) await toggle.click();
 }
 
 // UI刷新: 旧#trophy-progress-summary(「🏆 X / Y 件 獲得」)は廃止され、
@@ -69,8 +58,12 @@ async function readTrophyProgressText(page) {
   return `🏆 ${earned} / ${total} 件 獲得`;
 }
 
+// UI刷新: 「findcountry_hidden」は上位分類「どこかな？」(findcountry)配下の
+// 下位カテゴリーになったため、先に上位チップをクリックしてから下位チップを選ぶ
 async function openHiddenCategoryTab(page) {
-  await page.click('#trophy-category-grid [data-category="findcountry_hidden"]');
+  await page.click('#trophy-bucket-grid [data-bucket="findcountry"]');
+  await page.waitForTimeout(150);
+  await page.click('#trophy-subcategory-row [data-category="findcountry_hidden"]');
   await page.waitForTimeout(150);
 }
 
@@ -100,7 +93,9 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     // 世界7不思議(7問+隠し特別2種、計9件)の追加で452件になった
     check("テスト1: トロフィー総数が452件(既存189件+隠しトロフィー61件+分割対象32件+謎解き126件+世界図鑑追加4件+世界7不思議9件+共通トロフィー31件)", totalCount === 452);
 
-    const hiddenTab = await page.$('#trophy-category-grid [data-category="findcountry_hidden"]');
+    await page.click('#trophy-bucket-grid [data-bucket="findcountry"]');
+    await page.waitForTimeout(150);
+    const hiddenTab = await page.$('#trophy-subcategory-row [data-category="findcountry_hidden"]');
     check("テスト1: 「世界の国どこかな？ 隠しトロフィー」カテゴリータブが存在する", !!hiddenTab);
 
     await openHiddenCategoryTab(page);
@@ -135,7 +130,8 @@ const SAMPLE_HIDDEN_NAMES = ["エンペラータイム", "やきとり", "グラ
     });
 
     // 既存の「世界の国どこかな？」専用36種類(非隠し)の表示に影響がないこと
-    await page.click('#trophy-category-grid [data-category="findcountry"]');
+    // (「どこかな？」上位分類は選択済みのため、下位カテゴリーだけ切り替える)
+    await page.click('#trophy-subcategory-row [data-category="findcountry"]');
     await page.waitForTimeout(150);
     const normalCards = await page.$$eval(
       '#trophy-grid .trophy-card[data-category="findcountry"]:not(.hidden)',

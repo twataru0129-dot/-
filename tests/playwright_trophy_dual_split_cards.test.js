@@ -51,8 +51,20 @@ async function openTrophyList(page) {
   await page.waitForSelector("#trophy-grid .trophy-card");
 }
 
+// UI刷新: progress/region/speed/doubleは国旗・首都の分割カードを含む
+// カテゴリーのため、上位8分類では「国旗」「首都」の2つに分かれて表示
+// されるようになった(二重計上防止のための意図的な仕様)。そのため
+// チップのクリックだけでは両方の半分(国旗側・首都側)を同時に表示する
+// 絞り込み状態を再現できない。絞り込みロジック自体(state.trophyListFilter.
+// category + applyTrophyFilters())は変更していないため、UIのチップ経由
+// ではなく同じ内部状態を直接設定して、両面を同時に表示する従来どおりの
+// 絞り込みを検証する
 async function openCategory(page, categoryId) {
-  await page.click(`#trophy-category-grid [data-category="${categoryId}"]`);
+  await page.evaluate((id) => {
+    state.trophyListFilter.topBucket = "all";
+    state.trophyListFilter.category = id;
+    applyTrophyFilters();
+  }, categoryId);
   await page.waitForTimeout(150);
 }
 

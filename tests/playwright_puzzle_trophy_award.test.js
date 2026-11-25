@@ -130,7 +130,7 @@ async function getPuzzleCardInfo(page, questionId) {
 
     const puzzleCategoryExists = await page.evaluate(() => TrophyModule.getCategories().some((c) => c.id === "puzzle"));
     check("テスト1: カテゴリー一覧に「puzzle」が追加されている", puzzleCategoryExists === true);
-    const puzzleTab = await page.$('#trophy-category-grid .trophy-category-chip[data-category="puzzle"]');
+    const puzzleTab = await page.$('#trophy-bucket-grid .trophy-category-chip[data-bucket="puzzle"]');
     check("テスト1: カテゴリータブに謎解きトロフィーのタブが表示される", !!puzzleTab);
 
     check("テスト1: コンソール/ページエラーが発生していない", consoleErrors.length === 0);

@@ -74,20 +74,19 @@ async function runForViewport(browser, base, viewport, label) {
   await page.click("#btn-trophy-list");
   await page.waitForSelector("#trophy-grid .trophy-card");
 
-  // 5. カテゴリー別進捗カード(UI刷新で横スクロールタブから置き換え)。
-  // 既定では一部が折りたたまれており、「すべて表示」で展開できること・
-  // 展開後にencyclopediaのカードを絞り込みに使えることを確認する
-  const toggleExistsBefore = await page.$("#trophy-category-toggle");
-  check(`[${label}] カテゴリーの折りたたみ開閉ボタンが表示される`, !!toggleExistsBefore);
-  const hiddenChipCountBefore = await page.$$eval("#trophy-category-grid .trophy-category-chip.hidden", (els) => els.length);
-  check(`[${label}] 既定では一部のカテゴリーカードが折りたたまれている`, hiddenChipCountBefore > 0);
-  if (toggleExistsBefore) await toggleExistsBefore.click();
-  const hiddenChipCountAfter = await page.$$eval("#trophy-category-grid .trophy-category-chip.hidden", (els) => els.length);
-  check(`[${label}] 「すべて表示」を押すと折りたたみがすべて解除される`, hiddenChipCountAfter === 0);
-  const encTab = await page.$('#trophy-category-grid [data-category="encyclopedia"]');
+  // 5. カテゴリー別進捗カード(UI刷新で上位8分類+下位カテゴリーの2段構成に
+  // なった)。折りたたみ機能は廃止され、8枚は常にすべて表示される。
+  // encyclopediaのカードを絞り込みに使えることを確認する
+  const bucketChipCount = await page.$$eval("#trophy-bucket-grid .trophy-category-chip", (els) => els.length);
+  check(`[${label}] 上位8分類のカードが常にすべて表示される`, bucketChipCount === 8);
+  const encTab = await page.$('#trophy-bucket-grid [data-bucket="encyclopedia"]');
   check(`[${label}] 「世界図鑑」カテゴリーカードが存在する`, !!encTab);
   if (encTab) {
     await encTab.click();
+    await page.waitForTimeout(150);
+    // 「世界図鑑」上位分類には#158(categoryは「special」)も含まれるため、
+    // 既存カテゴリー(category="encyclopedia")の19件だけに絞り込む
+    await page.click('#trophy-subcategory-row [data-category="encyclopedia"]');
     await page.waitForTimeout(150);
   }
 
@@ -97,7 +96,7 @@ async function runForViewport(browser, base, viewport, label) {
   const lockedVisibleCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.filter((e) => !e.classList.contains("hidden")).length);
   check(`[${label}] 「未獲得」フィルターが機能する(世界図鑑19件が全て未獲得として表示)`, lockedVisibleCount === 19);
   await page.click('#trophy-status-filter [data-status="all"]');
-  await page.click('#trophy-category-grid [data-category="all"]');
+  await page.click('#trophy-bucket-grid [data-bucket="all"]');
   await page.waitForTimeout(150);
 
   // 7. トロフィーカードが正常に表示される(「世界の国どこかな？」専用

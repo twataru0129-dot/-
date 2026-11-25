@@ -38,6 +38,18 @@
   --tl-gold-strong: #ffd76a;
   --tl-gold-deep: #b8860b;
   --tl-shadow: 0 10px 28px rgba(2, 5, 15, 0.55);
+
+  /* 追加(配色修正): 画面全体・カテゴリーカード・検索欄などの「白系」
+     パート専用の変数。上記のダークネイビー系(--tl-bg等)はヘッダー・
+     ヒーローカード・トロフィーカード・詳細モーダルのみで使い続ける */
+  --tl-page-bg: #eef1f8;
+  --tl-surface: #ffffff;
+  --tl-surface-border: #dde3f0;
+  --tl-ink: #1b2540;
+  --tl-ink-sub: #5b6684;
+  --tl-surface-shadow: 0 4px 16px rgba(20, 30, 60, 0.08);
+  --tl-gold-pale: #fbe9c6;
+  --tl-gold-on-light: #a3700f;
 }
 
 * { box-sizing: border-box; }
@@ -978,8 +990,8 @@ img { max-width: 100%; }
    このセクション(#screen-trophy-list内と#trophy-detail-modal)だけに
    適用され、--color-*を参照する他の画面には一切影響しない。 */
 #screen-trophy-list {
-  background: var(--tl-bg);
-  color: var(--tl-text);
+  background: var(--tl-page-bg);
+  color: var(--tl-ink);
 }
 .trophy-panel { max-width: 1320px; }
 
@@ -1033,6 +1045,8 @@ img { max-width: 100%; }
 
 /* ---------- ヒーローカード: 全体獲得数・円形達成率・進捗バー・次の目標 ---------- */
 .trophy-hero-card {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(160deg, var(--tl-card-bg) 0%, var(--tl-bg-soft) 100%);
   border: 1px solid var(--tl-border);
   border-radius: var(--radius-lg);
@@ -1040,7 +1054,21 @@ img { max-width: 100%; }
   margin-bottom: 18px;
   box-shadow: var(--tl-shadow);
 }
+/* 地球儀の透かし模様。position:absoluteの装飾を、他の非配置コンテンツより
+   常に手前に描画させないよう、本文側(.trophy-hero-top等)もposition:relative
+   にしてスタッキング順を揃える(DOM順=透かしが先→背面、本文が後→前面) */
+.trophy-hero-globe-watermark {
+  position: absolute;
+  top: -24px;
+  right: -16px;
+  width: 190px;
+  height: 190px;
+  color: var(--tl-gold);
+  opacity: 0.14;
+  pointer-events: none;
+}
 .trophy-hero-top {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1055,11 +1083,22 @@ img { max-width: 100%; }
 }
 .trophy-hero-count {
   margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 2.1rem;
   font-weight: 800;
   color: var(--tl-gold-strong);
   line-height: 1.1;
 }
+.trophy-hero-laurel {
+  flex-shrink: 0;
+  width: 18px;
+  height: 38px;
+  color: var(--tl-gold);
+  opacity: 0.85;
+}
+.trophy-hero-laurel-right { transform: scaleX(-1); }
 .trophy-hero-slash { font-size: 1.3rem; color: var(--tl-text-sub); font-weight: 700; }
 .trophy-hero-count .trophy-hero-slash + span { color: var(--tl-text); }
 .trophy-hero-label { margin: 2px 0 0; font-size: 0.82rem; color: var(--tl-text-sub); }
@@ -1095,6 +1134,7 @@ img { max-width: 100%; }
 .trophy-ring-sub { font-size: 0.56rem; font-weight: 700; letter-spacing: 0.08em; color: var(--tl-text-sub); }
 
 .trophy-hero-bar-track {
+  position: relative;
   margin-top: 16px;
   height: 10px;
   border-radius: 999px;
@@ -1109,6 +1149,7 @@ img { max-width: 100%; }
 }
 
 .trophy-hero-next {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1149,13 +1190,13 @@ img { max-width: 100%; }
   margin: 0;
   font-size: 1rem;
   font-weight: 800;
-  color: var(--tl-text);
+  color: var(--tl-ink);
 }
 .trophy-section-toggle {
   flex-shrink: 0;
   background: none;
   border: none;
-  color: var(--tl-gold);
+  color: var(--tl-gold-on-light);
   font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
@@ -1165,16 +1206,18 @@ img { max-width: 100%; }
 .trophy-toggle-caret-up { transform: rotate(-90deg); }
 
 /* ---------- カテゴリー別の獲得数・進捗(折りたたみ) ---------- */
+/* 8トップカテゴリー: スマホでは縦に長くなりすぎないよう3列を基本とし、
+   画面幅が広がるにつれて列数を増やす(900px以上では1行に収まる8列) */
 .trophy-category-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
 }
 @media (min-width: 480px) {
-  .trophy-category-grid { grid-template-columns: repeat(3, 1fr); }
+  .trophy-category-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
 }
-@media (min-width: 720px) {
-  .trophy-category-grid { grid-template-columns: repeat(4, 1fr); }
+@media (min-width: 900px) {
+  .trophy-category-grid { grid-template-columns: repeat(8, 1fr); gap: 12px; }
 }
 .trophy-category-chip {
   display: flex;
@@ -1182,17 +1225,18 @@ img { max-width: 100%; }
   align-items: flex-start;
   gap: 4px;
   padding: 12px;
-  background: var(--tl-card-bg);
-  border: 1px solid var(--tl-border);
+  background: var(--tl-surface);
+  border: 1px solid var(--tl-surface-border);
   border-radius: var(--radius-md);
-  color: var(--tl-text);
+  color: var(--tl-ink);
   cursor: pointer;
   text-align: left;
+  box-shadow: var(--tl-surface-shadow);
 }
 .trophy-category-chip.active {
-  border-color: var(--tl-gold-strong);
-  background: linear-gradient(160deg, rgba(231,196,104,0.16), var(--tl-card-bg) 70%);
-  box-shadow: 0 0 0 1px var(--tl-gold-strong) inset;
+  border-color: var(--tl-gold-deep);
+  background: linear-gradient(160deg, var(--tl-gold-pale), var(--tl-surface) 70%);
+  box-shadow: 0 0 0 1px var(--tl-gold-deep) inset;
 }
 .trophy-category-chip-icon { font-size: 1.2rem; }
 .trophy-category-chip-label {
@@ -1200,12 +1244,12 @@ img { max-width: 100%; }
   font-weight: 700;
   overflow-wrap: anywhere;
 }
-.trophy-category-chip-count { font-size: 0.78rem; color: var(--tl-text-sub); font-weight: 700; }
+.trophy-category-chip-count { font-size: 0.78rem; color: var(--tl-ink-sub); font-weight: 700; }
 .trophy-category-chip-bar-track {
   width: 100%;
   height: 5px;
   border-radius: 999px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(27, 37, 64, 0.1);
   overflow: hidden;
   display: block;
 }
@@ -1216,14 +1260,46 @@ img { max-width: 100%; }
   background: linear-gradient(90deg, var(--tl-gold-deep), var(--tl-gold-strong));
 }
 
+/* ---------- 下位カテゴリー行(8分類のうち選択中の1つをさらに絞り込み) ---------- */
+.trophy-subcategory-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.trophy-subcategory-row.hidden { display: none; }
+.trophy-subcategory-chip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 7px 14px;
+  border: 1px solid var(--tl-surface-border);
+  border-radius: 999px;
+  background: var(--tl-surface);
+  color: var(--tl-ink-sub);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.trophy-subcategory-chip.active {
+  background: var(--tl-gold-pale);
+  border-color: var(--tl-gold-deep);
+  color: var(--tl-gold-on-light);
+}
+.trophy-subcategory-chip .trophy-category-chip-bar-track,
+.trophy-subcategory-chip .trophy-category-chip-icon { display: none; }
+.trophy-subcategory-chip .trophy-category-chip-count { color: inherit; opacity: 0.8; margin-left: 4px; }
+
 /* ---------- トロフィー一覧: 表示切替・絞り込み・検索 ---------- */
 .trophy-view-toggle { display: flex; gap: 6px; flex-shrink: 0; }
 .trophy-view-btn {
   padding: 7px 12px;
-  border: 1px solid var(--tl-border);
+  border: 1px solid var(--tl-surface-border);
   border-radius: 999px;
-  background: var(--tl-card-bg);
-  color: var(--tl-text-sub);
+  background: var(--tl-surface);
+  color: var(--tl-ink-sub);
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
@@ -1231,7 +1307,7 @@ img { max-width: 100%; }
 .trophy-view-btn.active {
   background: var(--tl-gold-strong);
   border-color: var(--tl-gold-strong);
-  color: #1b1333;
+  color: var(--tl-ink);
 }
 
 .trophy-status-filter {
@@ -1244,10 +1320,10 @@ img { max-width: 100%; }
   flex: 1 1 auto;
   min-width: 68px;
   padding: 9px 8px;
-  border: 1px solid var(--tl-border);
+  border: 1px solid var(--tl-surface-border);
   border-radius: 999px;
-  background: var(--tl-card-bg);
-  color: var(--tl-text-sub);
+  background: var(--tl-surface);
+  color: var(--tl-ink-sub);
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
@@ -1255,7 +1331,7 @@ img { max-width: 100%; }
 .trophy-status-btn.active {
   background: var(--tl-gold-strong);
   border-color: var(--tl-gold-strong);
-  color: #1b1333;
+  color: var(--tl-ink);
 }
 
 .trophy-search-wrap {
@@ -1273,26 +1349,27 @@ img { max-width: 100%; }
 .trophy-search-input {
   width: 100%;
   padding: 10px 12px 10px 34px;
-  border: 1px solid var(--tl-border);
+  border: 1px solid var(--tl-surface-border);
   border-radius: 999px;
-  background: var(--tl-card-bg);
-  color: var(--tl-text);
+  background: var(--tl-surface);
+  color: var(--tl-ink);
   font-size: 0.88rem;
+  box-shadow: var(--tl-surface-shadow);
 }
-.trophy-search-input::placeholder { color: var(--tl-text-sub); }
+.trophy-search-input::placeholder { color: var(--tl-ink-sub); }
 .trophy-search-input:focus {
   outline: none;
-  border-color: var(--tl-gold-strong);
+  border-color: var(--tl-gold-deep);
 }
 
 .trophy-result-count {
   font-size: 0.82rem;
-  color: var(--tl-text-sub);
+  color: var(--tl-ink-sub);
   margin: 0 2px 12px;
 }
 .trophy-empty-message {
   text-align: center;
-  color: var(--tl-text-sub);
+  color: var(--tl-ink-sub);
   padding: 32px 12px;
   font-size: 0.9rem;
 }
@@ -1353,18 +1430,36 @@ img { max-width: 100%; }
 .trophy-grid-list .trophy-dual-pair .trophy-card-split { flex-basis: auto; }
 
 .trophy-card {
+  position: relative;
   background: var(--tl-card-bg);
   border: 1px solid var(--tl-border);
   border-radius: var(--radius-md);
   padding: 16px;
   box-shadow: var(--tl-shadow);
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .trophy-card:hover { border-color: var(--tl-border-strong); transform: translateY(-2px); }
+/* 獲得済みカードに適度な光沢・ゴールド装飾を付与し、未獲得と明確に区別する。
+   世界7不思議(専用デザイン)・図鑑No.142/158演出(trophy-card-legend)・
+   隠しトロフィー(trophy-card-secret、獲得前は名称自体が伏せられ別デザイン)は
+   既存の専用デザインを維持するため対象から除外する */
+.trophy-card:not(.locked):not(.trophy-card-sevenwonder):not(.trophy-card-legend):not(.trophy-card-secret) {
+  border-color: var(--tl-gold-strong);
+  box-shadow: var(--tl-shadow), 0 0 0 1px rgba(231, 196, 104, 0.3) inset, 0 0 16px rgba(231, 196, 104, 0.16);
+}
+.trophy-card:not(.locked):not(.trophy-card-sevenwonder):not(.trophy-card-legend):not(.trophy-card-secret)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 16%, rgba(255,255,255,0) 30%);
+  pointer-events: none;
+}
 .trophy-card.locked {
   background: var(--tl-card-bg-locked);
-  opacity: 0.82;
+  opacity: 0.78;
+  filter: grayscale(0.5) brightness(0.92);
 }
 .trophy-card-top {
   display: flex;

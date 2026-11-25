@@ -440,13 +440,34 @@
 
     <!-- ---------- ヒーローカード: 全体獲得数・円形達成率・進捗バー・次の目標 ----------
          数値はすべてjs/app.jsのrenderTrophyHero()がTrophyModule.getProgressSummary()
-         (国旗・首都の二重計上を既に防いだ既存の集計方式)から描画する固定値ではない ---------- -->
+         (国旗・首都の二重計上を既に防いだ既存の集計方式)から描画する固定値ではない。
+         地球儀・月桂樹は表示専用の装飾(SVG)で、情報や判定には一切関与しない ---------- -->
     <div class="trophy-hero-card">
+      <svg class="trophy-hero-globe-watermark" viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="150" cy="40" r="90" fill="none" stroke="currentColor" stroke-width="1"></circle>
+        <ellipse cx="150" cy="40" rx="90" ry="32" fill="none" stroke="currentColor" stroke-width="1"></ellipse>
+        <ellipse cx="150" cy="40" rx="55" ry="90" fill="none" stroke="currentColor" stroke-width="1"></ellipse>
+        <line x1="60" y1="40" x2="240" y2="40" stroke="currentColor" stroke-width="1"></line>
+      </svg>
       <div class="trophy-hero-top">
         <div class="trophy-hero-count-block">
           <span class="trophy-hero-kicker">TROPHY COLLECTION</span>
           <p class="trophy-hero-count">
+            <svg class="trophy-hero-laurel trophy-hero-laurel-left" viewBox="0 0 40 80" aria-hidden="true">
+              <path d="M36 4C24 10 16 20 13 32C10 44 11 56 16 68C19 74 23 77 27 78" fill="none" stroke="currentColor" stroke-width="2"></path>
+              <path d="M30 16c-5 1-9 4-9 8s4 6 9 5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+              <path d="M24 30c-5 1-9 4-9 8s4 6 9 5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+              <path d="M20 46c-5 1-9 4-9 8s4 6 9 5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+              <path d="M20 62c-4 2-7 5-6 9s5 5 9 3" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+            </svg>
             <span id="trophy-hero-earned">0</span><span class="trophy-hero-slash">&nbsp;/&nbsp;</span><span id="trophy-hero-total">0</span>
+            <svg class="trophy-hero-laurel trophy-hero-laurel-right" viewBox="0 0 40 80" aria-hidden="true">
+              <path d="M36 4C24 10 16 20 13 32C10 44 11 56 16 68C19 74 23 77 27 78" fill="none" stroke="currentColor" stroke-width="2"></path>
+              <path d="M30 16c-5 1-9 4-9 8s4 6 9 5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+              <path d="M24 30c-5 1-9 4-9 8s4 6 9 5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+              <path d="M20 46c-5 1-9 4-9 8s4 6 9 5" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+              <path d="M20 62c-4 2-7 5-6 9s5 5 9 3" fill="none" stroke="currentColor" stroke-width="1.6"></path>
+            </svg>
           </p>
           <p class="trophy-hero-label">全トロフィー獲得数</p>
         </div>
@@ -472,19 +493,19 @@
       </div>
     </div>
 
-    <!-- ---------- カテゴリー別の獲得数・進捗(折りたたみ) ----------
-         カードの中身・件数はjs/app.jsのrenderTrophyCategoryGrid()が
-         TrophyModule.getCategories()・getAllDefinitions()・getEarned()・
-         isDualSplitCardNumber()から算出する(固定の分類・件数は書かない)。
-         カードをクリックするとstate.trophyListFilter.categoryが切り替わり、
-         既存のapplyTrophyFilters()がそのまま絞り込む(絞り込みロジック自体は
-         変更しない) ---------- -->
+    <!-- ---------- カテゴリー(上位8分類+下位カテゴリー) ----------
+         上位8分類(すべて/国旗/首都/どこかな？/世界図鑑/謎解き/世界7不思議/共通)は
+         js/app.jsのrenderTrophyBucketGrid()が表示専用に算出する(内部の
+         トロフィー定義・カテゴリーIDは一切変更しない)。各分類を選ぶと
+         下位カテゴリー行(既存15分類のうち、その分類に含まれるものだけ)が
+         renderTrophySubCategoryRow()により表示され、既存のapplyTrophyFilters()
+         がそのまま絞り込む(絞り込みロジック自体は変更しない) ---------- -->
     <div class="trophy-category-section">
       <div class="trophy-section-head">
         <h3 class="trophy-section-title"><span aria-hidden="true">📊</span> カテゴリー</h3>
-        <button type="button" id="trophy-category-toggle" class="trophy-section-toggle">すべて表示 <span class="trophy-toggle-caret" aria-hidden="true">›</span></button>
       </div>
-      <div id="trophy-category-grid" class="trophy-category-grid" role="group" aria-label="カテゴリで絞り込み"></div>
+      <div id="trophy-bucket-grid" class="trophy-category-grid" role="group" aria-label="カテゴリで絞り込み"></div>
+      <div id="trophy-subcategory-row" class="trophy-subcategory-row hidden" role="group" aria-label="下位カテゴリーで絞り込み"></div>
     </div>
 
     <!-- ---------- トロフィー一覧: 絞り込み・検索・表示切替 ---------- -->

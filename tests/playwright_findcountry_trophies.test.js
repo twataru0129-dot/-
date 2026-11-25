@@ -56,16 +56,15 @@ function check(name, cond) {
   // ---- 1. トロフィー一覧: findcountryカテゴリー・レア度・非隠し表示 ----
   await page.click("#btn-trophy-list");
   await page.waitForSelector("#trophy-grid .trophy-card");
-  // UI刷新: カテゴリー別進捗カードは既定で8枚までの折りたたみ表示になる
-  // ため、findcountryのように折りたたみ範囲外のカテゴリーをクリックする
-  // 前に「すべて表示」を開いておく
-  const categoryToggle = await page.$("#trophy-category-toggle");
-  if (categoryToggle) await categoryToggle.click();
-
-  const fcTab = await page.$('#trophy-category-grid [data-category="findcountry"]');
+  // UI刷新: 「findcountry」は上位分類「どこかな？」として直接選べるが、
+  // 隠しトロフィー(findcountry_hidden)も同じ上位分類に含まれるため、
+  // 非隠し36件だけに絞るには下位カテゴリーチップも選ぶ必要がある
+  const fcTab = await page.$('#trophy-bucket-grid [data-bucket="findcountry"]');
   check('「世界の国どこかな？」カテゴリータブが存在する', !!fcTab);
   if (fcTab) {
     await fcTab.click();
+    await page.waitForTimeout(150);
+    await page.click('#trophy-subcategory-row [data-category="findcountry"]');
     await page.waitForTimeout(150);
     const fcCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.filter((e) => !e.classList.contains("hidden")).length);
     check("findcountryカテゴリーが36件表示される", fcCount === 36);
@@ -86,14 +85,14 @@ function check(name, cond) {
   }
 
   // 既存カテゴリー(他カテゴリー)にはレア度バッジが出ないことの確認(既存表示を変えていない)
-  const specialTab = await page.$('#trophy-category-grid [data-category="special"]');
-  if (specialTab) {
-    await specialTab.click();
+  const otherBucketTab = await page.$('#trophy-bucket-grid [data-bucket="flag"]');
+  if (otherBucketTab) {
+    await otherBucketTab.click();
     await page.waitForTimeout(150);
-    const specialRarityBadges = await page.$$eval("#trophy-grid .trophy-card:not(.hidden) .trophy-rarity-badge", (els) => els.length);
-    check("既存カテゴリー(特別チャレンジ)にはレア度バッジが出ない", specialRarityBadges === 0);
+    const otherRarityBadges = await page.$$eval("#trophy-grid .trophy-card:not(.hidden) .trophy-rarity-badge", (els) => els.length);
+    check("既存カテゴリー(国旗)にはレア度バッジが出ない", otherRarityBadges === 0);
   }
-  await page.click('#trophy-category-grid [data-category="all"]');
+  await page.click('#trophy-bucket-grid [data-bucket="all"]');
   await page.click(".trophy-list-header .btn-back");
   await page.waitForSelector("#screen-top.active");
 

@@ -86,14 +86,12 @@ function check(name, cond) {
     check(`[${label}] トロフィー一覧の固定ヘッダーが維持されている`, (await page.$(".trophy-list-header")) !== null);
     const totalCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
     check(`[${label}] トロフィー総数が452件(153件+findcountry専用36件+隠しトロフィー61件+分割対象32件+謎解き126件+世界図鑑追加4件+世界7不思議9件+共通トロフィー31件)になっている`, totalCount === 452);
-    const legacyTab = await page.$('#trophy-category-grid [data-category="legacy"]');
-    check(`[${label}] 「称号コレクション」カテゴリータブ(#101〜112、legacy)が維持されている`, !!legacyTab);
-    if (legacyTab) {
-      await legacyTab.click();
-      await page.waitForTimeout(150);
-      const legacyCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.filter((e) => !e.classList.contains("hidden")).length);
-      check(`[${label}] 称号コレクションカテゴリーが12件のまま`, legacyCount === 12);
-    }
+    // UI刷新: 「legacy」は上位8分類ではなく、モード(flag/capital)に応じて
+    // 「国旗」「首都」の2つの上位分類に分かれて表示されるようになったため、
+    // 単一のカテゴリータブとしては選べない。カードのdata-category属性
+    // (表示専用、既存の内部カテゴリー値のまま)で件数だけ直接確認する
+    const legacyCount = await page.$$eval('#trophy-grid .trophy-card[data-category="legacy"]', (els) => els.filter((e) => !e.classList.contains("hidden")).length);
+    check(`[${label}] 「称号コレクション」(#101〜112、legacy)が12件のまま維持されている`, legacyCount === 12);
     await page.click(".trophy-list-header .btn-back");
     await page.waitForSelector("#screen-top.active");
 
