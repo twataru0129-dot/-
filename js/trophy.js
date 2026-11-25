@@ -2047,10 +2047,14 @@ const TrophyModule = (() => {
     { id: "findcountry", label: "世界の国どこかな？", range: "#159〜194" },
     { id: "findcountry_hidden", label: "世界の国どこかな？ 隠しトロフィー", range: "#195〜255" },
     // 謎解きトロフィー(第3段階)。件数がPUZZLE_QUESTIONSの増減に応じて
-    // 変わるため、range表記は固定の終端を書かない
-    { id: "puzzle", label: "謎解きトロフィー", range: "#256〜" },
-    // 世界7不思議(7問+隠し特別2種、#386〜394)
-    { id: "sevenWonders", label: "世界7不思議", range: "#386〜394" },
+    // 変わるため、range表記は固定の終端を書かない。【トロフィーカテゴリー
+    // 修正】#393「ミステリーハンター」もこのカテゴリーに含まれる(番号順の
+    // 範囲表記とは一致しないが、#256〜の開区間表記に含まれるものとして扱う)
+    { id: "puzzle", label: "謎解きトロフィー", range: "#256〜(#393含む)" },
+    // 世界7不思議(7問+隠し特別1種(#394)、#386〜392,394。【トロフィー
+    // カテゴリー修正】#393「ミステリーハンター」は表示用カテゴリーを
+    // 謎解きトロフィーへ移動したため、ここには含まれない)
+    { id: "sevenWonders", label: "世界7不思議", range: "#386〜392,394" },
   ];
   // #142「都の神話」・#158「世界の叡智」は、既存の番号区分(#60〜70の
   // 特別チャレンジ、#143〜157の世界図鑑)とは別に、両方とも「特別チャレンジ」
@@ -2075,9 +2079,25 @@ const TrophyModule = (() => {
     // ENCYCLOPEDIA4_NUMBERSへの実在チェックで判定する(将来、謎解き
     // トロフィーの番号がこの範囲まで増えても誤判定しない)
     if (ENCYCLOPEDIA4_NUMBERS.includes(number)) return "encyclopedia";
-    // 世界7不思議(7問+隠し特別2種、#386〜394)は、謎解きトロフィーの番号
-    // 範囲(#256〜)と入り交じる位置にあるため、ENCYCLOPEDIA4_NUMBERSと同様に
-    // 実在チェックで判定する
+    // 【トロフィーカテゴリー修正】#393「ミステリーハンター」のみ、一覧画面の
+    // 表示用タブ分類を「世界7不思議」から「謎解きトロフィー」に変更する
+    // (ユーザー指示: 獲得条件が「世界7不思議を除く、謎解きトロフィーを
+    // すべて獲得」であり、世界7不思議そのものの獲得とは無関係のため)。
+    // これはcategoryForNumber()が返す表示用ラベルのみの変更であり、
+    // 以下は一切変更しない(categoryは表示用ラベルのみに使われ、判定・
+    // 保存・解放ロジックのどこからも参照されないため、安全に変更できる):
+    //   - id/number/name/condition/check/mode/hidden/stage/confirmed
+    //   - isAllNormalPuzzlesEarned()の判定対象(PUZZLE_TROPHY_NUMBERS、
+    //     categoryではなくjs/puzzle-questions.jsのq.trophyNumberから
+    //     機械的に作られる固定配列。#393自身はこの配列に含まれない)
+    //   - isSevenWondersUnlocked()(= isEarned('trophy_393')自体を見るだけで、
+    //     category文字列を一切参照しない)
+    // #394「全知全能の神」(獲得条件「世界7不思議を全7問獲得」)は対象外。
+    // 条件は今回の指示と無関係なため、「世界7不思議」カテゴリーのまま変更しない
+    if (number === MYSTERY_HUNTER_NUMBER) return "puzzle";
+    // 世界7不思議(7問+隠し特別1種(#394)、#386〜392+394)は、謎解きトロフィーの
+    // 番号範囲(#256〜)と入り交じる位置にあるため、ENCYCLOPEDIA4_NUMBERSと
+    // 同様に実在チェックで判定する
     if (SEVEN_WONDERS_ALL_NUMBERS.includes(number)) return "sevenWonders";
     return "puzzle"; // #256〜(謎解きトロフィー、第3段階。上記以外)
   }
@@ -2490,15 +2510,32 @@ const TrophyModule = (() => {
       categoryTotal === 254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length,
       `カテゴリ別件数の合計が254+謎解き件数+世界7不思議件数になっていません(実際: ${categoryTotal}件)`
     );
+    // 【トロフィーカテゴリー修正】#393「ミステリーハンター」の表示用カテゴリーを
+    // 「謎解きトロフィー」に変更したため、puzzleカテゴリーの件数はPUZZLE_
+    // QUESTIONSの件数より1件多く、sevenWondersカテゴリーの件数は従来の
+    // 7問+隠し特別2種(9件)より1件少ない8件になる(世界7不思議の機能自体が
+    // 読み込まれていない場合は、#393自身のスロットが存在しないため、どちらの
+    // 調整も加えない)
+    const mysteryHunterMovedToPuzzle = SEVEN_WONDERS_QUESTION_LIST.length ? 1 : 0;
     const puzzleCategoryCount = TROPHIES.filter((t) => t.category === "puzzle").length;
     console.assert(
-      puzzleCategoryCount === PUZZLE_QUESTION_LIST.length,
-      `puzzleカテゴリの件数がPUZZLE_QUESTIONSの件数と一致しません(実際: ${puzzleCategoryCount}件)`
+      puzzleCategoryCount === PUZZLE_QUESTION_LIST.length + mysteryHunterMovedToPuzzle,
+      `puzzleカテゴリの件数がPUZZLE_QUESTIONSの件数(+ミステリーハンター1件)と一致しません(実際: ${puzzleCategoryCount}件)`
     );
     const sevenWondersCategoryCount = TROPHIES.filter((t) => t.category === "sevenWonders").length;
     console.assert(
-      sevenWondersCategoryCount === SEVEN_WONDERS_ALL_NUMBERS.length,
-      `sevenWondersカテゴリの件数が世界7不思議の件数(7問+隠し特別2種)と一致しません(実際: ${sevenWondersCategoryCount}件)`
+      sevenWondersCategoryCount === SEVEN_WONDERS_ALL_NUMBERS.length - mysteryHunterMovedToPuzzle,
+      `sevenWondersカテゴリの件数が世界7不思議の件数(7問+隠し特別1種(#394)、ミステリーハンター移動後)と一致しません(実際: ${sevenWondersCategoryCount}件)`
+    );
+    const mysteryHunterCategoryDef = TROPHIES.find((t) => t.number === MYSTERY_HUNTER_NUMBER);
+    console.assert(
+      !mysteryHunterCategoryDef || mysteryHunterCategoryDef.category === "puzzle",
+      "#393「ミステリーハンター」のカテゴリーが謎解きトロフィーになっていません"
+    );
+    const omniscientGodCategoryDef = TROPHIES.find((t) => t.number === OMNISCIENT_GOD_NUMBER);
+    console.assert(
+      !omniscientGodCategoryDef || omniscientGodCategoryDef.category === "sevenWonders",
+      "#394「全知全能の神」のカテゴリーが世界7不思議のまま保たれていません"
     );
     const findCountryCategoryCount = TROPHIES.filter((t) => t.category === "findcountry").length;
     console.assert(findCountryCategoryCount === 36, `findcountryカテゴリの件数が36件(#159〜194)ではありません(実際: ${findCountryCategoryCount}件)`);

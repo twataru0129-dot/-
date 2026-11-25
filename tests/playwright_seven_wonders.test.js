@@ -166,7 +166,12 @@ async function answerCurrentFlagScreen(page, answerIds) {
     await page.goto(base, { waitUntil: "load" });
     // 125問を直接TrophyModule経由で正解済みにする(最後の1問だけ実際のUI操作で確定する)
     const result = await page.evaluate(() => {
-      const defs = TrophyModule.getAllDefinitions().filter((d) => d.category === "puzzle");
+      // 【トロフィーカテゴリー修正】ミステリーハンター(#393)の表示用
+      // カテゴリーが「謎解きトロフィー」になったため、category === "puzzle"
+      // だけで絞り込むと、挑戦先を持たない#393自身(puzzleQuestionId: null)が
+      // 末尾(番号が最大)に混入してしまう。実際に挑戦できる通常謎解き126問
+      // だけを対象にするため、puzzleQuestionIdを持つものだけに絞り込む
+      const defs = TrophyModule.getAllDefinitions().filter((d) => d.category === "puzzle" && d.puzzleQuestionId);
       const last = defs[defs.length - 1];
       defs.slice(0, -1).forEach((d) => {
         TrophyModule.evaluatePuzzleAnswer({ questionId: d.puzzleQuestionId, correct: true });
