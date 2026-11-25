@@ -111,7 +111,7 @@ function miss(kind, opts) {
   // として11→12件に増える)
   check("total trophies = 254", defs.length === 254);
   const cats = Trophy.getCategories();
-  check("category count = 12", cats.length === 12);
+  check("category count = 13", cats.length === 13);
   check("findcountry category exists", cats.some((c) => c.id === "findcountry"));
   const fcDefs = defs.filter((d) => d.number >= 159 && d.number <= 194);
   check("findcountry defs count = 36", fcDefs.length === 36);
@@ -122,7 +122,7 @@ function miss(kind, opts) {
   check("all 36 have name+condition", fcDefs.every((d) => typeof d.name === "string" && d.name && typeof d.condition === "string" && d.condition));
   check("all 36 are not hidden", fcDefs.every((d) => d.hidden === false));
   check("#194 name is 新世界の神", defs.find((d) => d.number === 194).name === "新世界の神");
-  check("hidden trophy count = 75 (既存14+隠しトロフィー61種類)", defs.filter((d) => d.hidden).length === 75);
+  check("hidden trophy count = 74 (既存14+隠しトロフィー61種類のうちNo.220を除く60件)", defs.filter((d) => d.hidden).length === 74);
 }
 
 // ---- 10-2: 通常モード系(course clear / no-miss) ----

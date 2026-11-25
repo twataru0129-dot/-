@@ -295,20 +295,113 @@ const PuzzleModule = (() => {
     return PuzzleJudgeModule.judge(questionId, answerIds);
   }
 
+  // 世界7不思議: 挑戦中の問題がSEVEN_WONDERS_QUESTIONS(js/seven-wonders-
+  // questions.js)側のものかどうか。この画面(国旗選択UI・判定の呼び出し
+  // 経路)自体は通常謎解きと完全に共有するが、正解時のトロフィー獲得先
+  // (evaluatePuzzleAnswer/evaluateSevenWonderAnswer)と、不正解時の確認
+  // ダイアログ・7日間ロックの有無だけが分岐する
+  function isSevenWonderQuestion(questionId) {
+    return typeof SEVEN_WONDERS_QUESTIONS_BY_ID !== "undefined" && !!SEVEN_WONDERS_QUESTIONS_BY_ID[questionId];
+  }
+
   // 正解時のトロフィー獲得処理(第3段階)。js/trophy.jsのevaluatePuzzleAnswer()
   // に、挑戦中のquestionIdだけを渡す(他の問題のトロフィーが誤って獲得
   // されることは構造上発生しない)。新規に獲得したトロフィーがあった場合
   // (初回正解時だけ)に限り、js/app.jsの専用演出画面を呼ぶ。2回目以降の
-  // 正解(既に獲得済み)はawardedIdsが常に空になるため、演出は再実行されない
+  // 正解(既に獲得済み)はawardedIdsが常に空になるため、演出は再実行されない。
+  // 世界7不思議: 通常謎解きの最後の1問に正解した場合、同じawardedIds配列に
+  // ミステリーハンター(#393)のidも入ることがある(js/trophy.jsの
+  // evaluatePuzzleAnswer()参照)。その場合は、まずこの問題自身の獲得演出を
+  // 表示し、閉じた後に世界7不思議の解放演出へ続ける(showPuzzleTrophyAward()
+  // のオプションで伝える)
   function awardTrophyIfNew(questionId) {
     if (typeof TrophyModule === "undefined" || typeof TrophyModule.evaluatePuzzleAnswer !== "function") return;
     const result = TrophyModule.evaluatePuzzleAnswer({ questionId, correct: true });
-    const awardedId = result && result.awardedIds && result.awardedIds[0];
+    const ids = (result && result.awardedIds) || [];
+    const mysteryHunterId = typeof TrophyModule.MYSTERY_HUNTER_NUMBER === "number"
+      ? `trophy_${TrophyModule.MYSTERY_HUNTER_NUMBER}` : null;
+    const unlockedSevenWondersAfter = !!mysteryHunterId && ids.includes(mysteryHunterId);
+    const awardedId = ids.find((id) => id !== mysteryHunterId);
     if (!awardedId) return;
     const def = TrophyModule.getDefinition(awardedId);
     if (def && typeof showPuzzleTrophyAward === "function") {
-      showPuzzleTrophyAward(def);
+      showPuzzleTrophyAward(def, { unlockedSevenWondersAfter });
     }
+  }
+
+  // 世界7不思議: 正解時のトロフィー獲得処理。evaluateSevenWonderAnswer()の
+  // 戻り値には、この問題自身のトロフィーidと(7問目を解いた場合のみ)
+  // 全知全能の神(#394)のidが同時に入ることがある。awardTrophyIfNew()と同じ
+  // 「初回正解時だけ演出を出す」設計を、世界7不思議専用に分けて実装する
+  // (通常謎解きの判定経路(evaluatePuzzleAnswer)に一切混ざらないようにする)
+  function awardSevenWonderTrophyIfNew(questionId) {
+    if (typeof TrophyModule === "undefined" || typeof TrophyModule.evaluateSevenWonderAnswer !== "function") return;
+    const result = TrophyModule.evaluateSevenWonderAnswer({ questionId, correct: true });
+    const ids = (result && result.awardedIds) || [];
+    const omniscientId = typeof TrophyModule.OMNISCIENT_GOD_NUMBER === "number"
+      ? `trophy_${TrophyModule.OMNISCIENT_GOD_NUMBER}` : null;
+    const omniscientAfter = !!omniscientId && ids.includes(omniscientId);
+    const awardedId = ids.find((id) => id !== omniscientId);
+    if (!awardedId) return;
+    const def = TrophyModule.getDefinition(awardedId);
+    if (def && typeof showPuzzleTrophyAward === "function") {
+      showPuzzleTrophyAward(def, { isSevenWonder: true, omniscientAfter });
+    }
+  }
+
+  // 世界7不思議: 不正解確定前の二重タップ防止用フラグ。確認ダイアログを
+  // 表示している間(Promise待ち)に連打されても、2つ目以降の呼び出しは
+  // 無視する(ダイアログ自体の確定ボタンにも別途ガードがある、二重の安全策)
+  let sevenWonderConfirmPending = false;
+
+  // 世界7不思議: 挑戦中の問題の「解放状態」を、常にStorage(js/trophy.jsの
+  // getSevenWonderState())から読み直すためのヘルパー。currentQuestionIdや
+  // selectedIdsのような、この画面が保持する一時的な状態を一切信用せず、
+  // 判定の直前に必ずここを通すことで、
+  //   - 不正解確定(7日間ロック)の直後に、同じ画面で正解の国旗へ選び
+  //     直して再送信する
+  //   - 確認ダイアログの確定処理中に二重タップする
+  //   - ロック中にブラウザの戻る操作・再読み込み・画面の再表示をする
+  // といった経路のどれを使っても、ロック中/未解放/獲得済みの問題で
+  // トロフィーを取得できないようにする(UI側の見た目の無効化だけに
+  // 頼らない、判定ロジック自体のガード)
+  function getLiveSevenWonderState(questionId) {
+    return (typeof TrophyModule !== "undefined" && typeof TrophyModule.getSevenWonderState === "function")
+      ? TrophyModule.getSevenWonderState(questionId)
+      : "locked";
+  }
+
+  // 世界7不思議: Storage.recordSevenWonderFailure()(ロック日時の保存)が
+  // 失敗した場合の保険。保存できていない以上、Storage側はまだ
+  // "available"のままになってしまうため、このセッション内だけは
+  // 問題id単位でここに覚えておき、再読み込みされるまでの間は
+  // 「保存できていないのにプレイを継続できてしまう」ことを防ぐ
+  const sessionBlockedSevenWonderIds = new Set();
+
+  function showSevenWonderReturnLink() {
+    const btn = $("puzzle-seven-wonder-return");
+    if (btn) btn.classList.remove("hidden");
+  }
+  function hideSevenWonderReturnLink() {
+    const btn = $("puzzle-seven-wonder-return");
+    if (btn) btn.classList.add("hidden");
+  }
+
+  // 世界7不思議: 判定を行わず、状態に応じた案内だけを表示する(トロフィー
+  // 一覧へ安全に戻るためのリンクも併せて表示する)
+  function showSevenWonderUnavailableMessage(state) {
+    let message;
+    if (state === "cooldown") {
+      message = "しかし、何も起こらなかった……この謎は7日間、再挑戦できない。";
+    } else if (state === "completed") {
+      message = "この謎はすでに解き明かされている。";
+    } else if (state === "save-failed") {
+      message = "記録の保存に失敗したため、安全のためこの謎への挑戦を一時中断する。通信状態を確認し、トロフィー一覧から開き直してください。";
+    } else {
+      message = "この謎には今挑戦できない。";
+    }
+    showAnswerMessage(message, "wrong");
+    showSevenWonderReturnLink();
   }
 
   function handleSubmit() {
@@ -324,14 +417,72 @@ const PuzzleModule = (() => {
     // 同じく、効果音のON/OFF自体はSoundManager側(safePlay()の
     // enabledチェック)が判定するため、ここで二重に判定しない)
     SoundManager.unlock();
+    const isWonder = isSevenWonderQuestion(currentQuestionId);
+    // 世界7不思議: 判定(judgeAnswer)より前に、必ず最新の解放状態を
+    // 再検証する。ロック中/未解放/獲得済みであれば、正解の国旗が選ばれて
+    // いても一切判定せず、トロフィー獲得処理(awardSevenWonderTrophyIfNew)
+    // には絶対に到達しない
+    if (isWonder) {
+      const state = getLiveSevenWonderState(currentQuestionId);
+      const sessionBlocked = sessionBlockedSevenWonderIds.has(currentQuestionId);
+      if (state !== "available" || sessionBlocked) {
+        showSevenWonderUnavailableMessage(sessionBlocked && state === "available" ? "save-failed" : state);
+        return;
+      }
+    }
     const result = judgeAnswer(currentQuestionId, selectedIds.slice());
     if (result.correct) {
       showAnswerMessage(`「${result.title}」\n${result.explanationText}`, "correct");
-      awardTrophyIfNew(currentQuestionId);
-    } else {
-      // 不正解でも選択内容は一切変更しない(保持したまま修正・再挑戦できる)
-      showAnswerMessage("しかし、何も起こらなかった……", "wrong");
+      if (isWonder) awardSevenWonderTrophyIfNew(currentQuestionId); else awardTrophyIfNew(currentQuestionId);
+      return;
     }
+    // 不正解でも選択内容は一切変更しない(保持したまま修正・再挑戦できる)
+    if (!isWonder || sevenWonderConfirmPending) {
+      showAnswerMessage("しかし、何も起こらなかった……", "wrong");
+      return;
+    }
+    // 世界7不思議専用: 不正解を確定する前に、7日間ロックされる旨の確認
+    // ダイアログを挟む。キャンセルした場合は選択内容・ロック状態のどちらも
+    // 一切変化しない(ここでまだ何も保存していない)。確定後にのみ
+    // Storage.recordSevenWonderFailure()を呼び、実際にロックする
+    if (typeof showSevenWonderConfirm !== "function") {
+      // 保険(通常は発生しない): ダイアログ関数が無い場合は従来表示のみ
+      showAnswerMessage("しかし、何も起こらなかった……", "wrong");
+      return;
+    }
+    sevenWonderConfirmPending = true;
+    showSevenWonderConfirm().then((confirmed) => {
+      sevenWonderConfirmPending = false;
+      if (!confirmed) return; // キャンセル: 何も確定しない
+      // 確認ダイアログを表示している間に状態が変わっている可能性
+      // (別タブでの操作等)に備え、ロックを確定する直前にもう一度だけ
+      // 再検証する。例えば既に獲得済みになっていた問題を誤ってロック
+      // することがないようにする
+      const stateBeforeLock = getLiveSevenWonderState(currentQuestionId);
+      if (stateBeforeLock !== "available") {
+        showSevenWonderUnavailableMessage(stateBeforeLock);
+        return;
+      }
+      const failedAtMs = Date.now();
+      let saved = false;
+      if (typeof Storage !== "undefined" && typeof Storage.recordSevenWonderFailure === "function") {
+        saved = Storage.recordSevenWonderFailure(currentQuestionId, failedAtMs);
+      }
+      if (!saved) {
+        // ロック日時を保存できなかった場合、「7日間ロックされた」と
+        // 偽って表示することも、何も起きなかったかのようにプレイを
+        // 続けさせることもしない。安全側に倒し、このセッションの間は
+        // この問題への回答を止める
+        sessionBlockedSevenWonderIds.add(currentQuestionId);
+        showSevenWonderUnavailableMessage("save-failed");
+        return;
+      }
+      // 不正解確定直後から、この問題は即座に回答無効化の対象になる
+      // (getLiveSevenWonderState()がStorageの保存値を読み、次にこの
+      // 画面でhandleSubmit()が呼ばれた瞬間に"cooldown"を返すため、
+      // 改めてフラグを立てる必要はない)
+      showSevenWonderUnavailableMessage("cooldown");
+    });
   }
   function showAnswerMessage(message, variant) {
     const el = $("puzzle-answer-message");
@@ -346,6 +497,7 @@ const PuzzleModule = (() => {
     if (!el) return;
     el.classList.add("hidden");
     el.classList.remove("puzzle-answer-message--correct", "puzzle-answer-message--wrong");
+    hideSevenWonderReturnLink();
   }
 
   // ---------- 検索 ----------
@@ -370,6 +522,15 @@ const PuzzleModule = (() => {
     $("puzzle-question-toggle").addEventListener("click", toggleQuestionText);
     $("puzzle-answer-clear").addEventListener("click", clearSelections);
     $("puzzle-answer-submit").addEventListener("click", handleSubmit);
+    // 世界7不思議: 不正解確定(7日間ロック)・既に獲得済み等で回答できなく
+    // なった際に表示する、トロフィー一覧への案内リンク
+    const returnBtn = $("puzzle-seven-wonder-return");
+    if (returnBtn) {
+      returnBtn.addEventListener("click", () => {
+        hideSevenWonderReturnLink();
+        if (typeof showScreen === "function") showScreen("screen-trophy-list");
+      });
+    }
 
     // ============ 開発用・一時的な入口(本番非公開) ============
     // ボタンを押すと、PUZZLE_QUESTIONS(js/puzzle-questions.js)に登録されて
@@ -413,6 +574,16 @@ const PuzzleModule = (() => {
   // (1回の挑戦ごとに新しい回答をゼロから作るのが自然な挙動のため)
   function open(options) {
     const opts = options || {};
+    // 世界7不思議: 直接アクセス(開発用問題選択・ブックマーク等)によって
+    // ロック中/解放前/クールダウン中の問題へ入室してしまうことを防ぐ、
+    // 最終防衛線。一覧カード側(js/app.js)が既にボタンを出さないように
+    // しているため、通常操作ではこの分岐には入らない
+    if (opts.questionId && isSevenWonderQuestion(opts.questionId)) {
+      const state = (typeof TrophyModule !== "undefined" && typeof TrophyModule.getSevenWonderState === "function")
+        ? TrophyModule.getSevenWonderState(opts.questionId)
+        : "locked";
+      if (state !== "available") return;
+    }
     currentQuestionId = opts.questionId || null;
     currentQuestionText = opts.questionText || DEFAULT_QUESTION_TEXT;
     selectedIds = [];

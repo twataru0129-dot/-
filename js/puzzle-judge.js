@@ -105,9 +105,19 @@ const PuzzleJudgeModule = (() => {
     return requiredInitials.every((letter, i) => countryMatchesInitial(selectedIds[i], letter));
   }
 
+  // 世界7不思議(js/seven-wonders-questions.js、SEVEN_WONDERS_QUESTIONS_BY_ID)は
+  // 通常の謎解き(PUZZLE_QUESTIONS_BY_ID)とは完全に別の配列で管理するが、
+  // 回答判定・国旗選択画面(js/puzzle.js)は同じ入口を共有する("従来と同じ
+  // 国旗選択方式"の要求のため)。questionIdの重複は無い前提(片方にしか
+  // 存在しないid)なので、両方を順に探すだけでよい
   function findQuestion(questionId) {
-    if (typeof PUZZLE_QUESTIONS_BY_ID === "undefined") return null;
-    return PUZZLE_QUESTIONS_BY_ID[questionId] || null;
+    if (typeof PUZZLE_QUESTIONS_BY_ID !== "undefined" && PUZZLE_QUESTIONS_BY_ID[questionId]) {
+      return PUZZLE_QUESTIONS_BY_ID[questionId];
+    }
+    if (typeof SEVEN_WONDERS_QUESTIONS_BY_ID !== "undefined" && SEVEN_WONDERS_QUESTIONS_BY_ID[questionId]) {
+      return SEVEN_WONDERS_QUESTIONS_BY_ID[questionId];
+    }
+    return null;
   }
 
   // questionIdに対応する問題だけを対象に判定する。questionIdが未登録

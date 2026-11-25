@@ -3,7 +3,18 @@
 // 効果音設定・称号・挑戦回数・最高記録などをここで扱う
 // ==========================================================
 
-const STORAGE_PREFIX = "wfq_v1_";
+// 世界7不思議テストラボ(dev/seven-wonders-lab.html、本番には一切含めない
+// 開発専用ページ)専用のフック。このファイルより前に読み込まれるスクリプトが
+// window.__WFQ_LAB_STORAGE_PREFIX__ を設定していた場合だけ、保存キーの
+// 接頭辞をそれに差し替える。本番(index.html)はこのグローバル変数を一切
+// 設定しないため、production向けの挙動・保存キーは従来どおり完全に同じ
+// ("wfq_v1_"のまま)。これにより、このファイル・js/trophy.js等が使う
+// すべてのキー(StorageKeys・TROPHY_KEY・SEVEN_WONDERS_LOCK_KEY等、
+// 全てSTORAGE_PREFIXから派生)が、テストラボ使用時だけ自動的に別の
+// 名前空間("wfq_v1_lab_"等)になり、本番の保存データと一切重ならない
+const STORAGE_PREFIX = (typeof window !== "undefined" && typeof window.__WFQ_LAB_STORAGE_PREFIX__ === "string" && window.__WFQ_LAB_STORAGE_PREFIX__)
+  ? window.__WFQ_LAB_STORAGE_PREFIX__
+  : "wfq_v1_";
 
 // 国旗クイズ(既存)のキーは今までどおり据え置き、既存ユーザーのデータを壊さない。
 // 首都クイズは "wfq_v1_capital_xxx" という別キーで完全に分けて保存する。
@@ -60,6 +71,20 @@ const ENCYCLOPEDIA_REGION_VISITED_KEY = STORAGE_PREFIX + "encyclopedia_region_vi
 const ENCYCLOPEDIA_REGION_VISITED_VERSION = 1;
 const ENCYCLOPEDIA_SEARCH_OPENED_KEY = STORAGE_PREFIX + "encyclopedia_search_opened";
 const ENCYCLOPEDIA_SEARCH_OPENED_VERSION = 1;
+
+// 世界7不思議: 不正解確定による7日間(168時間)ロックの保存領域。既存の
+// どの保存キーとも衝突しない新規キー(wfq_v1_seven_wonders_lock)。
+// 「獲得済みの判定」自体はjs/trophy.js(TrophyModule.isEarned)の既存の
+// 獲得記録をそのまま使うため、ここには一切記録しない(重複保存を避ける。
+// セクション8の要求どおり)。ここで保存するのは「不正解が確定した時刻
+// (failedAt)」と「それから168時間後に再挑戦できるようになる時刻
+// (unlockAt)」だけで、問題id(SEVEN_WONDERS_QUESTIONS[].id)をキーとした
+// 辞書として持つ(1問ごとに完全に独立。他の問題のロック状態には一切影響
+// しない)。経過時間ベース(unlockAt = failedAt + 604800000ms)で判定する
+// ため、カレンダー日付が変わったかどうかには依存しない
+const SEVEN_WONDERS_LOCK_KEY = STORAGE_PREFIX + "seven_wonders_lock";
+const SEVEN_WONDERS_LOCK_VERSION = 1;
+const SEVEN_WONDERS_LOCK_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 168時間
 
 function keysForMode(mode) {
   return mode === "capital" ? CapitalStorageKeys : StorageKeys;
@@ -402,6 +427,54 @@ const encyclopediaSearchOpenedStore = makeEncyclopediaIdSetStore(
   ENCYCLOPEDIA_SEARCH_OPENED_KEY, ENCYCLOPEDIA_SEARCH_OPENED_VERSION, findCountryCollectionValidIds
 );
 
+// ---------- 世界7不思議: 7日間(168時間)ロックの読み書き ----------
+function sevenWondersLockEmpty() { return { version: SEVEN_WONDERS_LOCK_VERSION, locks: {} }; }
+function loadSevenWondersLock() {
+  const raw = safeGet(SEVEN_WONDERS_LOCK_KEY);
+  if (!raw) return sevenWondersLockEmpty();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || parsed.version !== SEVEN_WONDERS_LOCK_VERSION
+      || !parsed.locks || typeof parsed.locks !== "object") {
+      return sevenWondersLockEmpty();
+    }
+    return parsed;
+  } catch (e) {
+    console.warn("世界7不思議のロック状態の読み込みに失敗しました。保存データを初期化します", e);
+    return sevenWondersLockEmpty();
+  }
+}
+function saveSevenWondersLock(data) { return safeSet(SEVEN_WONDERS_LOCK_KEY, JSON.stringify(data)); }
+
+const sevenWondersLockStore = {
+  // 問題idの現在のロック状態({failedAt, unlockAt}、記録が無い/壊れている
+  // 場合はnull)を返す。unlockAt自体の過去/未来判定はjs/puzzle.js・
+  // js/app.js側(呼び出し時点のDate.now()と比較)が行う。ここでは保存
+  // データの読み出しのみを行う
+  get(questionId) {
+    const data = loadSevenWondersLock();
+    const entry = data.locks[questionId];
+    if (!entry || typeof entry !== "object") return null;
+    if (!Number.isFinite(entry.failedAt) || !Number.isFinite(entry.unlockAt)) return null;
+    return { failedAt: entry.failedAt, unlockAt: entry.unlockAt };
+  },
+  // 不正解確定時に1回だけ呼ぶ。failedAtMsを明示的に受け取る(呼び出し側で
+  // Date.now()を1回だけ評価し、保存とUI表示で同じ時刻を使えるようにする)。
+  // すでに正解済みの問題をロックしてしまうことが無いよう、呼び出し側
+  // (js/puzzle.js)がTrophyModule.isEarned()を確認した上でだけ呼ぶ想定
+  recordFailure(questionId, failedAtMs) {
+    try {
+      if (typeof questionId !== "string" || !Number.isFinite(failedAtMs)) return false;
+      const data = loadSevenWondersLock();
+      data.locks[questionId] = { failedAt: failedAtMs, unlockAt: failedAtMs + SEVEN_WONDERS_LOCK_DURATION_MS };
+      return !!saveSevenWondersLock(data);
+    } catch (e) {
+      console.warn("世界7不思議のロック状態の保存に失敗しました", e);
+      return false;
+    }
+  },
+};
+
 const Storage = {
   // ---- 効果音設定 ----
   isSoundEnabled() {
@@ -719,6 +792,17 @@ const Storage = {
   getEncyclopediaSearchOpenedCount() { return encyclopediaSearchOpenedStore.getCount(); },
   recordEncyclopediaSearchOpened(id) { return encyclopediaSearchOpenedStore.record(id); },
 
+  // 世界7不思議: 7日間(168時間)ロックの読み書き
+  getSevenWonderLock(questionId) { return sevenWondersLockStore.get(questionId); },
+  recordSevenWonderFailure(questionId, failedAtMs) { return sevenWondersLockStore.recordFailure(questionId, failedAtMs); },
+  // 世界7不思議テストラボ(dev/seven-wonders-lab.html)専用。js/trophy.jsの
+  // resetSevenWondersProgress()から呼ばれ、7日間ロックの保存領域だけを
+  // 削除する(他の保存キーには一切触れない)
+  resetSevenWondersLocks() {
+    try { localStorage.removeItem(SEVEN_WONDERS_LOCK_KEY); return true; } catch (e) { return false; }
+  },
+  SEVEN_WONDERS_LOCK_DURATION_MS,
+
   // ---- データリセット(国旗・首都両方の称号・記録だけを消す) ----
   // 効果音設定(StorageKeys.SOUND)は確認画面の文言(「称号・記録をリセット」)
   // に合わせて対象外にする。以前はStorageKeysの全キー(SOUNDを含む)を
@@ -745,6 +829,7 @@ const Storage = {
       ENCYCLOPEDIA_REVIEWED_KEY,
       ENCYCLOPEDIA_REGION_VISITED_KEY,
       ENCYCLOPEDIA_SEARCH_OPENED_KEY,
+      SEVEN_WONDERS_LOCK_KEY,
     ];
     keysToRemove.forEach((k) => {
       try { localStorage.removeItem(k); } catch (e) { /* noop */ }

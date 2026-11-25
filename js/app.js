@@ -1142,13 +1142,25 @@ function initLegendAwardScreen() {
 // ==========================================================
 let puzzleAwardReturnScreenId = "screen-puzzle-flag-select";
 let lastPuzzleAwardTrophyId = null;
+// 世界7不思議: このトロフィー獲得演出を閉じた直後に、解放演出・全制覇演出
+// へ続けるべきかどうかのフラグ(js/puzzle.jsのawardTrophyIfNew()・
+// awardSevenWonderTrophyIfNew()が、showPuzzleTrophyAward()のoptionsを
+// 経由して設定する)
+let pendingSevenWondersUnlockAfterAward = false;
+let pendingOmniscientGodAfterAward = false;
 
-function renderPuzzleTrophyAwardScreen(def) {
+function renderPuzzleTrophyAwardScreen(def, options) {
+  const opts = options || {};
   lastPuzzleAwardTrophyId = def.id;
   $("puzzle-award-name").textContent = def.name;
   $("puzzle-award-description").textContent = def.description || "";
-  const panel = document.querySelector("#screen-puzzle-trophy-award .puzzle-award-panel");
+  const screenEl = $("screen-puzzle-trophy-award");
+  const panel = screenEl.querySelector(".puzzle-award-panel");
   panel.classList.remove("puzzle-award-skip"); // 前回表示時のスキップ状態を引き継がない
+  // 世界7不思議の問題は、既存の謎解き獲得演出より一段豪華な専用デザイン
+  // (黒曜石・金)を追加で重ねる(構造・ボタン・動作はすべて共通のまま)
+  screenEl.classList.toggle("screen-puzzle-trophy-award-wonder", !!opts.isSevenWonder);
+  panel.classList.toggle("puzzle-award-panel-wonder", !!opts.isSevenWonder);
   const confettiWrap = $("puzzle-award-confetti-wrap");
   confettiWrap.innerHTML = "";
   runGoldConverge(confettiWrap);
@@ -1157,12 +1169,39 @@ function renderPuzzleTrophyAwardScreen(def) {
 
 // 謎解きの正解判定(js/puzzle.js)が初回獲得を検知した時だけ呼ぶ。
 // 開く直前にいた画面(常にscreen-puzzle-flag-select)を記憶しておき、
-// 「閉じる」はそこへ戻る
-function showPuzzleTrophyAward(def) {
+// 「閉じる」はそこへ戻る。
+// options.unlockedSevenWondersAfter: 通常謎解きの最後の1問に正解し、同じ
+// 瞬間にミステリーハンターも新規獲得した場合にtrue。
+// options.isSevenWonder/options.omniscientAfter: 世界7不思議の問題に
+// 正解した場合、および同じ瞬間に全知全能の神も新規獲得した場合にtrue
+function showPuzzleTrophyAward(def, options) {
+  const opts = options || {};
   const activeScreen = document.querySelector(".screen.active");
   puzzleAwardReturnScreenId = activeScreen ? activeScreen.id : "screen-puzzle-flag-select";
-  renderPuzzleTrophyAwardScreen(def);
+  pendingSevenWondersUnlockAfterAward = !!opts.unlockedSevenWondersAfter;
+  pendingOmniscientGodAfterAward = !!opts.omniscientAfter;
+  renderPuzzleTrophyAwardScreen(def, opts);
   showScreen("screen-puzzle-trophy-award");
+}
+
+// この演出画面の「閉じる」「トロフィーを見る」どちらのボタンからも、
+// 世界7不思議の解放演出・全制覇演出をはさむ必要があれば先にそちらを表示し、
+// 無ければそのまま本来の行き先(nextFn)へ進む。該当する演出は最大1つ
+// (解放と全制覇が同時に発生することは構造上無い: 解放はミステリーハンター
+// =通常謎解き完了、全制覇は全知全能の神=世界7不思議7問完了で、互いに
+// 排他的な条件のため)
+function proceedAfterPuzzleTrophyAward(nextFn) {
+  if (pendingOmniscientGodAfterAward) {
+    pendingOmniscientGodAfterAward = false;
+    showSevenWondersOmniscientScreen(nextFn);
+    return;
+  }
+  if (pendingSevenWondersUnlockAfterAward) {
+    pendingSevenWondersUnlockAfterAward = false;
+    showSevenWondersUnlockScreen(nextFn);
+    return;
+  }
+  nextFn();
 }
 
 // トロフィー一覧を開き、今回獲得したカードまでスクロールして一時的に
@@ -1193,11 +1232,110 @@ function initPuzzleTrophyAwardScreen() {
     panel.classList.add("puzzle-award-skip");
   });
   $("btn-puzzle-award-view").addEventListener("click", () => {
-    openTrophyListAndHighlight(lastPuzzleAwardTrophyId);
+    proceedAfterPuzzleTrophyAward(() => openTrophyListAndHighlight(lastPuzzleAwardTrophyId));
   });
   $("btn-puzzle-award-close").addEventListener("click", () => {
-    showScreen(puzzleAwardReturnScreenId);
+    proceedAfterPuzzleTrophyAward(() => showScreen(puzzleAwardReturnScreenId));
   });
+}
+
+// ==========================================================
+// 世界7不思議: 解放演出・全制覇演出(第5段階)
+// どちらも「続ける」ボタン1つだけの単純な画面で、渡されたafterFn()を
+// 呼ぶだけで元の行き先(トロフィー一覧ハイライト、または元の画面)へ戻る。
+// prefers-reduced-motionはCSS側(.seven-wonders-seal等のanimation)で
+// 対応するため、ここでは演出の有無を分岐しない(表示されるマークアップ自体は
+// 同じで、アニメーションだけがCSSのメディアクエリで無効化される)
+// ==========================================================
+let afterSevenWondersUnlockScreen = null;
+let afterSevenWondersOmniscientScreen = null;
+
+function showSevenWondersUnlockScreen(afterFn) {
+  afterSevenWondersUnlockScreen = typeof afterFn === "function" ? afterFn : null;
+  const def = typeof TrophyModule !== "undefined" && typeof TrophyModule.MYSTERY_HUNTER_NUMBER === "number"
+    ? TrophyModule.getDefinition(`trophy_${TrophyModule.MYSTERY_HUNTER_NUMBER}`)
+    : null;
+  $("seven-wonders-unlock-description").textContent = def ? (def.description || "") : "";
+  showScreen("screen-seven-wonders-unlock");
+}
+
+function showSevenWondersOmniscientScreen(afterFn) {
+  afterSevenWondersOmniscientScreen = typeof afterFn === "function" ? afterFn : null;
+  const def = typeof TrophyModule !== "undefined" && typeof TrophyModule.OMNISCIENT_GOD_NUMBER === "number"
+    ? TrophyModule.getDefinition(`trophy_${TrophyModule.OMNISCIENT_GOD_NUMBER}`)
+    : null;
+  $("seven-wonders-omniscient-description").textContent = def ? (def.description || "") : "";
+  const confettiWrap = $("seven-wonders-omniscient-confetti-wrap");
+  confettiWrap.innerHTML = "";
+  runConfetti(confettiWrap);
+  SoundManager.playFanfare();
+  showScreen("screen-seven-wonders-omniscient");
+}
+
+function initSevenWondersCinematicScreens() {
+  $("btn-seven-wonders-unlock-continue").addEventListener("click", () => {
+    const fn = afterSevenWondersUnlockScreen;
+    afterSevenWondersUnlockScreen = null;
+    if (fn) fn(); else showScreen("screen-trophy-list");
+  });
+  $("btn-seven-wonders-omniscient-continue").addEventListener("click", () => {
+    const fn = afterSevenWondersOmniscientScreen;
+    afterSevenWondersOmniscientScreen = null;
+    if (fn) fn(); else showScreen("screen-trophy-list");
+  });
+}
+
+// アプリ起動時に1回だけ呼ぶ、追いつき判定(本更新より前からすでに通常
+// 謎解き126問を全問獲得済みだった利用者の解放)。新規に解放された場合のみ
+// trueを返す(呼び出し元のinitApp()が、その場合だけ解放演出を初期表示に
+// 差し込む)
+function runSevenWondersStartupCatchUp() {
+  if (typeof TrophyModule === "undefined" || typeof TrophyModule.evaluateSevenWondersCatchUp !== "function") return false;
+  const result = TrophyModule.evaluateSevenWondersCatchUp();
+  const mysteryHunterId = typeof TrophyModule.MYSTERY_HUNTER_NUMBER === "number"
+    ? `trophy_${TrophyModule.MYSTERY_HUNTER_NUMBER}` : null;
+  return !!mysteryHunterId && result.awardedIds.includes(mysteryHunterId);
+}
+
+// ==========================================================
+// 世界7不思議: 不正解確定前の確認モーダル・ロック中タップ案内モーダル
+// ==========================================================
+let sevenWonderConfirmYesBusy = false;
+function showSevenWonderConfirm() {
+  return new Promise((resolve) => {
+    const modal = $("seven-wonder-confirm-modal");
+    const yesBtn = $("seven-wonder-confirm-yes");
+    const noBtn = $("seven-wonder-confirm-cancel");
+    sevenWonderConfirmYesBusy = false;
+    modal.classList.remove("hidden");
+    function cleanup(result) {
+      modal.classList.add("hidden");
+      yesBtn.removeEventListener("click", onYes);
+      noBtn.removeEventListener("click", onNo);
+      resolve(result);
+    }
+    function onYes() {
+      // ボタンを押した瞬間に自分自身を無効化し、二重タップでの多重処理
+      // (7日間ロックの二重記録等)を防ぐ
+      if (sevenWonderConfirmYesBusy) return;
+      sevenWonderConfirmYesBusy = true;
+      cleanup(true);
+    }
+    function onNo() { cleanup(false); }
+    yesBtn.addEventListener("click", onYes);
+    noBtn.addEventListener("click", onNo);
+  });
+}
+
+function showSevenWonderLockedModal() {
+  const modal = $("seven-wonder-locked-modal");
+  modal.classList.remove("hidden");
+  const closeBtn = $("seven-wonder-locked-close");
+  function onClose() {
+    modal.classList.add("hidden");
+    closeBtn.removeEventListener("click", onClose);
+  }
+  closeBtn.addEventListener("click", onClose);
 }
 
 // ==========================================================
@@ -1353,6 +1491,145 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
   return card;
 }
 
+// ========================================================
+// 世界7不思議(def.category === "sevenWonders"、#386〜394)専用のカード。
+// 既存のbuildPuzzleTrophyCardElement()・buildTrophyCardElement()は一切
+// 変更せず、renderTrophyGrid()がcategoryで分岐してこの関数を呼ぶ。
+// 既存の謎解き・隠しトロフィーのどちらとも異なる、黒曜石・金を基調にした
+// 専用デザイン(CSS側、trophy-card-sevenwonder系クラス)を使う。
+//
+// def.puzzleQuestionId(SEVEN_WONDERS_QUESTIONS[].id)がある方=7問自体、
+// 無い方=隠し特別2種(ミステリーハンター・全知全能の神)として分岐する
+// ========================================================
+function formatSevenWonderDateTime(ms) {
+  try {
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
+    }).format(new Date(ms));
+  } catch (e) {
+    const d = new Date(ms);
+    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+}
+function formatSevenWonderRemaining(remainingMs) {
+  const totalMinutes = Math.max(0, Math.ceil(remainingMs / 60000));
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days > 0) parts.push(`${days}日`);
+  if (hours > 0 || days > 0) parts.push(`${hours}時間`);
+  parts.push(`${minutes}分`);
+  return parts.join("");
+}
+
+function buildSevenWonderPuzzleCard(card, def, st) {
+  const question = (typeof SEVEN_WONDERS_QUESTIONS_BY_ID !== "undefined" && def.puzzleQuestionId)
+    ? SEVEN_WONDERS_QUESTIONS_BY_ID[def.puzzleQuestionId]
+    : null;
+  const state = typeof TrophyModule.getSevenWonderState === "function"
+    ? TrophyModule.getSevenWonderState(def.puzzleQuestionId)
+    : (st.earned ? "completed" : "locked");
+  card.classList.add(`trophy-card-sevenwonder-${state}`);
+  card.dataset.earned = String(state === "completed");
+
+  if (state === "locked") {
+    card.innerHTML = `
+      <div class="trophy-card-top">
+        <span class="trophy-number">No.${def.number}</span>
+        <div class="trophy-card-badges"><span class="trophy-category-badge">世界7不思議</span></div>
+      </div>
+      <div class="seven-wonder-card-seal" aria-hidden="true">🔒</div>
+      <p class="trophy-name">？？？？？？</p>`;
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("aria-label", "ロックされた謎");
+    const openLockedModal = () => { if (typeof showSevenWonderLockedModal === "function") showSevenWonderLockedModal(); };
+    card.addEventListener("click", openLockedModal);
+    card.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openLockedModal(); } });
+    return;
+  }
+
+  const questionText = question ? question.questionText : (def.condition || "");
+  const nameHtml = state === "locked" ? "？？？？？？" : def.name;
+  const descHtml = state === "completed" && def.description ? `<p class="trophy-description">${def.description}</p>` : "";
+  let actionHtml = "";
+  if (state === "available") {
+    actionHtml = `<button type="button" class="btn-puzzle-challenge btn-sevenwonder-challenge" data-question-id="${def.puzzleQuestionId}">この謎に挑む</button>`;
+  } else if (state === "cooldown") {
+    const unlockAt = typeof TrophyModule.getSevenWonderUnlockAt === "function"
+      ? TrophyModule.getSevenWonderUnlockAt(def.puzzleQuestionId)
+      : null;
+    const remainingText = unlockAt ? formatSevenWonderRemaining(unlockAt - Date.now()) : "";
+    const atText = unlockAt ? formatSevenWonderDateTime(unlockAt) : "";
+    actionHtml = `
+      <p class="seven-wonder-cooldown-text">この謎は7日間、再挑戦できない。<br>
+      あと${remainingText}で再挑戦できる(${atText}〜)</p>`;
+  }
+
+  card.innerHTML = `
+    <div class="trophy-card-top">
+      <span class="trophy-number">No.${def.number}</span>
+      <div class="trophy-card-badges"><span class="trophy-category-badge">世界7不思議</span></div>
+    </div>
+    <div class="trophy-marks">
+      <div class="trophy-mark-col">
+        ${buildTrophyMarkHtml("🗝️", "🗝️", state === "completed", st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "", "獲得マーク", false)}
+      </div>
+    </div>
+    <p class="trophy-name">${nameHtml}</p>
+    <p class="trophy-cond trophy-puzzle-question">${questionText}</p>
+    ${descHtml}
+    ${actionHtml}`;
+
+  if (state === "available") {
+    card.querySelector(".btn-sevenwonder-challenge").addEventListener("click", (e) => {
+      e.stopPropagation();
+      PuzzleModule.open({ questionId: def.puzzleQuestionId, questionText });
+      showScreen("screen-puzzle-flag-select");
+    });
+  }
+}
+
+function buildSevenWonderSpecialCard(card, def, st) {
+  const secretLocked = !st.earned; // ミステリーハンター・全知全能の神は、獲得前は常に伏せる
+  card.dataset.earned = String(st.earned);
+  card.classList.add("trophy-card-sevenwonder-special");
+  if (secretLocked) card.classList.add("trophy-card-secret");
+  const nameHtml = secretLocked ? "？？？？？？" : def.name;
+  const condHtml = secretLocked ? "" : `<p class="trophy-cond">${def.condition}</p>`;
+  const descHtml = !secretLocked && def.description ? `<p class="trophy-description">${def.description}</p>` : "";
+  const dateStr = st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "";
+  card.innerHTML = `
+    <div class="trophy-card-top">
+      <span class="trophy-number">No.${def.number}</span>
+      <div class="trophy-card-badges"><span class="trophy-category-badge">世界7不思議</span></div>
+    </div>
+    <div class="trophy-marks">
+      <div class="trophy-mark-col">
+        ${buildTrophyMarkHtml("👑", "🔒", st.earned, dateStr, secretLocked ? "未発見のトロフィー" : "獲得マーク", secretLocked)}
+      </div>
+    </div>
+    <p class="trophy-name">${nameHtml}</p>
+    ${condHtml}
+    ${descHtml}`;
+}
+
+function buildSevenWonderCardElement(def, earnedEntry) {
+  const st = trophyEarnedState(def, earnedEntry);
+  const card = document.createElement("div");
+  card.className = "trophy-card trophy-card-sevenwonder" + (st.earned ? "" : " locked");
+  card.dataset.category = def.category;
+  card.dataset.hidden = "false";
+  card.dataset.trophyId = def.id;
+  if (def.puzzleQuestionId) {
+    buildSevenWonderPuzzleCard(card, def, st);
+  } else {
+    buildSevenWonderSpecialCard(card, def, st);
+  }
+  return card;
+}
+
 // 隠しトロフィー(def.hidden)の未獲得時は、正式名称・獲得条件を一切DOMに
 // 出さない(HTML属性・ツールチップ等からも条件が漏れないようにする)。
 // 獲得後は通常のトロフィーと全く同じ表示に戻る。番号・カテゴリは隠しでも表示する
@@ -1492,6 +1769,12 @@ function renderTrophyGrid() {
     // 他のどの分岐よりも先にbuildPuzzleTrophyCardElement()へ回す
     if (def.category === "puzzle") {
       grid.appendChild(buildPuzzleTrophyCardElement(def, earned[def.id]));
+      return;
+    }
+    // 世界7不思議(7問+隠し特別2種、#386〜394)は、通常の謎解き・隠し
+    // トロフィーのどちらとも異なる専用カードで描画する
+    if (def.category === "sevenWonders") {
+      grid.appendChild(buildSevenWonderCardElement(def, earned[def.id]));
       return;
     }
     // 集計方式A案: No.1〜19のみ、国旗クイズ・首都クイズの2枚の独立カードに
@@ -1955,12 +2238,20 @@ function initApp() {
   initTrophyAwardScreen();
   initLegendAwardScreen();
   initPuzzleTrophyAwardScreen();
+  initSevenWondersCinematicScreens();
   initTrophyListScreen();
   initMemorialScreen();
   initMapEncyclopediaLink();
   FindCountryModule.initEvents();
   PuzzleModule.initEvents();
-  showScreen("screen-top");
+  // 世界7不思議: 本更新より前からすでに通常謎解き126問を全問獲得済みだった
+  // 利用者を、次回起動時に静かに解放する。新規に解放された場合のみ、
+  // トップ画面の代わりに解放演出を初期表示する(「続ける」でトップ画面へ)
+  if (runSevenWondersStartupCatchUp()) {
+    showSevenWondersUnlockScreen(() => showScreen("screen-top"));
+  } else {
+    showScreen("screen-top");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", initApp);
