@@ -289,17 +289,25 @@ const TrophyModule = (() => {
     ? Math.max(PUZZLE_TROPHY_NUMBER_BASE, ...PUZZLE_TROPHY_NUMBERS)
     : PUZZLE_TROPHY_NUMBER_BASE;
 
-  const MAX_TROPHY_NUMBER = Math.max(PUZZLE_OWN_MAX_NUMBER, ...ENCYCLOPEDIA4_NUMBERS, ...SEVEN_WONDERS_ALL_NUMBERS);
+  // 共通トロフィー31種類(#395〜425)。PR #87時点の最大番号(#394、世界7不思議
+  // 隠し特別2種を含む)の直後に、企画書(共通トロフィー最終確定版)どおり
+  // 連番で割り振る。既存の欠番(50・55・56・57・90)は再利用しない
+  const COMMON_TROPHY_NUMBERS = Array.from({ length: 31 }, (_, i) => 395 + i);
+
+  const MAX_TROPHY_NUMBER = Math.max(PUZZLE_OWN_MAX_NUMBER, ...ENCYCLOPEDIA4_NUMBERS, ...SEVEN_WONDERS_ALL_NUMBERS, ...COMMON_TROPHY_NUMBERS);
 
   // 謎解き自身の範囲(PUZZLE_OWN_MAX_NUMBERまで)と世界図鑑追加分
-  // (ENCYCLOPEDIA4_NUMBERS)・世界7不思議(SEVEN_WONDERS_ALL_NUMBERS)の
-  // どちらにも属さない番号(例: PUZZLE_QUESTIONSが空、または謎解きの件数が
-  // 少ない状態で、#259より手前の番号が余ってしまう場合)は、スロット自体を
-  // 作らない(confirmed:falseの未定義スロットを残さない)。これにより、
-  // 謎解きの件数に関わらずTROPHIES.length・カテゴリ別集計が常に正しい値になる
+  // (ENCYCLOPEDIA4_NUMBERS)・世界7不思議(SEVEN_WONDERS_ALL_NUMBERS)・
+  // 共通トロフィー(COMMON_TROPHY_NUMBERS)のどれにも属さない番号(例: PUZZLE_
+  // QUESTIONSが空、または謎解きの件数が少ない状態で、#259より手前の番号が
+  // 余ってしまう場合)は、スロット自体を作らない(confirmed:falseの未定義
+  // スロットを残さない)。これにより、謎解きの件数に関わらずTROPHIES.length・
+  // カテゴリ別集計が常に正しい値になる
   const UNCLAIMED_GAP_NUMBERS = [];
   for (let n = PUZZLE_OWN_MAX_NUMBER + 1; n <= MAX_TROPHY_NUMBER; n++) {
-    if (!ENCYCLOPEDIA4_NUMBERS.includes(n) && !SEVEN_WONDERS_ALL_NUMBERS.includes(n)) UNCLAIMED_GAP_NUMBERS.push(n);
+    if (!ENCYCLOPEDIA4_NUMBERS.includes(n) && !SEVEN_WONDERS_ALL_NUMBERS.includes(n) && !COMMON_TROPHY_NUMBERS.includes(n)) {
+      UNCLAIMED_GAP_NUMBERS.push(n);
+    }
   }
 
   // #101〜112は既存12称号(js/quiz.jsのTITLES/CAPITAL_TITLES)をそのまま
@@ -2055,6 +2063,9 @@ const TrophyModule = (() => {
     // カテゴリー修正】#393「ミステリーハンター」は表示用カテゴリーを
     // 謎解きトロフィーへ移動したため、ここには含まれない)
     { id: "sevenWonders", label: "世界7不思議", range: "#386〜392,394" },
+    // 共通トロフィー31種類(#395〜425)。すべて通常の公開トロフィーで、
+    // 未獲得状態でも名称・獲得条件を表示する(hidden:falseのまま)
+    { id: "common", label: "共通トロフィー", range: "#395〜425" },
   ];
   // #142「都の神話」・#158「世界の叡智」は、既存の番号区分(#60〜70の
   // 特別チャレンジ、#143〜157の世界図鑑)とは別に、両方とも「特別チャレンジ」
@@ -2099,6 +2110,8 @@ const TrophyModule = (() => {
     // 番号範囲(#256〜)と入り交じる位置にあるため、ENCYCLOPEDIA4_NUMBERSと
     // 同様に実在チェックで判定する
     if (SEVEN_WONDERS_ALL_NUMBERS.includes(number)) return "sevenWonders";
+    // 共通トロフィー31種類(#395〜425)
+    if (COMMON_TROPHY_NUMBERS.includes(number)) return "common";
     return "puzzle"; // #256〜(謎解きトロフィー、第3段階。上記以外)
   }
   function getCategories() {
@@ -2249,6 +2262,565 @@ const TrophyModule = (() => {
     return DUAL_SPLIT_CARD_NUMBERS.has(number);
   }
 
+  // ========================================================
+  // 共通トロフィー31種類(#395〜425)。共通トロフィー最終確定版企画書
+  // (2026年11月25日、PR #87マージ後・実装指示対応版)に基づく。
+  //
+  // 保存領域: 既存のwfq_v1_trophy_earned(獲得フラグ・日時)とは別に、
+  // 新規キーwfq_v1_common_progress(COMMON_PROGRESS_KEY)に、累計プレイ・
+  // 累計正解・累計誤答・日付別の記録・利用経験フラグだけを保存する
+  // (既存キーには一切書き込まない・既存キーの形を変えない)。
+  //
+  // 判定方式: 以下のヘルパー関数群は、TrophyModule.getEarned()と同じ形の
+  // 「獲得状況スナップショット」(idをキーに{earnedAt}または
+  // {flag:{earnedAt},capital:{earnedAt}}を値とするオブジェクト)を受け取り、
+  // 指定した番号集合が実際に何件獲得済みかを数える。国旗・首都の分割
+  // カード(DUAL_SPLIT_CARD_NUMBERS)は、既存の一覧画面・getProgressSummary()
+  // と同じ基準で、flag側・capital側をそれぞれ独立した1獲得単位として扱う
+  // (「国旗・首都で独立して獲得する分割カードは、それぞれ1件として扱う」
+  // という企画書の指示どおり)。
+  // ========================================================
+
+  const COMMON_PROGRESS_KEY = STORAGE_PREFIX + "common_progress";
+  const COMMON_PROGRESS_VERSION = 1;
+  const COMMON_TARGET_MODES = ["flag", "capital", "findcountry"]; // 累積努力系12種類の対象は3クイズのみ(謎解き・世界7不思議は含めない)
+
+  function emptyCommonProgress() {
+    return {
+      version: COMMON_PROGRESS_VERSION,
+      playCompletedCount: { flag: 0, capital: 0, findcountry: 0 }, // 正式な終了処理を経て結果画面に到達したプレイの累計回数
+      correctCount: { flag: 0, capital: 0, findcountry: 0 }, // 回答確定時に記録する累計正解数(中断しても保持する)
+      wrongCount: { flag: 0, capital: 0, findcountry: 0 }, // 同上。パス・時間切れ・無効なタップは含まない
+      perfect30Achieved: { flag: false, capital: false, findcountry: false }, // トリプルスリー用。1度でも達成すれば以後も保持(剥奪しない)
+      clear198Achieved: { flag: false, capital: false }, // 三冠王用(国旗・首都198問コース)
+      clearAdvanced30Achieved: false, // 三冠王用(どこかな？上級30問コース)
+      playedDates: {}, // プレイを完了した日(端末ローカル日付、YYYY-MM-DD)の集合。同じ日を何度記録しても1件のまま
+      lastPlayedDate: null, // 連続日数判定用。playedDatesに新規追加した日付のうち最も新しいものだけを進める
+      currentStreakDays: 0,
+      maxStreakDays: 0,
+      dailyClear: { date: null, flag: false, capital: false, findcountry: false }, // 三位一体用。直近の「今日」1日分だけを保持する(無制限に増えない)
+      usedFlag: false, usedCapital: false, usedFindCountry: false, usedMap: false, usedEncyclopedia: false, // 四つの扉用
+    };
+  }
+
+  function isValidModeCountTriple(v) {
+    return isPlainObject(v) && COMMON_TARGET_MODES.every((m) => isNonNegativeInteger(v[m]));
+  }
+  function isValidCommonProgress(data) {
+    return isPlainObject(data)
+      && data.version === COMMON_PROGRESS_VERSION
+      && isValidModeCountTriple(data.playCompletedCount)
+      && isValidModeCountTriple(data.correctCount)
+      && isValidModeCountTriple(data.wrongCount)
+      && isPlainObject(data.perfect30Achieved) && COMMON_TARGET_MODES.every((m) => typeof data.perfect30Achieved[m] === "boolean")
+      && isPlainObject(data.clear198Achieved) && typeof data.clear198Achieved.flag === "boolean" && typeof data.clear198Achieved.capital === "boolean"
+      && typeof data.clearAdvanced30Achieved === "boolean"
+      && isPlainObject(data.playedDates)
+      && (data.lastPlayedDate === null || typeof data.lastPlayedDate === "string")
+      && isNonNegativeInteger(data.currentStreakDays)
+      && isNonNegativeInteger(data.maxStreakDays)
+      && isPlainObject(data.dailyClear)
+      && typeof data.usedFlag === "boolean" && typeof data.usedCapital === "boolean" && typeof data.usedFindCountry === "boolean"
+      && typeof data.usedMap === "boolean" && typeof data.usedEncyclopedia === "boolean";
+  }
+  function loadCommonProgress() {
+    const raw = safeGet(COMMON_PROGRESS_KEY);
+    if (!raw) return emptyCommonProgress();
+    try {
+      const parsed = JSON.parse(raw);
+      if (!isValidCommonProgress(parsed)) return emptyCommonProgress();
+      return parsed;
+    } catch (e) {
+      console.warn("共通トロフィーの進捗データの読み込みに失敗しました。初期化します", e);
+      return emptyCommonProgress();
+    }
+  }
+  function saveCommonProgress(data) {
+    return safeSet(COMMON_PROGRESS_KEY, JSON.stringify(data));
+  }
+  function sumCommonModeValues(obj) {
+    return COMMON_TARGET_MODES.reduce((sum, m) => sum + (obj[m] || 0), 0);
+  }
+
+  // 端末ローカル日付をYYYY-MM-DD形式で返す(UTCへの変換を行わない)
+  function getLocalDateString(d) {
+    const date = d || new Date();
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+  // "YYYY-MM-DD"形式の2つの日付の差(日数、b-a)。文字列の辞書順比較は
+  // この形式では日付の前後関係と完全に一致するため、lastPlayedDateの
+  // 「進める方向にのみ更新する」判定にも文字列比較のまま使える
+  function dateStringDiffDays(a, b) {
+    const da = new Date(`${a}T00:00:00`);
+    const db = new Date(`${b}T00:00:00`);
+    return Math.round((db.getTime() - da.getTime()) / 86400000);
+  }
+  // プレイ完了のたびに呼ぶ。同じ日に何度呼んでも(同日重複なし)、連続日数・
+  // 累計日数は1回しか増えない。端末時刻が逆行して過去の(未記録の)日付に
+  // なった場合でも、その日をplayedDatesへ1回だけ追加するが、
+  // currentStreakDays/lastPlayedDateは「より新しい日付」方向にしか進めない
+  // ため、将来(時刻が正しく戻った後)の連続記録を壊さない
+  function recordCommonDatePlayed(data) {
+    const today = getLocalDateString();
+    if (data.playedDates[today]) return;
+    data.playedDates[today] = true;
+    if (data.lastPlayedDate) {
+      const diff = dateStringDiffDays(data.lastPlayedDate, today);
+      data.currentStreakDays = diff === 1 ? data.currentStreakDays + 1 : 1;
+    } else {
+      data.currentStreakDays = 1;
+    }
+    if (data.currentStreakDays > data.maxStreakDays) data.maxStreakDays = data.currentStreakDays;
+    if (!data.lastPlayedDate || today > data.lastPlayedDate) data.lastPlayedDate = today;
+  }
+  // 三位一体用。「今日」のクリア記録だけを保持する(日付が変わったら
+  // その日の記録だけを新しく作り直すため、無制限にデータが増えない)
+  function recordCommonDailyClear(data, mode) {
+    const today = getLocalDateString();
+    if (data.dailyClear.date !== today) {
+      data.dailyClear = { date: today, flag: false, capital: false, findcountry: false };
+    }
+    data.dailyClear[mode] = true;
+  }
+
+  // 回答確定のたびに呼ぶ(中断しても、既に確定した正解・誤答は保持する)。
+  // パス・時間切れは誤答に数えない(result引数に"wrong"/"correct"以外を
+  // 渡された場合は何もしない)
+  function recordCommonTally(mode, result) {
+    if (mode !== "flag" && mode !== "capital" && mode !== "findcountry") return;
+    if (result !== "correct" && result !== "wrong") return;
+    try {
+      const data = loadCommonProgress();
+      if (result === "correct") data.correctCount[mode] = (data.correctCount[mode] || 0) + 1;
+      else data.wrongCount[mode] = (data.wrongCount[mode] || 0) + 1;
+      saveCommonProgress(data);
+    } catch (e) {
+      console.warn("共通トロフィーの正解・誤答集計に失敗しました", e);
+    }
+  }
+  // 四つの扉用。実際に問題を開始した(設定画面を開くだけでは呼ばれない)・
+  // 地図画面を実際に表示した・図鑑の詳細ページを実際に開いた、の
+  // いずれかが起きた時点で呼ぶ
+  function recordCommonModeUsed(kind) {
+    try {
+      const data = loadCommonProgress();
+      if (kind === "flag") data.usedFlag = true;
+      else if (kind === "capital") data.usedCapital = true;
+      else if (kind === "findcountry") data.usedFindCountry = true;
+      else if (kind === "map") data.usedMap = true;
+      else if (kind === "encyclopedia") data.usedEncyclopedia = true;
+      else return;
+      saveCommonProgress(data);
+    } catch (e) {
+      console.warn("共通トロフィーの利用記録に失敗しました", e);
+    }
+  }
+  // 1プレイが「正式な終了処理を経て結果画面に到達」した時点(戻る操作・
+  // 再読み込みによる中断では呼ばれない経路)で、呼び出し元(evaluateQuizFinish/
+  // evaluateFindCountryResult)から1回だけ呼ぶ。プレイ完了回数・30問
+  // パーフェクト・198問クリア・どこかな？上級30問クリア・プレイ日・
+  // 三位一体用の当日クリア記録を、この1回でまとめて更新する
+  function recordCommonPlayCompletion(mode, opts) {
+    try {
+      const data = loadCommonProgress();
+      data.playCompletedCount[mode] = (data.playCompletedCount[mode] || 0) + 1;
+      if (opts && opts.perfect30) data.perfect30Achieved[mode] = true;
+      if (opts && opts.clear198 && (mode === "flag" || mode === "capital")) data.clear198Achieved[mode] = true;
+      if (opts && opts.clearAdvanced30) data.clearAdvanced30Achieved = true;
+      recordCommonDatePlayed(data);
+      recordCommonDailyClear(data, mode);
+      saveCommonProgress(data);
+    } catch (e) {
+      console.warn("共通トロフィーのプレイ完了記録に失敗しました", e);
+    }
+  }
+
+  // ---------- 獲得単位(スナップショット)の集計ヘルパー ----------
+  // 指定した番号集合を、集計単位(国旗・首都分割カードはflag/capitalの
+  // 2単位、それ以外は1単位)の配列に展開する
+  function expandNumbersToUnits(numbers) {
+    const units = [];
+    numbers.forEach((n) => {
+      if (isDualSplitCardNumber(n)) {
+        units.push({ id: `trophy_${n}`, sub: "flag" });
+        units.push({ id: `trophy_${n}`, sub: "capital" });
+      } else {
+        units.push({ id: `trophy_${n}`, sub: null });
+      }
+    });
+    return units;
+  }
+  function isUnitEarnedInSnapshot(unit, snapshot) {
+    const entry = snapshot[unit.id];
+    if (!entry) return false;
+    if (unit.sub) return !!(entry[unit.sub] && entry[unit.sub].earnedAt);
+    return !!entry.earnedAt;
+  }
+  function countEarnedUnitsInSnapshot(units, snapshot) {
+    let n = 0;
+    units.forEach((u) => { if (isUnitEarnedInSnapshot(u, snapshot)) n += 1; });
+    return n;
+  }
+  // 現在、正式に定義されている(confirmed:true)トロフィーの番号一覧。
+  // 共通トロフィー31種類自身も含む(「全トロフィーの90%/95%」「自身を除く
+  // すべて」の分母は、共通トロフィー自身を含めた最終的な総数から動的に
+  // 算出する。固定値をハードコードしない)
+  function getAllValidTrophyNumbers() {
+    return TROPHIES.filter((t) => t.confirmed).map((t) => t.number);
+  }
+  function getAllValidUnits() {
+    return expandNumbersToUnits(getAllValidTrophyNumbers());
+  }
+  // 指定した番号(通常は判定対象トロフィー自身の番号)を除いた、全有効
+  // 獲得単位。累計獲得数8種・世界の真理(自身を除くすべて)が、自分自身を
+  // 判定対象に含めてしまう循環参照を避けるために使う
+  function getValidUnitsExcludingNumbers(excludeNumbers) {
+    const excludeSet = new Set(excludeNumbers);
+    return expandNumbersToUnits(getAllValidTrophyNumbers().filter((n) => !excludeSet.has(n)));
+  }
+  // 国旗クイズ単独で獲得可能なトロフィー(mode:"flag"の称号参照型6件+
+  // mode:"flag_only"の国旗トリビア29件の単一枠)+国旗・首都分割カード
+  // (mode:"both")の国旗側半分(32単位)。国旗・首都両方が必須の共通報酬
+  // (mode:"common")は対象外。67単位になる想定(実測値は実装報告書に記載)
+  function getFlagOnlyUnits() {
+    const singleNumbers = TROPHIES.filter((t) => t.mode === "flag" || t.mode === "flag_only").map((t) => t.number);
+    const dualNumbers = TROPHIES.filter((t) => t.mode === "both").map((t) => t.number);
+    const units = singleNumbers.map((n) => ({ id: `trophy_${n}`, sub: null }));
+    dualNumbers.forEach((n) => units.push({ id: `trophy_${n}`, sub: "flag" }));
+    return units;
+  }
+  // 首都クイズ単独で獲得可能なトロフィー。mode:"capital"(6件)・
+  // mode:"capital_only"(首都トリビア29件)の単一枠+首都・国旗分割カードの
+  // 首都側半分(32単位)+No.142「都の神話」(首都トリビア29種類の制覇報酬、
+  // 首都クイズ単独で獲得できる既存の特別チャレンジ)。68単位になる想定
+  function getCapitalOnlyUnits() {
+    const singleNumbers = TROPHIES.filter((t) => t.mode === "capital" || t.mode === "capital_only").map((t) => t.number).concat([142]);
+    const dualNumbers = TROPHIES.filter((t) => t.mode === "both").map((t) => t.number);
+    const units = singleNumbers.map((n) => ({ id: `trophy_${n}`, sub: null }));
+    dualNumbers.forEach((n) => units.push({ id: `trophy_${n}`, sub: "capital" }));
+    return units;
+  }
+  // 「世界の国どこかな？」に属するすべてのトロフィー(通常36+隠し61、
+  // PRO関連を含む)。97単位になる想定
+  function getFindCountryUnits() {
+    return TROPHIES.filter((t) => t.mode === "findcountry").map((t) => ({ id: `trophy_${t.number}`, sub: null }));
+  }
+  // 世界図鑑専用トロフィー(所属モードがencyclopediaの20件。表示カテゴリー
+  // ではなくmodeで判定するため、特別チャレンジに表示される世界の叡智・
+  // 世界の大賢者も漏れなく含む)
+  function getEncyclopediaUnits() {
+    return TROPHIES.filter((t) => t.mode === "encyclopedia").map((t) => ({ id: `trophy_${t.number}`, sub: null }));
+  }
+  // 全知の探究者用。世界図鑑20+通常謎解き126(mode:"puzzle"。ミステリー
+  // ハンター自身はmode:"sevenWonder"のため含まれない)+世界7不思議7問・
+  // ミステリーハンター・全知全能の神(mode:"sevenWonder"、9件)=155単位
+  function getOmniscientSeekerUnits() {
+    const encyclopedia = getEncyclopediaUnits();
+    const puzzle = TROPHIES.filter((t) => t.mode === "puzzle").map((t) => ({ id: `trophy_${t.number}`, sub: null }));
+    const sevenWonder = TROPHIES.filter((t) => t.mode === "sevenWonder").map((t) => ({ id: `trophy_${t.number}`, sub: null }));
+    return encyclopedia.concat(puzzle, sevenWonder);
+  }
+
+  // ---------- 累計獲得数8種類のしきい値 ----------
+  const CUMULATIVE_HUNTER_THRESHOLDS = { 395: 10, 396: 50, 397: 100, 398: 200, 399: 300, 400: 350, 401: 400, 402: 420 };
+
+  // ========================================================
+  // 共通トロフィー31種類の定義本体。name/condition/descriptionは企画書の
+  // 文言のまま変更しない。check関数は、通常のevaluate()が渡すcontext
+  // ではなく、共通トロフィー専用の連鎖判定(evaluateCommonTrophiesChain、
+  // 下記)が渡す「獲得状況スナップショット」(getEarned()と同じ形)を
+  // 受け取る(定義時点ではまだ存在しない関数・配列を参照しているが、
+  // check自体はこのファイルの読み込みが完了した後にしか呼ばれないため、
+  // 問題なく解決できる。既存のSTAGE_*定義もすべて同じ前提に拠っている)
+  // ========================================================
+  const STAGE_COMMON_DEFINITIONS = {
+    395: { name: "チュートリアルは終わりだ", condition: "トロフィーを累計10個獲得する。", mode: "commonTrophy",
+      description: "世界を巡る冒険は始まったばかり。ここからが本当の挑戦だ。",
+      check: (s) => countEarnedUnitsInSnapshot(getValidUnitsExcludingNumbers([395]), s) >= CUMULATIVE_HUNTER_THRESHOLDS[395] },
+    396: { name: "駆け出しハンター", condition: "トロフィーを累計50個獲得する。", mode: "commonTrophy",
+      description: "数々の挑戦を乗り越え、トロフィーハンターとしての第一歩を刻んだ。",
+      check: (s) => countEarnedUnitsInSnapshot(getValidUnitsExcludingNumbers([396]), s) >= CUMULATIVE_HUNTER_THRESHOLDS[396] },
+    397: { name: "シングルハンター", condition: "トロフィーを累計100個獲得する。", mode: "commonTrophy",
+      description: "積み重ねた知識と経験が、確かな実力の証となった。",
+      check: (s) => countEarnedUnitsInSnapshot(getValidUnitsExcludingNumbers([397]), s) >= CUMULATIVE_HUNTER_THRESHOLDS[397] },
+    398: { name: "ダブルハンター", condition: "トロフィーを累計200個獲得する。", mode: "commonTrophy",
+      description: "幾多の試練を乗り越え、その実力はさらなる高みへと到達した。",
+      check: (s) => countEarnedUnitsInSnapshot(getValidUnitsExcludingNumbers([398]), s) >= CUMULATIVE_HUNTER_THRESHOLDS[398] },
+    399: { name: "トリプルハンター", condition: "トロフィーを累計300個獲得する。", mode: "commonTrophy",
+      description: "世界を巡る壮大な冒険。その功績は、もはや並外れたものとなった。",
+      check: (s) => countEarnedUnitsInSnapshot(getValidUnitsExcludingNumbers([399]), s) >= CUMULATIVE_HUNTER_THRESHOLDS[399] },
+    400: { name: "エピックハンター", condition: "トロフィーを累計350個獲得する。", mode: "commonTrophy",
+      description: "壮大な物語に刻まれるほどの偉業を成し遂げた。",
+      check: (s) => countEarnedUnitsInSnapshot(getValidUnitsExcludingNumbers([400]), s) >= CUMULATIVE_HUNTER_THRESHOLDS[400] },
+    401: { name: "レジェンドハンター", condition: "トロフィーを累計400個獲得する。", mode: "commonTrophy",
+      description: "数え切れない試練を制し、伝説と呼ばれる領域へと到達した。",
+      check: (s) => countEarnedUnitsInSnapshot(getValidUnitsExcludingNumbers([401]), s) >= CUMULATIVE_HUNTER_THRESHOLDS[401] },
+    402: { name: "ミシックハンター", condition: "トロフィーを累計420個獲得する。", mode: "commonTrophy",
+      description: "伝説を超え、神話に語り継がれるほどの偉業を成し遂げた。",
+      check: (s) => countEarnedUnitsInSnapshot(getValidUnitsExcludingNumbers([402]), s) >= CUMULATIVE_HUNTER_THRESHOLDS[402] },
+
+    403: { name: "四つの扉", condition: "国旗・首都・どこかな？を各1回プレイし、世界地図・世界図鑑を使用。", mode: "commonTrophy",
+      description: "世界へ続く扉は開かれた。新たな冒険と発見があなたを待っている。",
+      check: () => { const p = loadCommonProgress(); return p.usedFlag && p.usedCapital && p.usedFindCountry && p.usedMap && p.usedEncyclopedia; } },
+    404: { name: "トリプルスリー", condition: "3クイズの30問コースをそれぞれパーフェクトクリア。", mode: "commonTrophy",
+      description: "旗、都、そして世界の地理。三つの分野で完全なる実力を証明した。",
+      check: () => { const p = loadCommonProgress(); return p.perfect30Achieved.flag && p.perfect30Achieved.capital && p.perfect30Achieved.findcountry; } },
+    405: { name: "三冠王", condition: "国旗198問・首都198問・どこかな？上級30問をそれぞれクリア。", mode: "commonTrophy",
+      description: "三つのクイズの最高峰に挑み、三冠の栄光を手にした。",
+      check: () => { const p = loadCommonProgress(); return p.clear198Achieved.flag && p.clear198Achieved.capital && p.clearAdvanced30Achieved; } },
+    406: { name: "四天王", condition: "国旗・首都・どこかな？各20個以上、世界図鑑専用20個すべてを獲得。", mode: "commonTrophy",
+      description: "四つの分野を極めし者。その知識と実力は、世界に君臨する四天王の証となる。",
+      check: (s) => countEarnedUnitsInSnapshot(getFlagOnlyUnits(), s) >= 20
+        && countEarnedUnitsInSnapshot(getCapitalOnlyUnits(), s) >= 20
+        && countEarnedUnitsInSnapshot(getFindCountryUnits(), s) >= 20
+        && countEarnedUnitsInSnapshot(getEncyclopediaUnits(), s) >= 20 },
+
+    407: { name: "世界への挑戦", condition: "累計100回プレイ完了。", mode: "commonTrophy",
+      description: "百回の挑戦。その一歩一歩が、世界を知る力となった。",
+      check: () => sumCommonModeValues(loadCommonProgress().playCompletedCount) >= 100 },
+    408: { name: "飽くなき探究心", condition: "累計500回プレイ完了。", mode: "commonTrophy",
+      description: "何度挑戦しても尽きることのない探究心が、新たな知識への道を切り開いた。",
+      check: () => sumCommonModeValues(loadCommonProgress().playCompletedCount) >= 500 },
+    409: { name: "終わらない旅", condition: "累計1,000回プレイ完了。", mode: "commonTrophy",
+      description: "千回の冒険を経ても、世界を巡るあなたの旅は終わらない。",
+      check: () => sumCommonModeValues(loadCommonProgress().playCompletedCount) >= 1000 },
+    410: { name: "知識の積み重ね", condition: "累計10,000問正解。", mode: "commonTrophy",
+      description: "一つひとつの正解が積み重なり、揺るぎない知識となった。",
+      check: () => sumCommonModeValues(loadCommonProgress().correctCount) >= 10000 },
+    411: { name: "知識の大海原", condition: "累計50,000問正解。", mode: "commonTrophy",
+      description: "広大な知識の海を渡り、五万の正解という偉業を達成した。",
+      check: () => sumCommonModeValues(loadCommonProgress().correctCount) >= 50000 },
+    412: { name: "十万の軌跡", condition: "累計100,000問正解。", mode: "commonTrophy",
+      description: "十万の正解。それは、長きにわたる挑戦と努力の軌跡である。",
+      check: () => sumCommonModeValues(loadCommonProgress().correctCount) >= 100000 },
+    413: { name: "七日間の旅人", condition: "7日間連続でいずれかのクイズを1回以上完了。", mode: "commonTrophy",
+      description: "七日間、絶えることなく世界を巡る旅を続けた。",
+      check: () => loadCommonProgress().currentStreakDays >= 7 },
+    414: { name: "継続は力なり", condition: "30日間連続でいずれかのクイズを1回以上完了。", mode: "commonTrophy",
+      description: "日々の小さな努力が、大きな力となることを証明した。",
+      check: () => loadCommonProgress().currentStreakDays >= 30 },
+    415: { name: "百日の冒険", condition: "クイズを完了した日が累計100日。", mode: "commonTrophy",
+      description: "百日分の冒険と発見。そのすべてが、あなたの財産となった。",
+      check: () => Object.keys(loadCommonProgress().playedDates).length >= 100 },
+    416: { name: "世界一周の旅", condition: "正式対象198国・地域すべてで国旗・首都両方の正解経験。", mode: "commonTrophy",
+      description: "すべての国と地域を巡り、旗と都を知る世界一周の旅を成し遂げた。",
+      check: () => {
+        if (typeof COUNTRIES === "undefined") return false;
+        const stats = loadTrophyStats();
+        return COUNTRIES.every((c) => stats.countryCorrectEver.flag[c.id] && stats.countryCorrectEver.capital[c.id]);
+      } },
+    417: { name: "三位一体", condition: "同じ日に3クイズをそれぞれ1回以上クリア。", mode: "commonTrophy",
+      description: "三つの分野を一日のうちに制し、その実力を一つに結集させた。",
+      check: () => {
+        const p = loadCommonProgress();
+        return p.dailyClear.date === getLocalDateString() && p.dailyClear.flag && p.dailyClear.capital && p.dailyClear.findcountry;
+      } },
+    418: { name: "七転び八起き", condition: "3クイズで累計1,000回誤答。", mode: "commonTrophy",
+      description: "何度間違えても、立ち上がり続けた。その挑戦の積み重ねが、確かな力となる。",
+      check: () => sumCommonModeValues(loadCommonProgress().wrongCount) >= 1000 },
+
+    419: { name: "万国の覇者", condition: "国旗専用・国旗トリビア・国旗側分割カード・国旗単独で獲得可能な報酬すべて。", mode: "commonTrophy",
+      description: "世界中にはためく旗のすべてを知り、国旗の頂点に立った者。",
+      check: (s) => { const u = getFlagOnlyUnits(); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
+    420: { name: "万都の支配者", condition: "首都専用・首都トリビア・首都側分割カード・都の神話・首都単独で獲得可能な報酬すべて。", mode: "commonTrophy",
+      description: "世界の都を知り尽くし、その知識を極限まで高めた者。",
+      check: (s) => { const u = getCapitalOnlyUnits(); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
+    421: { name: "世界を統べる者", condition: "どこかな？通常36＋隠し61（PRO含む）＝97件予定。", mode: "commonTrophy",
+      description: "地球上に、もはや知らぬ場所はない。",
+      check: (s) => { const u = getFindCountryUnits(); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
+    422: { name: "全知の探究者", condition: "図鑑20＋通常謎解き126＋No.393＋七不思議7＋No.394＝155件予定。", mode: "commonTrophy",
+      description: "世界の知識を集め、隠されたすべての謎を解き明かした者。",
+      check: (s) => { const u = getOmniscientSeekerUnits(); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
+
+    423: { name: "世界の果てまで", condition: "全トロフィーの90％以上を獲得。", mode: "commonTrophy",
+      description: "果てしない旅の先に、あなたは世界の果てへとたどり着いた。",
+      check: (s) => { const u = getAllValidUnits(); return countEarnedUnitsInSnapshot(u, s) >= Math.ceil(u.length * 0.9); } },
+    424: { name: "殿堂入り", condition: "全トロフィーの95％以上を獲得。", mode: "commonTrophy",
+      description: "あなたの偉業は永遠に刻まれ、世界の歴史にその名を残す。",
+      check: (s) => { const u = getAllValidUnits(); return countEarnedUnitsInSnapshot(u, s) >= Math.ceil(u.length * 0.95); } },
+    425: { name: "世界の真理 ～アカシック・レコード～", condition: "自身を除くすべての獲得単位を獲得。", mode: "commonTrophy",
+      description: "すべての知識、すべての記憶、すべての謎。その先にある世界の真理へ、あなたはたどり着いた。",
+      check: (s) => { const u = getValidUnitsExcludingNumbers([425]); return countEarnedUnitsInSnapshot(u, s) === u.length; } },
+  };
+
+  // 共通トロフィー31種類専用の連鎖判定。1件の獲得が別の共通トロフィーの
+  // 条件を満たす可能性があるため、新規獲得が無くなるまで繰り返し判定する
+  // (「連鎖解放」企画書 第11章)。反復回数には安全な上限を設け、万一
+  // 循環参照があっても無限ループにはならない(到達した場合は異常として
+  // コンソールに警告するだけで、既存の処理には影響しない)
+  function evaluateCommonTrophiesChain() {
+    const newlyAwarded = [];
+    const maxIterations = COMMON_TROPHY_NUMBERS.length + 5;
+    let changed = true;
+    let iterations = 0;
+    while (changed && iterations < maxIterations) {
+      changed = false;
+      iterations += 1;
+      const snapshot = getEarned();
+      COMMON_TROPHY_NUMBERS.forEach((n) => {
+        const id = `trophy_${n}`;
+        if (snapshot[id]) return;
+        const def = TROPHY_BY_ID.get(id);
+        if (!def || !def.confirmed || typeof def.check !== "function") return;
+        let qualifies = false;
+        try {
+          qualifies = !!def.check(snapshot);
+        } catch (e) {
+          console.warn(`共通トロフィーの判定関数でエラーが発生しました(number=${n})`, e);
+        }
+        if (qualifies && awardIfNew(id)) {
+          newlyAwarded.push(id);
+          changed = true;
+        }
+      });
+    }
+    if (iterations >= maxIterations) {
+      console.warn("共通トロフィーの連鎖判定が反復上限に達しました。獲得条件に循環参照がある可能性があります");
+    }
+    return newlyAwarded;
+  }
+  // 既存ユーザーへの遡及付与用。アプリ起動時に1回呼ぶ想定(js/app.js)。
+  // 既存の獲得済みトロフィー・国別正解履歴など、今回新設した保存領域
+  // (COMMON_PROGRESS_KEY)に依存しない共通トロフィー(累計獲得数8種・
+  // 各モード完全制覇4種・四天王・世界一周の旅・最終到達3種)は、この
+  // 呼び出しだけで正しく評価・付与される。四つの扉・トリプルスリー・
+  // 三冠王・累積がんばり系11種(世界一周の旅を除く)は、新規保存領域に
+  // 履歴が無いため、このタイミングでは付与されない(今回の更新以降の
+  // 実績から記録を開始する、という既存仕様どおりの正しい挙動であり、
+  // 「過去の実績を正確に復元できない場合は推測で補完しない」という
+  // 指示に従っている)
+  function evaluateCommonTrophiesCatchUp() {
+    // 四つの扉の「usedFlag/usedCapital/usedFindCountry/usedEncyclopedia」の
+    // うち、既存データから過去の利用が確実に証明できるものだけを、推測せず
+    // 復元する(「正確に復元できない実績は推測で補完しない」指示のため、
+    // 証拠の無いusedMapは復元しない。今後、実際に世界地図を開いた時点から
+    // 記録を開始する)。
+    //   - usedFlag/usedCapital: 挑戦回数(StorageKeys/CapitalStorageKeys.
+    //     ATTEMPTS)が1回以上あれば、過去に必ず国旗/首都クイズを開始している
+    //   - usedFindCountry: 「世界の国どこかな？」専用のトロフィーを1件でも
+    //     獲得していれば、過去に必ずプレイを完了している
+    //   - usedEncyclopedia: 世界図鑑の閲覧記録(ENCYCLOPEDIA_VISITED_KEY)が
+    //     1件以上あれば、過去に必ず詳細ページを開いている
+    try {
+      if (typeof Storage !== "undefined") {
+        const data = loadCommonProgress();
+        let changed = false;
+        if (!data.usedFlag && Storage.getAttempts("flag") > 0) { data.usedFlag = true; changed = true; }
+        if (!data.usedCapital && Storage.getAttempts("capital") > 0) { data.usedCapital = true; changed = true; }
+        if (!data.usedFindCountry) {
+          const snapshot = getEarned();
+          const everFindCountryEarned = TROPHIES.some((t) => t.mode === "findcountry" && snapshot[t.id]);
+          if (everFindCountryEarned) { data.usedFindCountry = true; changed = true; }
+        }
+        if (!data.usedEncyclopedia && typeof Storage.getEncyclopediaVisitedCount === "function" && Storage.getEncyclopediaVisitedCount() > 0) {
+          data.usedEncyclopedia = true;
+          changed = true;
+        }
+        if (changed) saveCommonProgress(data);
+      }
+    } catch (e) {
+      console.warn("共通トロフィー(四つの扉)の遡及復元に失敗しました", e);
+    }
+    return evaluateCommonTrophiesChain();
+  }
+  // トロフィー一覧画面の進捗表示用。番号を指定すると、その共通トロフィーの
+  // 現在の達成状況(現在値/必要値、複数条件があればその一覧)を返す。
+  // 隠しトロフィーの正式名称・獲得条件を漏らさないよう、この関数自体は
+  // 常にtrophy_<number>自身の進捗だけを返す(他のトロフィーの内部情報は
+  // 一切含めない)
+  function getCommonTrophyProgress(number) {
+    if (!COMMON_TROPHY_NUMBERS.includes(number)) return null;
+    const snapshot = getEarned();
+    const progress = loadCommonProgress();
+    if (CUMULATIVE_HUNTER_THRESHOLDS[number]) {
+      const units = getValidUnitsExcludingNumbers([number]);
+      return { current: countEarnedUnitsInSnapshot(units, snapshot), total: CUMULATIVE_HUNTER_THRESHOLDS[number], unit: "個" };
+    }
+    switch (number) {
+      case 403: {
+        const parts = [
+          { label: "国旗クイズ", done: progress.usedFlag },
+          { label: "首都クイズ", done: progress.usedCapital },
+          { label: "どこかな？", done: progress.usedFindCountry },
+          { label: "世界地図", done: progress.usedMap },
+          { label: "世界図鑑", done: progress.usedEncyclopedia },
+        ];
+        return { parts, current: parts.filter((p) => p.done).length, total: parts.length, unit: "項目" };
+      }
+      case 404: {
+        const parts = [
+          { label: "国旗クイズ30問パーフェクト", done: progress.perfect30Achieved.flag },
+          { label: "首都クイズ30問パーフェクト", done: progress.perfect30Achieved.capital },
+          { label: "どこかな？30問パーフェクト", done: progress.perfect30Achieved.findcountry },
+        ];
+        return { parts, current: parts.filter((p) => p.done).length, total: parts.length, unit: "項目" };
+      }
+      case 405: {
+        const parts = [
+          { label: "国旗クイズ198問クリア", done: progress.clear198Achieved.flag },
+          { label: "首都クイズ198問クリア", done: progress.clear198Achieved.capital },
+          { label: "どこかな？上級30問クリア", done: progress.clearAdvanced30Achieved },
+        ];
+        return { parts, current: parts.filter((p) => p.done).length, total: parts.length, unit: "項目" };
+      }
+      case 406: {
+        const parts = [
+          { label: "国旗クイズ", current: countEarnedUnitsInSnapshot(getFlagOnlyUnits(), snapshot), total: 20 },
+          { label: "首都クイズ", current: countEarnedUnitsInSnapshot(getCapitalOnlyUnits(), snapshot), total: 20 },
+          { label: "どこかな？", current: countEarnedUnitsInSnapshot(getFindCountryUnits(), snapshot), total: 20 },
+          { label: "世界図鑑", current: countEarnedUnitsInSnapshot(getEncyclopediaUnits(), snapshot), total: 20 },
+        ];
+        return { parts };
+      }
+      case 407: return { current: sumCommonModeValues(progress.playCompletedCount), total: 100, unit: "回" };
+      case 408: return { current: sumCommonModeValues(progress.playCompletedCount), total: 500, unit: "回" };
+      case 409: return { current: sumCommonModeValues(progress.playCompletedCount), total: 1000, unit: "回" };
+      case 410: return { current: sumCommonModeValues(progress.correctCount), total: 10000, unit: "問" };
+      case 411: return { current: sumCommonModeValues(progress.correctCount), total: 50000, unit: "問" };
+      case 412: return { current: sumCommonModeValues(progress.correctCount), total: 100000, unit: "問" };
+      case 413: return { current: Math.min(progress.currentStreakDays, 7), total: 7, unit: "日" };
+      case 414: return { current: Math.min(progress.currentStreakDays, 30), total: 30, unit: "日" };
+      case 415: return { current: Object.keys(progress.playedDates).length, total: 100, unit: "日" };
+      case 416: {
+        if (typeof COUNTRIES === "undefined") return { current: 0, total: 198, unit: "か国" };
+        const stats = loadTrophyStats();
+        const current = COUNTRIES.filter((c) => stats.countryCorrectEver.flag[c.id] && stats.countryCorrectEver.capital[c.id]).length;
+        return { current, total: 198, unit: "か国" };
+      }
+      case 417: {
+        const today = getLocalDateString();
+        const match = progress.dailyClear.date === today;
+        const parts = [
+          { label: "国旗クイズ", done: match && progress.dailyClear.flag },
+          { label: "首都クイズ", done: match && progress.dailyClear.capital },
+          { label: "どこかな？", done: match && progress.dailyClear.findcountry },
+        ];
+        return { parts, current: parts.filter((p) => p.done).length, total: 3, unit: "項目" };
+      }
+      case 418: return { current: sumCommonModeValues(progress.wrongCount), total: 1000, unit: "回" };
+      case 419: { const u = getFlagOnlyUnits(); return { current: countEarnedUnitsInSnapshot(u, snapshot), total: u.length, unit: "件" }; }
+      case 420: { const u = getCapitalOnlyUnits(); return { current: countEarnedUnitsInSnapshot(u, snapshot), total: u.length, unit: "件" }; }
+      case 421: { const u = getFindCountryUnits(); return { current: countEarnedUnitsInSnapshot(u, snapshot), total: u.length, unit: "件" }; }
+      case 422: { const u = getOmniscientSeekerUnits(); return { current: countEarnedUnitsInSnapshot(u, snapshot), total: u.length, unit: "件" }; }
+      case 423:
+      case 424: {
+        const u = getAllValidUnits();
+        const current = countEarnedUnitsInSnapshot(u, snapshot);
+        const percent = u.length ? Math.floor((current / u.length) * 1000) / 10 : 0;
+        return { current, total: u.length, percent, unit: "件" };
+      }
+      case 425: {
+        const u = getValidUnitsExcludingNumbers([425]);
+        return { current: countEarnedUnitsInSnapshot(u, snapshot), total: u.length, unit: "件" };
+      }
+      default:
+        return null;
+    }
+  }
+
   const TROPHIES = buildTrophyDefinitions();
   applyStageBDefinitions(TROPHIES, STAGE_B_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_D_DEFINITIONS);
@@ -2261,6 +2833,7 @@ const TrophyModule = (() => {
   applyStageBDefinitions(TROPHIES, STAGE_ENCYCLOPEDIA4_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_SEVEN_WONDERS_DEFINITIONS);
   applyStageBDefinitions(TROPHIES, STAGE_SEVEN_WONDERS_SPECIAL_DEFINITIONS);
+  applyStageBDefinitions(TROPHIES, STAGE_COMMON_DEFINITIONS);
   // category/hidden/stageのみをここで補完する(name/condition/mode/checkは
   // applyStageBDefinitions()が設定した値から一切変更しない)。
   // - category: 上記categoryForNumber()による分類(表示用ラベルのみ)
@@ -2280,7 +2853,9 @@ const TrophyModule = (() => {
       || SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS.has(t.number);
     t.stage = (t.number >= 195 && t.number <= 255)
       ? "hidden61"
-      : (SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS.has(t.number) ? "sevenWondersSpecial" : null);
+      : (SEVEN_WONDERS_HIDDEN_SPECIAL_NUMBERS.has(t.number)
+        ? "sevenWondersSpecial"
+        : (COMMON_TROPHY_NUMBERS.includes(t.number) ? "commonChain" : null));
   });
   const TROPHY_BY_ID = new Map(TROPHIES.map((t) => [t.id, t]));
 
@@ -2291,10 +2866,11 @@ const TrophyModule = (() => {
     // 加算される(件数が増減しても自動的に追従する)。世界図鑑トロフィー
     // 追加分(#259〜262、固定4件)は別途254への加算として扱う。世界7不思議
     // (7問+隠し特別2種、固定9件)もSEVEN_WONDERS_ALL_NUMBERS.lengthとして
-    // 同様に加算する
+    // 同様に加算する。共通トロフィー31種類(COMMON_TROPHY_NUMBERS、固定31件)
+    // も同様に加算する
     console.assert(
-      TROPHIES.length === 254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length,
-      `トロフィー定義が254+謎解き件数+世界7不思議件数ではありません(実際: ${TROPHIES.length}件、期待値: ${254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length}件)`
+      TROPHIES.length === 254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length + COMMON_TROPHY_NUMBERS.length,
+      `トロフィー定義が254+謎解き件数+世界7不思議件数+共通トロフィー件数ではありません(実際: ${TROPHIES.length}件、期待値: ${254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length + COMMON_TROPHY_NUMBERS.length}件)`
     );
     const numbers = new Set(TROPHIES.map((t) => t.number));
     console.assert(numbers.size === TROPHIES.length, "トロフィー定義のnumberに重複があります");
@@ -2460,9 +3036,10 @@ const TrophyModule = (() => {
     const expectedConfirmedCountBeforePuzzle = existingConfirmedCount + capitalTriviaNumbers.length + legendNumbers.length + encyclopediaNumbers.length + findCountryNumbers.length + hidden61Numbers.length + encyclopedia4Numbers.length;
     console.assert(expectedConfirmedCountBeforePuzzle === 254, `254件全てが確定するはずが、合計が254件になっていません(実際: ${expectedConfirmedCountBeforePuzzle}件)`);
     // 謎解きトロフィー(第3段階)はPUZZLE_QUESTIONSの件数分だけ254に加算され、
-    // 世界7不思議(7問+隠し特別2種、固定9件)もさらに加算される
-    const expectedConfirmedCount = expectedConfirmedCountBeforePuzzle + puzzleNumbers.length + sevenWondersNumbers.length + sevenWondersSpecialNumbers.length;
-    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑・findcountry36・隠しトロフィー61・謎解き・世界7不思議で確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
+    // 世界7不思議(7問+隠し特別2種、固定9件)・共通トロフィー31種類
+    // (COMMON_TROPHY_NUMBERS)もさらに加算される
+    const expectedConfirmedCount = expectedConfirmedCountBeforePuzzle + puzzleNumbers.length + sevenWondersNumbers.length + sevenWondersSpecialNumbers.length + COMMON_TROPHY_NUMBERS.length;
+    console.assert(confirmedCount === expectedConfirmedCount, `Stage B・D・首都トリビア・#142・世界図鑑・findcountry36・隠しトロフィー61・謎解き・世界7不思議・共通トロフィーで確定したはずのトロフィー件数が一致しません(期待値: ${expectedConfirmedCount}件、実際: ${confirmedCount}件)`);
     // findcountry36のrarity構成が、仕様どおり普通14・レア12・スーパーレア10であること
     const findCountryDefs = TROPHIES.filter((t) => findCountryNumbers.includes(t.number));
     console.assert(findCountryDefs.every((t) => t.rarity === "normal" || t.rarity === "rare" || t.rarity === "super_rare"), "findcountry36のいずれかにrarityが設定されていません");
@@ -2507,8 +3084,19 @@ const TrophyModule = (() => {
     );
     const categoryTotal = TROPHY_CATEGORIES.reduce((sum, c) => sum + TROPHIES.filter((t) => t.category === c.id).length, 0);
     console.assert(
-      categoryTotal === 254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length,
-      `カテゴリ別件数の合計が254+謎解き件数+世界7不思議件数になっていません(実際: ${categoryTotal}件)`
+      categoryTotal === 254 + PUZZLE_QUESTION_LIST.length + SEVEN_WONDERS_ALL_NUMBERS.length + COMMON_TROPHY_NUMBERS.length,
+      `カテゴリ別件数の合計が254+謎解き件数+世界7不思議件数+共通トロフィー件数になっていません(実際: ${categoryTotal}件)`
+    );
+    // 共通トロフィー31種類(#395〜425)。すべてconfirmed:true・hidden:false
+    // (未獲得でも名称・条件を表示する通常の公開トロフィー)であること
+    const commonCategoryCount = TROPHIES.filter((t) => t.category === "common").length;
+    console.assert(
+      commonCategoryCount === COMMON_TROPHY_NUMBERS.length,
+      `commonカテゴリの件数がCOMMON_TROPHY_NUMBERSの件数(31件)と一致しません(実際: ${commonCategoryCount}件)`
+    );
+    console.assert(
+      TROPHIES.filter((t) => t.category === "common").every((t) => t.hidden === false && t.confirmed === true && typeof t.check === "function"),
+      "共通トロフィーにhidden:true、confirmed:false、またはcheck未設定のものがあります"
     );
     // 【トロフィーカテゴリー修正】#393「ミステリーハンター」の表示用カテゴリーを
     // 「謎解きトロフィー」に変更したため、puzzleカテゴリーの件数はPUZZLE_
@@ -2607,8 +3195,16 @@ const TrophyModule = (() => {
       `stage==="sevenWondersSpecial"のトロフィーが想定件数になっていません(実際: ${stageSevenWondersSpecialDefs.length}件)`
     );
     console.assert(
-      TROPHIES.filter((t) => t.stage !== "hidden61" && t.stage !== "sevenWondersSpecial").every((t) => t.stage === null),
-      "stageが想定外の値(hidden61/sevenWondersSpecial/null以外)のトロフィーがあります"
+      TROPHIES.filter((t) => t.stage !== "hidden61" && t.stage !== "sevenWondersSpecial" && t.stage !== "commonChain").every((t) => t.stage === null),
+      "stageが想定外の値(hidden61/sevenWondersSpecial/commonChain/null以外)のトロフィーがあります"
+    );
+    // 共通トロフィー31種類はすべてstage==="commonChain"(evaluate()の通常
+    // ループでは判定せず、専用の連鎖判定だけが判定する内部マーカー)
+    const stageCommonChainDefs = TROPHIES.filter((t) => t.stage === "commonChain");
+    console.assert(
+      stageCommonChainDefs.length === COMMON_TROPHY_NUMBERS.length
+        && stageCommonChainDefs.every((t) => COMMON_TROPHY_NUMBERS.includes(t.number)),
+      `stage==="commonChain"のトロフィーが想定件数(31件)になっていません(実際: ${stageCommonChainDefs.length}件)`
     );
     // 世界図鑑の地域制覇6件(#148〜153)の対象国数合計が、COUNTRIES全件数と
     // 一致すること(ハードコードした想定件数ではなく、countryIdsInRegion()が
@@ -3090,6 +3686,12 @@ const TrophyModule = (() => {
     const hiddenAwardedIds = [];
     TROPHIES.forEach((t) => {
       if (!t.confirmed || typeof t.check !== "function") return;
+      // 共通トロフィー31種類(stage==="commonChain")は、このループでは一切
+      // 判定しない。専用の連鎖判定(evaluateCommonTrophiesChain、下記)だけが
+      // 判定・付与する(通常のcontext依存の判定とは異なり、保存済みの
+      // 進捗・獲得状況だけを見るため、1回のevaluate()呼び出しの中で複数回
+      // 判定し直す必要があり、このforEachの1パスだけでは不十分なため)
+      if (t.stage === "commonChain") return;
       if (onlyStage) {
         if (t.stage !== onlyStage) return;
       } else if (t.stage === "hidden61" || t.stage === "sevenWondersSpecial") {
@@ -3110,6 +3712,24 @@ const TrophyModule = (() => {
         if (t.stage === "hidden61") hiddenAwardedIds.push(t.id); else awardedIds.push(t.id);
       }
     });
+    // 共通トロフィー31種類の連鎖判定は、既存トロフィーの獲得判定が確定した
+    // 直後に実行する。1件の既存トロフィー獲得(このevaluate()呼び出し自身
+    // によるもの、または以前の獲得)が、累計獲得数・各モード完全制覇等の
+    // 共通トロフィーの条件を新たに満たす可能性があるため。共通トロフィーは
+    // すべて通常の公開トロフィーのため、hiddenAwardedIdsではなくawardedIds
+    // に積む。
+    // 【性能対策】onlyStage指定時(js/findcountry.jsのevaluateFindCountry
+    // HiddenProgress()、1プレイ中の全タップで呼ばれる高頻度の「途中経過」
+    // 専用呼び出し)は、ここでは連鎖判定を行わない。この呼び出し経路は
+    // 1プレイの最終結果が確定する前の中間状態を見るためだけのもので、
+    // 同じプレイが最終的にevaluateFindCountryResult()(onlyStage省略)を
+    // 必ず経由するため、そこで改めて判定すれば正しさは変わらない。
+    // タップごとにgetEarned()(localStorageの読み込み・JSON解析・TROPHIES
+    // 420件分の走査を伴う)を呼ぶコストを避けるための最適化で、共通
+    // トロフィーの判定結果・タイミングには影響しない
+    if (!onlyStage) {
+      evaluateCommonTrophiesChain().forEach((id) => awardedIds.push(id));
+    }
     return { awardedIds, hiddenAwardedIds };
   }
 
@@ -3117,6 +3737,21 @@ const TrophyModule = (() => {
   // context: { mode("flag"|"capital"), total, correct, rate, perfect,
   //            wrongIds(配列), correctIds(配列), questionIds(配列) }
   function evaluateQuizFinish(context) {
+    // 共通トロフィー: finishQuiz()は「戻る」等による途中中断では呼ばれず、
+    // 常に正式な終了処理を経て結果画面に到達した場合だけ呼ばれるため、
+    // ここが「プレイ完了」の正しい記録タイミングになる。30問パーフェクト
+    // (トリプルスリー用)・198問クリア(三冠王用。国旗・首都には明確な
+    // クリア/失敗の判定が無いため、198問を完了したこと自体をクリアとみなす)
+    try {
+      if (context && (context.mode === "flag" || context.mode === "capital")) {
+        recordCommonPlayCompletion(context.mode, {
+          perfect30: context.total === 30 && context.correct === context.total,
+          clear198: context.total === 198,
+        });
+      }
+    } catch (e) {
+      console.warn("共通トロフィーの進捗記録に失敗しました(クイズ結果には影響しません)", e);
+    }
     return evaluate(Object.assign({ source: "quiz" }, context));
   }
 
@@ -3136,6 +3771,21 @@ const TrophyModule = (() => {
   //                   61種類実装(第1段階)で追加した判定基盤で、現時点では
   //                   どのcheck()もまだ参照しない(将来の追加分がここから使う)
   function evaluateFindCountryResult(context) {
+    // 共通トロフィー: showResult()は「戻る」等による途中中断(abandoned)では
+    // 呼ばれず、通常クリア・規定ミス数到達によるゲームオーバー・出題対象を
+    // 使い切った場合にだけ呼ばれるため、ここが「プレイ完了」の正しい記録
+    // タイミングになる。30問パーフェクト(トリプルスリー用、PROは対象外)・
+    // 上級30問クリア(三冠王用)
+    try {
+      if (context) {
+        recordCommonPlayCompletion("findcountry", {
+          perfect30: context.target === 30 && context.difficultyId !== "pro" && !!context.isNormalClear && !!context.noMistakes,
+          clearAdvanced30: context.difficultyId === "advanced" && context.target === 30 && !!context.isNormalClear,
+        });
+      }
+    } catch (e) {
+      console.warn("共通トロフィーの進捗記録に失敗しました(結果には影響しません)", e);
+    }
     return evaluate(Object.assign({ source: "findcountry", event: "result" }, context));
   }
 
@@ -3172,6 +3822,14 @@ const TrophyModule = (() => {
   // 瞬間・地図連携から確認した瞬間・復習画面から開いた瞬間など、図鑑に
   // 関する新しい事実がjs/storage.jsに記録された直後に呼ぶ想定
   function evaluateEncyclopediaVisit(context) {
+    // 共通トロフィー(四つの扉): この呼び出し自体が「世界図鑑に関する新しい
+    // 事実が記録された直後」に限って呼ばれるため、詳細ページを実際に
+    // 開いたことの記録として扱って良い
+    try {
+      recordCommonModeUsed("encyclopedia");
+    } catch (e) {
+      console.warn("共通トロフィーの利用記録に失敗しました(図鑑には影響しません)", e);
+    }
     return evaluate(Object.assign({ source: "encyclopedia" }, context));
   }
 
@@ -3281,6 +3939,7 @@ const TrophyModule = (() => {
   function resetAll() {
     try { localStorage.removeItem(TROPHY_KEY); } catch (e) { /* noop */ }
     try { localStorage.removeItem(TROPHY_STATS_KEY); } catch (e) { /* noop */ }
+    try { localStorage.removeItem(COMMON_PROGRESS_KEY); } catch (e) { /* noop */ }
   }
 
   // 世界7不思議テストラボ(dev/seven-wonders-lab.html)専用。通常謎解き126問
@@ -3347,5 +4006,10 @@ const TrophyModule = (() => {
     SEVEN_WONDERS_TROPHY_NUMBERS,
     MYSTERY_HUNTER_NUMBER,
     OMNISCIENT_GOD_NUMBER,
+    COMMON_TROPHY_NUMBERS,
+    recordCommonTally,
+    recordCommonModeUsed,
+    evaluateCommonTrophiesCatchUp,
+    getCommonTrophyProgress,
   };
 })();

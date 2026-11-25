@@ -73,9 +73,9 @@ function check(name, cond) {
   // puzzleカテゴリ)は常に0件扱いとなり、定義総数は254件のまま変わらない
   // (カテゴリの種類数のみ、PUZZLE_QUESTIONSの件数に関わらず
   // TROPHY_CATEGORIESの固定分類として11→12件に増える)
-  check("total trophies = 254", defs.length === 254);
+  check("total trophies = 285(既存254+共通トロフィー31件)", defs.length === 285);
   const cats = Trophy.getCategories();
-  check("category count = 13", cats.length === 13);
+  check("category count = 14(既存13+共通トロフィーカテゴリー)", cats.length === 14);
   check("encyclopedia category exists", cats.some((c) => c.id === "encyclopedia"));
   const byCat = {};
   defs.forEach((d) => { byCat[d.category] = (byCat[d.category] || 0) + 1; });

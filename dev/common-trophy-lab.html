@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>共通トロフィー テストラボ(開発専用・非公開)</title>
+<meta name="robots" content="noindex, nofollow">
+<!-- このページ以降のすべての相対URLを、dev/フォルダではなくリポジトリの
+     ルート(index.htmlと同じ階層)基準で解決させる。dev/seven-wonders-lab.html
+     と全く同じ仕組み(詳細はそちらのコメントを参照) -->
+<base href="../">
+<!--
+  ==========================================================
+  共通トロフィー31種類(#395〜425)テストラボ(開発専用・本番配信物には
+  含めない)
+
+  このページは何をするものか:
+    累計100,000問正解・累計プレイ1,000回・30日間連続プレイ等、通常の実機
+    プレイでは短時間に検証できない共通トロフィー31種類の境界値・連鎖解放
+    ・世界の真理(#425)専用演出を、実機(iPhone/iPad/PC)の本物の画面で
+    効率的に検証できる開発者専用ページ。本番の画面(index.html)・
+    js/trophy.js等の本番コードは一切変更していない。
+
+  本番からの隔離について(dev/seven-wonders-lab.htmlと全く同じ2点構成):
+    1. 保存データの隔離: window.__WFQ_LAB_STORAGE_PREFIX__ を設定してから
+       js/storage.jsを読み込むことで、保存キーの接頭辞を本番の"wfq_v1_"
+       とは別の"wfq_v1_lab_"に差し替える(本番データには一切書き込まない)。
+    2. 配信物からの除外: このdev/フォルダはindex.htmlから一切参照・
+       リンクされておらず、.github/workflows/pages.ymlのビルド手順で
+       GitHub Pagesへの公開物からも除外する。
+
+  トロフィー獲得そのものの「抜け道」について:
+    このページ専用のJS(dev/common-trophy-lab.js)は、新しいトロフィー
+    獲得用APIをjs/trophy.jsに追加しない。使うのは本番でも実際に使われて
+    いる既存の正規API(TrophyModule.recordCommonTally/recordCommonModeUsed/
+    evaluateCommonTrophiesCatchUp/awardIfNew等)だけで、本番コードに
+    開発者専用の「獲得バックドア」は一切残していない。累積プレイ日数・
+    連続日数(ストリーク)だけは、実機で複数日に分けて検証するのが現実的
+    でないため、このラボのJSが「このラボ専用の隔離済み保存領域」に限って
+    直接、過去の日付を書き込む(本番のjs/trophy.jsにそのための関数は
+    存在しない。後述)。書き込んだ後は、必ずTrophyModule側の本物の判定
+    ロジック(evaluateCommonTrophiesCatchUp)を呼んで初めてトロフィーが
+    付与される、という経路は変えていない。
+  ========================================================== -->
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/map.css">
+<link rel="stylesheet" href="css/encyclopedia.css">
+<link rel="stylesheet" href="css/findcountry.css">
+<link rel="stylesheet" href="css/puzzle.css">
+<!-- dev/seven-wonders-lab.cssの.wfq-lab-*クラス群は7不思議専用の内容を
+     何も含まない汎用のラボ用スタイルのため、重複させずそのまま再利用する -->
+<link rel="stylesheet" href="dev/seven-wonders-lab.css">
+</head>
+<body>
+
+<div id="wfq-lab-banner" class="wfq-lab-banner">
+  🧪 共通トロフィー テストラボ(開発専用・本番データには一切影響しません)
+</div>
+
+<div id="wfq-lab-app-root"></div>
+
+<div id="wfq-lab-panel" class="wfq-lab-panel" aria-live="polite">
+  <p class="wfq-lab-loading">読み込み中…</p>
+</div>
+
+<script>
+  window.__WFQ_LAB_STORAGE_PREFIX__ = "wfq_v1_lab_";
+</script>
+<script src="dev/common-trophy-lab.js"></script>
+<script src="dev/common-trophy-lab-boot.js"></script>
+</body>
+</html>

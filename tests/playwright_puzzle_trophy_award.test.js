@@ -266,10 +266,10 @@ async function getPuzzleCardInfo(page, questionId) {
     await openTrophyList(page, base);
 
     const totalCards = await page.$$eval("#trophy-grid .trophy-card", (els) => els.length);
-    check("テスト6: トロフィー総数が421件になっている(既存286件+謎解き126件+世界7不思議9件)", totalCards === 421);
+    check("テスト6: トロフィー総数が452件になっている(既存286件+謎解き126件+世界7不思議9件+共通トロフィー31件)", totalCards === 452);
 
     const summary = await page.evaluate(() => TrophyModule.getProgressSummary());
-    check("テスト6: getProgressSummary().totalCountが421になっている", summary.totalCount === 421);
+    check("テスト6: getProgressSummary().totalCountが452になっている", summary.totalCount === 452);
 
     const puzzleCardCount = await page.$$eval("#trophy-grid .trophy-card-puzzle", (els) => els.length);
     check("テスト6: 謎解きトロフィーのカードが126件描画される(既存3件+謎解き118件+高難度5件)", puzzleCardCount === 126);

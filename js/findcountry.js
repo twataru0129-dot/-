@@ -483,6 +483,14 @@ const FindCountryModule = (() => {
     }
     const d = difficultyById(difficultyId);
     quizState.difficultyId = difficultyId;
+    // 共通トロフィー(四つの扉): 実際に問題を開始した時点(設定画面を
+    // 開くだけでは呼ばれない)で、「世界の国どこかな？」を使用したことを
+    // 記録する
+    try {
+      if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordCommonModeUsed === "function") {
+        TrophyModule.recordCommonModeUsed("findcountry");
+      }
+    } catch (e) { /* noop */ }
     quizState.pool = buildPool(difficultyId);
     // 追加修正: クリアに必要な正解数。通常コースは選んだ問題数(5/10/20/30)、
     // PROは既存仕様どおり全件(d.count、pool.lengthと常に一致する)
@@ -783,6 +791,17 @@ const FindCountryModule = (() => {
       kind, // "wrong" | "pass" | "timeout"
       livesAfter: quizState.lives,
     });
+    // 共通トロフィー(七転び八起き): 実際に誤答を選んだ回数だけを数える
+    // (パス・時間切れは誤答に含めない、企画書の指示どおり)。同じ問題で
+    // 複数回誤答した場合もここで必ず1回ずつ呼ばれるため、実際の誤答回数と
+    // 一致する
+    if (kind === "wrong") {
+      try {
+        if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordCommonTally === "function") {
+          TrophyModule.recordCommonTally("findcountry", "wrong");
+        }
+      } catch (e) { /* noop */ }
+    }
   }
 
   // ---------- 隠しトロフィー61種類実装(第2段階): プレイ中の時点状態 ----------
@@ -891,6 +910,13 @@ const FindCountryModule = (() => {
       // 追加修正: クリア判定・進捗表示に使う正解数。再挑戦の末の正解でも
       // (streakとは違い)必ず+1する
       quizState.correctCount += 1;
+      // 共通トロフィー(累積がんばり系): 回答確定時に記録し、中断しても
+      // この問題までの正解は保持する
+      try {
+        if (typeof TrophyModule !== "undefined" && typeof TrophyModule.recordCommonTally === "function") {
+          TrophyModule.recordCommonTally("findcountry", "correct");
+        }
+      } catch (e) { /* noop */ }
       // 再挑戦の末に正解した問題(hasMistakeThisQuestion)は、一発正解として
       // 連続正解に加算しない(連続正解自体は最初の不正解タップの時点で
       // 既に0へリセット済みのため、ここでは単に加算しないだけでよい)
