@@ -58,15 +58,25 @@ const state = {
   // contextに渡すためだけのプレイ中限定の記録(startQuiz()でリセットする)
   quizStartedAt: null,
   answerTimings: [],
-  // トロフィー刷新 Stage E: トロフィー一覧画面(新規)のカテゴリ・獲得状況の
+  // トロフィー一覧画面のカテゴリ・獲得状況・検索語・表示形式(グリッド/一覧)の
   // 絞り込み状態。画面を離れても値は保持し、次に開いたときに同じ絞り込みを
   // 再現する(永続保存はしない。ページ再読み込みでリセットされてよい表示上の
   // 状態のため)
-  trophyListFilter: { category: "all", status: "all" },
+  trophyListFilter: { topBucket: "all", category: "all", status: "all", search: "" },
+  // 【PR #89 第4回】トロフィー一覧→謎解き挑戦画面へ遷移した際、挑戦画面の
+  // 「戻る」でどのカード・スクロール位置に戻ればよいかを覚えておくための
+  // 一時的な記録。trophyListFilterとは異なり画面をまたいで保持する必要が
+  // 無いため、挑戦が終わって一覧に戻った時点で必ずnullへ戻す(保存データ・
+  // localStorageには一切書き込まない、純粋なメモリ上の状態)
+  puzzleReturnContext: null,
 };
 
 function modeEmoji(mode) {
   return mode === "capital" ? "🏙️" : "🌍";
+}
+
+function prefersReducedMotion() {
+  return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
 
 function $(id) { return document.getElementById(id); }
@@ -141,6 +151,16 @@ function initTopScreen() {
       // 離れている間に変わっている可能性があるため、必ず再描画してから表示する
       if (btn.dataset.back === "screen-findcountry-difficulty") {
         FindCountryModule.openDifficultyScreen();
+        return;
+      }
+      // 【PR #89 第4回】謎解き挑戦画面(screen-puzzle-flag-select)の
+      // 「戻る」: トロフィー一覧のカード・詳細モーダルから挑戦した場合
+      // (state.puzzleReturnContextが設定されている場合)だけ、一覧の
+      // 元の絞り込み・スクロール位置へ戻す。世界7不思議の専用挑戦画面・
+      // 開発用入口から入った場合はこのcontextが設定されないため、
+      // 従来どおりbtn.dataset.back(screen-top)への遷移のまま変更しない
+      if (btn.id === "btn-puzzle-back" && state.puzzleReturnContext) {
+        returnToTrophyListFromPuzzleBack();
         return;
       }
       showScreen(btn.dataset.back);
@@ -1298,7 +1318,13 @@ function proceedAfterPuzzleTrophyAward(nextFn) {
 // (ユーザーが戻った後に再び絞り込みたい場合は、一覧画面側で改めて
 // タブを選べばよい。この画面遷移専用の一時的な初期化)
 function openTrophyListAndHighlight(trophyId) {
-  state.trophyListFilter = { category: "all", status: "all" };
+  // 【PR #89 第4回】この経路(「トロフィーを見る」)で既にトロフィー一覧へ
+  // 到達するため、挑戦開始時に記録した戻り先情報は役目を終えている。
+  // 残したままだと、この後に世界7不思議などの別の挑戦を始めて
+  // #btn-puzzle-backを押した際、古い戻り先情報が誤って使われてしまうため、
+  // ここで必ず破棄する
+  state.puzzleReturnContext = null;
+  state.trophyListFilter = { topBucket: "all", category: "all", status: "all" };
   renderTrophyListScreen();
   showScreen("screen-trophy-list");
   requestAnimationFrame(() => {
@@ -1307,6 +1333,42 @@ function openTrophyListAndHighlight(trophyId) {
     card.scrollIntoView({ behavior: "smooth", block: "center" });
     card.classList.add("trophy-card-highlight");
     setTimeout(() => card.classList.remove("trophy-card-highlight"), 2200);
+  });
+}
+
+// 【PR #89 第4回】④謎解き挑戦画面からトロフィー一覧への戻り導線。
+// トロフィー一覧のカード、または詳細モーダルの「この謎に挑む」から挑戦
+// した場合に限り(state.puzzleReturnContextが設定されている場合のみ)、
+// #btn-puzzle-backのクリックをここで横取りする。
+// - state.trophyListFilter(カテゴリー・絞り込み・検索語)は
+//   挑戦中も一切変更していないため、そのままrenderTrophyListScreen()を
+//   呼ぶだけで元の絞り込み状態がそのまま再現される
+// - 正解・不正解・未回答(途中で戻る)のいずれの場合でもこの1つの経路に
+//   まとまる(不正解時はscreen-puzzle-flag-selectに留まったまま再挑戦
+//   でき、正解時は演出画面の「閉じる」でscreen-puzzle-flag-selectに
+//   戻ってから、どちらも最終的にこのボタンを押して初めて一覧へ戻るため)
+// - renderTrophyGrid()はTrophyModule.getEarned()を毎回読み直すため、
+//   今回新しく獲得したトロフィーの状態・カテゴリー進捗も自動的に反映される
+// - 挑戦直後の絞り込みで対象カードが非表示になっている場合(例:
+//   「未獲得」フィルター中に正解した等)は、無理に表示させず、挑戦前の
+//   おおよそのスクロール位置に戻すだけに留める
+function returnToTrophyListFromPuzzleBack() {
+  const ctx = state.puzzleReturnContext;
+  state.puzzleReturnContext = null;
+  closeTrophyDetailModal();
+  renderTrophyListScreen();
+  showScreen("screen-trophy-list");
+  requestAnimationFrame(() => {
+    const card = ctx && ctx.trophyId
+      ? document.querySelector(`#trophy-grid [data-trophy-id="${ctx.trophyId}"]`)
+      : null;
+    if (card && !card.classList.contains("hidden")) {
+      card.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+      card.classList.add("trophy-card-highlight");
+      setTimeout(() => card.classList.remove("trophy-card-highlight"), 2200);
+    } else if (ctx) {
+      window.scrollTo({ top: ctx.scrollY, behavior: "auto" });
+    }
   });
 }
 
@@ -1451,14 +1513,28 @@ function trophyEarnedState(def, earnedEntry) {
   };
 }
 
+// 将来のトロフィー固有画像用の共通化: 番号をキーに画像URLを登録すると、
+// 一覧・詳細画面の丸アイコンがその画像に差し替わる構造だけを用意する。
+// 現時点ではどの番号も未登録(空のまま)のため、既存の絵文字アイコン表示は
+// 一切変わらない。保存データ・判定ロジック(js/trophy.js)には関与しない、
+// 表示専用のマッピングで、将来はここに{番号: 画像URL}を追加するだけでよい
+const TROPHY_ICON_IMAGE_URLS = {};
+function trophyIconGlyphHtml(emoji, number) {
+  const url = typeof number === "number" ? TROPHY_ICON_IMAGE_URLS[number] : null;
+  return url
+    ? `<img src="${url}" alt="" class="trophy-mark-image">`
+    : `<span class="trophy-mark-icon">${emoji}</span>`;
+}
+
 // isSecretLocked: このトロフィー全体が隠し(hidden:true)かつ未獲得の間、
-// マーク自体も鍵アイコン・「未発見」表記にする(名称・条件を伏せるのと揃える)
-function buildTrophyMarkHtml(iconEarned, iconLocked, earned, dateStr, label, isSecretLocked) {
+// マーク自体も鍵アイコン・「未発見」表記にする(名称・条件を伏せるのと揃える)。
+// numberは省略可(指定時のみTROPHY_ICON_IMAGE_URLSを参照する)
+function buildTrophyMarkHtml(iconEarned, iconLocked, earned, dateStr, label, isSecretLocked, number) {
   const icon = earned ? iconEarned : (isSecretLocked ? "🔒" : iconLocked);
   const lockedText = isSecretLocked ? "未発見" : "未獲得";
   return `
     <div class="trophy-mark ${earned ? "earned" : "locked"}" title="${label}">
-      <span class="trophy-mark-icon">${icon}</span>
+      ${trophyIconGlyphHtml(icon, number)}
     </div>
     <p class="trophy-mark-date">${earned ? `${dateStr} 取得` : lockedText}</p>`;
 }
@@ -1482,6 +1558,9 @@ function buildTrophySplitSideCard(def, modeLabel, icon, earned, earnedAt) {
   card.dataset.category = def.category;
   card.dataset.earned = String(earned);
   card.dataset.hidden = "false";
+  card.dataset.trophyId = def.id;
+  card.dataset.splitMode = modeLabel;
+  card.dataset.trophyMode = def.mode || "";
   const dateStr = earnedAt ? formatCompactDate(new Date(earnedAt)) : "";
   card.innerHTML = `
     <div class="trophy-card-top">
@@ -1490,7 +1569,7 @@ function buildTrophySplitSideCard(def, modeLabel, icon, earned, earnedAt) {
     </div>
     <div class="trophy-marks">
       <div class="trophy-mark-col">
-        ${buildTrophyMarkHtml(icon, icon, earned, dateStr, modeLabel, false)}
+        ${buildTrophyMarkHtml(icon, icon, earned, dateStr, modeLabel, false, def.number)}
       </div>
     </div>
     <p class="trophy-name">${def.name}</p>
@@ -1531,6 +1610,7 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
   card.dataset.category = def.category;
   card.dataset.earned = String(st.earned);
   card.dataset.hidden = "false";
+  card.dataset.trophyMode = def.mode || "";
   // 「トロフィーを見る」(screen-puzzle-trophy-award)からこのカードへ
   // スクロール・ハイライトするための識別子
   card.dataset.trophyId = def.id;
@@ -1572,6 +1652,9 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
   if (!st.earned) {
     card.querySelector(".btn-puzzle-challenge").addEventListener("click", (e) => {
       e.stopPropagation();
+      // 【PR #89 第4回】トロフィー一覧のカードから挑戦したので、「戻る」で
+      // この一覧(絞り込み・スクロール位置込み)へ戻れるよう記録しておく
+      state.puzzleReturnContext = { trophyId: def.id, scrollY: window.scrollY };
       PuzzleModule.open({ questionId: def.puzzleQuestionId, questionText });
       showScreen("screen-puzzle-flag-select");
     });
@@ -1720,6 +1803,7 @@ function buildSevenWonderCardElement(def, earnedEntry) {
   card.dataset.category = def.category;
   card.dataset.hidden = "false";
   card.dataset.trophyId = def.id;
+  card.dataset.trophyMode = def.mode || "";
   if (def.puzzleQuestionId) {
     buildSevenWonderPuzzleCard(card, def, st);
   } else {
@@ -1741,6 +1825,8 @@ function buildTrophyCardElement(def, earnedEntry) {
   card.dataset.category = def.category;
   card.dataset.earned = String(earnedOverall);
   card.dataset.hidden = String(!!def.hidden);
+  card.dataset.trophyId = def.id;
+  card.dataset.trophyMode = def.mode || "";
 
   let marksHtml;
   if (isLegend) {
@@ -1759,21 +1845,25 @@ function buildTrophyCardElement(def, earnedEntry) {
         </div>
       </div>`;
   } else if (st.dual) {
+    // secretLocked(隠しトロフィー未発見)の間は、将来TROPHY_ICON_IMAGE_URLSに
+    // 画像が登録されてもnumberを渡さず、既存どおり🔒のまま表示を変えない
+    const imgNumber = secretLocked ? undefined : def.number;
     marksHtml = `
       <div class="trophy-marks trophy-marks-dual">
         <div class="trophy-mark-col">
-          ${buildTrophyMarkHtml("🌍", "🌍", st.flagEarned, st.flagEarnedAt ? formatJapaneseDate(new Date(st.flagEarnedAt)) : "", "国旗クイズ", secretLocked)}
+          ${buildTrophyMarkHtml("🌍", "🌍", st.flagEarned, st.flagEarnedAt ? formatJapaneseDate(new Date(st.flagEarnedAt)) : "", "国旗クイズ", secretLocked, imgNumber)}
         </div>
         <div class="trophy-mark-col">
-          ${buildTrophyMarkHtml("🏙️", "🏙️", st.capitalEarned, st.capitalEarnedAt ? formatJapaneseDate(new Date(st.capitalEarnedAt)) : "", "首都クイズ", secretLocked)}
+          ${buildTrophyMarkHtml("🏙️", "🏙️", st.capitalEarned, st.capitalEarnedAt ? formatJapaneseDate(new Date(st.capitalEarnedAt)) : "", "首都クイズ", secretLocked, imgNumber)}
         </div>
       </div>`;
   } else {
     const icon = def.category === "common" ? commonTrophyIcon(def.number) : trophyModeIcon(def.mode);
+    const imgNumber = secretLocked ? undefined : def.number;
     marksHtml = `
       <div class="trophy-marks">
         <div class="trophy-mark-col">
-          ${buildTrophyMarkHtml(icon, icon, st.earned, st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "", secretLocked ? "未発見のトロフィー" : "獲得マーク", secretLocked)}
+          ${buildTrophyMarkHtml(icon, icon, st.earned, st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "", secretLocked ? "未発見のトロフィー" : "獲得マーク", secretLocked, imgNumber)}
         </div>
       </div>`;
   }
@@ -1847,35 +1937,43 @@ function buildCommonTrophyProgressHtml(number) {
 
 let TROPHY_CATEGORY_LABELS = {};
 
+// 上位8分類(表示専用)。プレイヤーが home 画面で認識するモード単位に
+// まとめ直した分類で、TrophyModule側のcategory(15分類、判定・絞り込みに
+// 実際に使われるid)は一切変更しない。既存の15分類は「下位カテゴリー」
+// として、この8分類の中からさらに絞り込める(renderTrophySubCategoryRow)
+const TOP_BUCKETS = [
+  { id: "all", label: "すべて", icon: "🏆" },
+  { id: "flag", label: "国旗", icon: "🌍" },
+  { id: "capital", label: "首都", icon: "🏙️" },
+  { id: "findcountry", label: "どこかな？", icon: "🧭" },
+  { id: "encyclopedia", label: "世界図鑑", icon: "📖" },
+  { id: "puzzle", label: "謎解き", icon: "🧩" },
+  { id: "sevenWonders", label: "世界7不思議", icon: "🏔️" },
+  { id: "common", label: "共通", icon: "👑" },
+];
+// 「共通」上位分類だけ、下位カテゴリーを既存の15分類からではなく、
+// 以下の2つの合成グループで表示する("cross_mode_common"は既存の
+// category idには存在しない、このバケット内だけで使う表示専用の値)
+const COMMON_BUCKET_SUBGROUPS = [
+  { id: "cross_mode_common", label: "国旗・首都共通" },
+  { id: "common", label: "全体共通" },
+];
+
+// カテゴリー別進捗カード用の表示アイコン(純粋に見た目だけの対応表。
+// 判定・分類そのものはTrophyModule.getCategories()のidを一切変更せず
+// そのまま使うため、新しいカテゴリーが増えても未対応のidは🏅で表示される
+// だけで、絞り込み自体は壊れない)
+const TROPHY_CATEGORY_ICONS = {
+  progress: "🚩", speed: "⚡", region: "🗺️", double: "🌐", special: "⭐",
+  trivia: "🌍", legacy: "🎖️", capital_trivia: "🏛️", encyclopedia: "📖",
+  findcountry: "🧭", findcountry_hidden: "🕵️", puzzle: "🧩",
+  sevenWonders: "🏔️", common: "👑",
+};
+
 function renderTrophyFilterControls() {
   const categories = TrophyModule.getCategories();
   TROPHY_CATEGORY_LABELS = {};
   categories.forEach((c) => { TROPHY_CATEGORY_LABELS[c.id] = c.label; });
-
-  const tabsWrap = $("trophy-category-tabs");
-  tabsWrap.innerHTML = "";
-  const allTab = document.createElement("button");
-  allTab.type = "button";
-  allTab.className = "trophy-tab";
-  allTab.dataset.category = "all";
-  allTab.textContent = "すべて";
-  allTab.addEventListener("click", () => {
-    state.trophyListFilter.category = "all";
-    applyTrophyFilters();
-  });
-  tabsWrap.appendChild(allTab);
-  categories.forEach((c) => {
-    const tab = document.createElement("button");
-    tab.type = "button";
-    tab.className = "trophy-tab";
-    tab.dataset.category = c.id;
-    tab.textContent = c.label;
-    tab.addEventListener("click", () => {
-      state.trophyListFilter.category = c.id;
-      applyTrophyFilters();
-    });
-    tabsWrap.appendChild(tab);
-  });
 
   document.querySelectorAll("#trophy-status-filter .trophy-status-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1883,6 +1981,221 @@ function renderTrophyFilterControls() {
       applyTrophyFilters();
     });
   });
+}
+
+// 表示専用の上位分類判定(mode/categoryから8分類のどれに属するかを決める
+// だけの純粋関数。TrophyModule側のcategory・mode定義そのものは一切
+// 変更しない)。国旗・首都どちらのプレイでも共通に達成できるトロフィー
+// (スピードチャレンジ・国旗/首都制覇・特別チャレンジの一部、34件)は、
+// データ上どちらか一方に決め打ちできないため「共通」に含める
+function classifyTopBucket(mode, category) {
+  if (category === "findcountry" || category === "findcountry_hidden") return "findcountry";
+  if (category === "puzzle") return "puzzle";
+  if (category === "sevenWonders") return "sevenWonders";
+  if (mode === "flag" || mode === "flag_only") return "flag";
+  if (mode === "capital" || mode === "capital_only" || mode === "legend") return "capital";
+  if (mode === "encyclopedia") return "encyclopedia";
+  return "common"; // commonTrophy(#395〜425)・common(モード横断34件)・想定外の値はすべて「共通」に含める
+}
+
+// 描画済みカード1枚がどの上位分類に属するかを、カードのdataset
+// (category・trophyMode・splitMode、いずれも表示専用の追加属性)から
+// 判定する。国旗/首都分割カードは、どちらの半分かをすでに持っている
+// splitModeで直接判定する(mode="both"を再解釈する必要がない)
+function cardTopBucket(card) {
+  const splitMode = card.dataset.splitMode;
+  if (splitMode === "国旗クイズ") return "flag";
+  if (splitMode === "首都クイズ") return "capital";
+  return classifyTopBucket(card.dataset.trophyMode, card.dataset.category);
+}
+
+// 上位8分類・下位カテゴリーそれぞれの獲得数/総数を、TrophyModuleの
+// 既存公開API(getAllDefinitions/getEarned/isDualSplitCardNumber)だけから
+// 1回の走査で算出する。国旗/首都分割カードは2枠として数える(集計方式A案と
+// 同じ考え方)ため、二重計上や全体452件とのずれは生じない
+function computeBucketProgress() {
+  const defs = TrophyModule.getAllDefinitions();
+  const earned = TrophyModule.getEarned();
+  const buckets = {};
+  const subcats = {}; // bucketId -> { subId -> {earnedCount,totalCount} }
+  function bump(bucketId, subId, isEarned) {
+    if (!buckets[bucketId]) buckets[bucketId] = { earnedCount: 0, totalCount: 0 };
+    buckets[bucketId].totalCount += 1;
+    if (isEarned) buckets[bucketId].earnedCount += 1;
+    if (!subcats[bucketId]) subcats[bucketId] = {};
+    if (!subcats[bucketId][subId]) subcats[bucketId][subId] = { earnedCount: 0, totalCount: 0 };
+    subcats[bucketId][subId].totalCount += 1;
+    if (isEarned) subcats[bucketId][subId].earnedCount += 1;
+  }
+  defs.forEach((def) => {
+    if (TrophyModule.isDualSplitCardNumber(def.number)) {
+      const entry = earned[def.id];
+      bump("flag", def.category, !!(entry && entry.flag));
+      bump("capital", def.category, !!(entry && entry.capital));
+      return;
+    }
+    const bucketId = classifyTopBucket(def.mode, def.category);
+    const subId = (bucketId === "common" && def.category !== "common") ? "cross_mode_common" : def.category;
+    bump(bucketId, subId, !!earned[def.id]);
+  });
+  return { buckets, subcats };
+}
+
+// 「次の目標」用: 共通トロフィー31種類(#395〜425、常に非隠しで名称・条件を
+// 公開している)のうち、TrophyModule.getCommonTrophyProgress()が返す数値
+// 進捗(current/total)を持つ未獲得のものから、最も達成率が高い1件を選ぶ。
+// 対象が無ければnullを返し、呼び出し側(renderTrophyHero)は「次の目標」
+// 欄自体を表示しない(実績が無い場合に推測で埋めることはしない)
+function computeNextGoal() {
+  if (typeof TrophyModule.getCommonTrophyProgress !== "function") return null;
+  const defs = TrophyModule.getAllDefinitions().filter((d) => d.category === "common");
+  let best = null;
+  defs.forEach((def) => {
+    if (TrophyModule.isEarned(def.id)) return;
+    let p = null;
+    try { p = TrophyModule.getCommonTrophyProgress(def.number); } catch (e) { p = null; }
+    if (!p || typeof p.current !== "number" || typeof p.total !== "number" || p.total <= 0) return;
+    const remaining = p.total - p.current;
+    if (remaining <= 0) return;
+    const ratio = p.current / p.total;
+    if (!best || ratio > best.ratio) best = { def, remaining, unit: p.unit || "", ratio };
+  });
+  return best;
+}
+
+function renderTrophyHero() {
+  const summary = TrophyModule.getProgressSummary();
+  const percent = summary.totalCount > 0 ? (summary.earnedCount / summary.totalCount) * 100 : 0;
+  $("trophy-hero-earned").textContent = String(summary.earnedCount);
+  $("trophy-hero-total").textContent = String(summary.totalCount);
+  $("trophy-hero-percent").textContent = `${percent.toFixed(1)}%`;
+  $("trophy-hero-bar-fill").style.width = `${Math.min(100, percent)}%`;
+
+  // 円形プログレス: r=52のSVG円(index.html)に合わせた円周を基準に、
+  // 達成率に応じてstroke-dashoffsetを動かすだけの純粋な表示計算
+  const ringCircumference = 2 * Math.PI * 52;
+  const ringFill = $("trophy-ring-fill");
+  ringFill.style.strokeDasharray = `${ringCircumference}`;
+  ringFill.style.strokeDashoffset = `${ringCircumference * (1 - Math.min(1, percent / 100))}`;
+
+  const nextGoal = computeNextGoal();
+  const nextWrap = $("trophy-hero-next");
+  if (nextGoal) {
+    nextWrap.classList.remove("hidden");
+    $("trophy-hero-next-name").textContent = nextGoal.def.name;
+    $("trophy-hero-next-sub").textContent = `あと${nextGoal.remaining}${nextGoal.unit}で獲得`;
+    nextWrap.dataset.trophyId = nextGoal.def.id;
+  } else {
+    nextWrap.classList.add("hidden");
+    delete nextWrap.dataset.trophyId;
+  }
+}
+
+function updateBucketChipActiveState() {
+  document.querySelectorAll("#trophy-bucket-grid .trophy-category-chip").forEach((chip) => {
+    chip.classList.toggle("active", chip.dataset.bucket === state.trophyListFilter.topBucket);
+  });
+  document.querySelectorAll("#trophy-subcategory-row .trophy-subcategory-chip").forEach((chip) => {
+    chip.classList.toggle("active", chip.dataset.category === state.trophyListFilter.category);
+  });
+}
+
+function buildBucketOrCategoryChip(className, datasetKey, id, label, icon, earnedCount, totalCount, onClick) {
+  const chip = document.createElement("button");
+  chip.type = "button";
+  chip.className = className;
+  chip.dataset[datasetKey] = id;
+  const percent = totalCount > 0 ? Math.min(100, Math.round((earnedCount / totalCount) * 100)) : 0;
+  const iconHtml = icon ? `<span class="trophy-category-chip-icon" aria-hidden="true">${icon}</span>` : "";
+  chip.innerHTML = `
+    ${iconHtml}
+    <span class="trophy-category-chip-label">${label}</span>
+    <span class="trophy-category-chip-count">${earnedCount} / ${totalCount}</span>
+    <span class="trophy-category-chip-bar-track"><span class="trophy-category-chip-bar-fill" style="width:${percent}%"></span></span>`;
+  chip.addEventListener("click", onClick);
+  return chip;
+}
+
+// 上位8分類(国旗/首都/どこかな？/世界図鑑/謎解き/世界7不思議/共通+すべて)の
+// チップを描画する。分類をクリックすると、下位カテゴリーの絞り込み
+// (state.trophyListFilter.category)は「すべて」にリセットしたうえで、
+// renderTrophySubCategoryRow()でその分類専用の下位カテゴリー行を表示する
+function renderTrophyBucketGrid() {
+  const { buckets } = computeBucketProgress();
+  const grid = $("trophy-bucket-grid");
+  grid.innerHTML = "";
+
+  const overall = TrophyModule.getProgressSummary();
+  TOP_BUCKETS.forEach((b) => {
+    const p = b.id === "all" ? overall : (buckets[b.id] || { earnedCount: 0, totalCount: 0 });
+    const chip = buildBucketOrCategoryChip("trophy-category-chip", "bucket", b.id, b.label, b.icon, p.earnedCount, p.totalCount, () => {
+      state.trophyListFilter.topBucket = b.id;
+      state.trophyListFilter.category = "all";
+      renderTrophySubCategoryRow();
+      applyTrophyFilters();
+    });
+    grid.appendChild(chip);
+  });
+
+  updateBucketChipActiveState();
+}
+
+// 下位カテゴリー行(上位分類を選んだときだけ表示)。「共通」分類だけは
+// 既存の15分類ではなく、国旗・首都共通34件/全体共通31件の2グループで
+// 表示する(ユーザー指定の表示専用の分け方。内部categoryは変更しない)
+function renderTrophySubCategoryRow() {
+  const row = $("trophy-subcategory-row");
+  const bucketId = state.trophyListFilter.topBucket;
+  if (bucketId === "all") {
+    row.classList.add("hidden");
+    row.innerHTML = "";
+    return;
+  }
+  const { subcats } = computeBucketProgress();
+  const bucketSubcats = subcats[bucketId] || {};
+
+  const subDefs = bucketId === "common"
+    ? COMMON_BUCKET_SUBGROUPS
+    : Object.keys(bucketSubcats).map((id) => ({ id, label: TROPHY_CATEGORY_LABELS[id] || id }));
+  // 「すべて」は下位カテゴリーの種類数に含めない共通ルール。実質的な
+  // 下位カテゴリー(1件以上のトロフィーを持つもの)が1種類以下の場合、
+  // どちらを選んでも表示内容が同じになり選択欄自体が不要なため、
+  // カテゴリーの種類を問わず共通で非表示にする(謎解き・世界7不思議など
+  // 個別対応はしない)
+  const realSubDefs = subDefs.filter((s) => (bucketSubcats[s.id] || { totalCount: 0 }).totalCount > 0);
+  if (realSubDefs.length <= 1) {
+    row.classList.add("hidden");
+    row.innerHTML = "";
+    // 選択欄を隠した場合、以前選択していた下位カテゴリーの絞り込みが
+    // 残って表示件数が不正にならないよう、「すべて」に戻す
+    if (state.trophyListFilter.category !== "all") {
+      state.trophyListFilter.category = "all";
+      applyTrophyFilters();
+    }
+    return;
+  }
+
+  row.innerHTML = "";
+  const bucketMeta = TOP_BUCKETS.find((b) => b.id === bucketId);
+  const bucketTotal = Object.values(bucketSubcats).reduce(
+    (acc, p) => ({ earnedCount: acc.earnedCount + p.earnedCount, totalCount: acc.totalCount + p.totalCount }),
+    { earnedCount: 0, totalCount: 0 }
+  );
+  row.appendChild(buildBucketOrCategoryChip("trophy-subcategory-chip", "category", "all", `すべて(${bucketMeta ? bucketMeta.label : ""})`, "", bucketTotal.earnedCount, bucketTotal.totalCount, () => {
+    state.trophyListFilter.category = "all";
+    applyTrophyFilters();
+  }));
+
+  realSubDefs.forEach((s) => {
+    const p = bucketSubcats[s.id] || { earnedCount: 0, totalCount: 0 };
+    row.appendChild(buildBucketOrCategoryChip("trophy-subcategory-chip", "category", s.id, s.label, "", p.earnedCount, p.totalCount, () => {
+      state.trophyListFilter.category = s.id;
+      applyTrophyFilters();
+    }));
+  });
+
+  row.classList.remove("hidden");
+  updateBucketChipActiveState();
 }
 
 function renderTrophyGrid() {
@@ -1931,17 +2244,38 @@ function renderTrophyGrid() {
   });
 }
 
+// 検索: TrophyModule側のdef.name/def.conditionを直接見るのではなく、
+// 実際に画面へ描画された文字(.trophy-name/.trophy-number)だけを対象に
+// する。隠しトロフィー・未正解の謎解きカードは「？？？？？？」のまま
+// 描画されているため、本物の名称で検索しても一致せず、番号や既に公開
+// されている文字列でしか見つからない(検索機能を経由した情報漏れを防ぐ)
+function cardMatchesSearch(card, query) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const nameEl = card.querySelector(".trophy-name");
+  const numberEl = card.querySelector(".trophy-number");
+  const haystack = `${nameEl ? nameEl.textContent : ""} ${numberEl ? numberEl.textContent : ""}`.toLowerCase();
+  return haystack.includes(q);
+}
+
 function applyTrophyFilters() {
   const filter = state.trophyListFilter;
   const cards = document.querySelectorAll("#trophy-grid .trophy-card");
   let visibleCount = 0;
   cards.forEach((card) => {
-    const matchCategory = filter.category === "all" || card.dataset.category === filter.category;
+    const matchBucket = filter.topBucket === "all" || cardTopBucket(card) === filter.topBucket;
+    const matchCategory = filter.category === "all"
+      || (filter.category === "cross_mode_common"
+        ? (cardTopBucket(card) === "common" && card.dataset.category !== "common")
+        : card.dataset.category === filter.category);
     const earnedOverall = card.dataset.earned === "true";
+    const isHiddenTrophy = card.dataset.hidden === "true";
     const matchStatus = filter.status === "all"
       || (filter.status === "earned" && earnedOverall)
-      || (filter.status === "locked" && !earnedOverall);
-    const visible = matchCategory && matchStatus;
+      || (filter.status === "locked" && !earnedOverall)
+      || (filter.status === "hidden" && isHiddenTrophy);
+    const matchSearch = cardMatchesSearch(card, filter.search || "");
+    const visible = matchBucket && matchCategory && matchStatus && matchSearch;
     card.classList.toggle("hidden", !visible);
     if (visible) visibleCount++;
   });
@@ -1957,24 +2291,230 @@ function applyTrophyFilters() {
   });
 
   $("trophy-result-count").textContent = `${visibleCount}件を表示中`;
+  $("trophy-empty-message").classList.toggle("hidden", visibleCount > 0);
 
-  document.querySelectorAll("#trophy-category-tabs .trophy-tab").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.category === filter.category);
-  });
+  updateBucketChipActiveState();
   document.querySelectorAll("#trophy-status-filter .trophy-status-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.status === filter.status);
+  });
+  // 絞り込み・検索結果によって表示件数(=スクロール可能な高さ)が変わる
+  // ため、スクロール移動ボタンの表示/非表示もここで再計算する
+  updateTrophyScrollButtons();
+}
+
+// ==========================================================
+// トロフィー一覧: スクロール移動ボタン(PR #89 第4回⑤)。
+// 452件規模の一覧を素早く移動できるよう、画面右下に固定の「先頭へ」
+// 「末尾へ」ボタンを表示する。既存のカテゴリー・検索・絞り込み・表示形式
+// (グリッド/一覧)の挙動には一切手を加えず、スクロール位置の監視と移動
+// だけを行う一般的な機能(謎解き専用ではない)
+// ==========================================================
+const TROPHY_SCROLL_NEAR_EDGE_PX = 24; // この距離以内ならその端にいるとみなす
+const TROPHY_SCROLL_MIN_RANGE_PX = 240; // スクロール可能な範囲がこれ未満ならボタンごと隠す
+
+function trophyScrollMetrics() {
+  const doc = document.documentElement;
+  const viewportH = window.innerHeight;
+  const maxScroll = Math.max(0, doc.scrollHeight - viewportH);
+  return { scrollY: window.scrollY, maxScroll };
+}
+
+// トロフィー一覧画面がアクティブでない場合・詳細モーダル表示中は常に
+// 非表示にする(詳細モーダルは#screen-trophy-listの外にある別要素の
+// オーバーレイのため、画面自体はアクティブなままなので個別に判定する)
+// screen-trophy-listがアクティブかどうかはここでは判定しない。一覧を
+// 開く処理の多く(renderTrophyListScreen()等)がrender→showScreen()の
+// 順で呼ばれ、showScreen()前の時点ではまだ画面がアクティブになっていない
+// ため、ここで判定すると常に非表示になってしまう。非アクティブな画面に
+// 属する間はCSS側(.screen:not(.active){display:none})が祖先ごと確実に
+// 隠すため、JS側では詳細モーダルの開閉状態だけを見ればよい
+function updateTrophyScrollButtons() {
+  // renderTrophyListScreen()等はrender→showScreen()の順で呼ばれるため、
+  // この関数が呼ばれた時点ではまだ#screen-trophy-listにactiveが付いて
+  // おらず(display:none)、document.documentElement.scrollHeightが
+  // 一覧の内容を含まない誤った(小さすぎる)値になることがある。
+  // 次の描画フレームまで計算を遅延させることで、呼び出し元がrender→
+  // showScreen()のどちらの順でも、確定した高さで正しく判定できるようにする
+  requestAnimationFrame(() => {
+    const wrap = $("trophy-scroll-buttons");
+    if (!wrap) return;
+    const modalOpen = !$("trophy-detail-modal").classList.contains("hidden");
+    if (modalOpen) {
+      wrap.classList.add("hidden");
+      return;
+    }
+    const { scrollY, maxScroll } = trophyScrollMetrics();
+    if (maxScroll < TROPHY_SCROLL_MIN_RANGE_PX) {
+      wrap.classList.add("hidden");
+      return;
+    }
+    wrap.classList.remove("hidden");
+    $("trophy-scroll-top-btn").classList.toggle("hidden", scrollY <= TROPHY_SCROLL_NEAR_EDGE_PX);
+    $("trophy-scroll-bottom-btn").classList.toggle("hidden", scrollY >= maxScroll - TROPHY_SCROLL_NEAR_EDGE_PX);
+  });
+}
+
+// 非常に長い一覧(452件規模)では、先頭↔末尾間のsmoothスクロールが
+// 何秒もかかって逆に使いづらくなるため、移動距離が大きい場合は瞬間移動に
+// 切り替える(ユーザー指定の「非常に長い一覧では瞬間移動も許容する」仕様)
+const TROPHY_SCROLL_INSTANT_DISTANCE_PX = 4000;
+
+function scrollTrophyListToEdge(edge) {
+  const { scrollY, maxScroll } = trophyScrollMetrics();
+  const top = edge === "top" ? 0 : maxScroll;
+  const distance = Math.abs(top - scrollY);
+  const instant = prefersReducedMotion() || distance > TROPHY_SCROLL_INSTANT_DISTANCE_PX;
+  window.scrollTo({ top, behavior: instant ? "auto" : "smooth" });
+}
+
+function initTrophyScrollButtons() {
+  $("trophy-scroll-top-btn").addEventListener("click", () => scrollTrophyListToEdge("top"));
+  $("trophy-scroll-bottom-btn").addEventListener("click", () => scrollTrophyListToEdge("bottom"));
+  const handler = () => {
+    if ($("screen-trophy-list").classList.contains("active")) updateTrophyScrollButtons();
+  };
+  window.addEventListener("scroll", handler, { passive: true });
+  window.addEventListener("resize", handler);
+}
+
+// ==========================================================
+// トロフィー詳細モーダル(新規)。
+// 各カード生成関数(標準/分割/謎解き)が既に正しく計算した「今表示して
+// よい情報」をそのままDOM複製して大きく見せるだけで、新たに情報を
+// 復元・推測することは一切しない。
+// 世界7不思議(.trophy-card-sevenwonder、隠し特別2種を含む)は、
+// ロック中タップの案内モーダル・7日間クールダウン表示・挑戦フローという
+// 既存の専用インタラクションをそのまま使うため、このモーダルの対象外と
+// する(それらの画面・演出には一切手を加えない)
+// ==========================================================
+function isTrophyDetailEligible(card) {
+  return !!card && card.classList.contains("trophy-card") && !card.classList.contains("trophy-card-sevenwonder");
+}
+
+function closeTrophyDetailModal() {
+  $("trophy-detail-modal").classList.add("hidden");
+  $("trophy-detail-body").innerHTML = "";
+  // モーダルが閉じたので、スクロール移動ボタンを再表示してよいか判定し直す
+  updateTrophyScrollButtons();
+}
+
+// 一覧カードの既存の子要素(number/category/rarityバッジ・アイコン・名前・
+// 獲得条件・説明文・注釈・共通トロフィー進捗・謎解き挑戦ボタン等)を
+// そのまま"移動"して、独立した展示レイアウト(上部バー/メインビジュアル/
+// 詳細情報/操作ボタン)に組み替える。新しいテキストや情報は一切生成せず、
+// querySelector(All)で見つかった既存ノードをappendChildで配置し直すだけ
+// なので、カードに存在しない情報(未発見の隠しトロフィーの条件文など)は
+// 元々DOMに無く、そのままモーダルにも出てこない。クローンのルート要素
+// (card自身)が持つ修飾クラス(trophy-card-legend/trophy-card-secret/
+// trophy-card-puzzle/trophy-card-split等)はそのまま残るため、既存の
+// カテゴリー別専用デザイン(CSS側の子孫セレクター)は変更なく適用される
+function openTrophyDetailModal(card) {
+  if (!isTrophyDetailEligible(card)) return;
+  const body = $("trophy-detail-body");
+  body.innerHTML = "";
+
+  const clone = card.cloneNode(true);
+  clone.classList.add("trophy-detail-content");
+
+  // 上部: トロフィー番号・カテゴリー(+レア度)バッジ(閉じるボタンは
+  // #trophy-detail-bodyの外にある既存の#trophy-detail-closeをそのまま使う)
+  const topbar = document.createElement("div");
+  topbar.className = "trophy-detail-topbar";
+  const topEl = clone.querySelector(".trophy-card-top");
+  if (topEl) topbar.appendChild(topEl);
+
+  // メインビジュアル: アイコン(将来の固有画像含む)・トロフィー名・
+  // 獲得済み/未獲得/未発見の状態表示(アイコン直下の既存キャプションが兼ねる)
+  const hero = document.createElement("div");
+  hero.className = "trophy-detail-hero";
+  const marksEl = clone.querySelector(".trophy-marks");
+  if (marksEl) hero.appendChild(marksEl);
+  const nameEl = clone.querySelector(".trophy-name");
+  if (nameEl) hero.appendChild(nameEl);
+
+  // 詳細情報: 獲得条件・謎解きの問題文・説明文(解説)・注釈・共通トロフィー
+  // の数値進捗。存在しないものはそもそもクローンにノードが無いため自動的に省略される
+  const info = document.createElement("div");
+  info.className = "trophy-detail-info";
+  clone.querySelectorAll(".trophy-cond, .trophy-pair, .trophy-description, .trophy-note, .trophy-common-progress")
+    .forEach((el) => info.appendChild(el));
+
+  // cloneNode()はイベントリスナーを複製しないため、謎解きトロフィーの
+  // 「この謎に挑む」ボタンだけ、既存ハンドラ(PuzzleModule.open→
+  // screen-puzzle-flag-select)と同じ処理を付け直す。モーダルは別画面へ
+  // 遷移する前に必ず閉じる(開いたまま裏に残らないようにする)
+  const challengeBtn = clone.querySelector(".btn-puzzle-challenge");
+
+  if (topbar.children.length > 0) clone.appendChild(topbar);
+  if (hero.children.length > 0) clone.appendChild(hero);
+  if (info.children.length > 0) clone.appendChild(info);
+  if (challengeBtn) {
+    clone.appendChild(challengeBtn);
+    const questionId = challengeBtn.dataset.questionId;
+    const questionTextEl = info.querySelector(".trophy-puzzle-question");
+    const questionText = questionTextEl ? questionTextEl.textContent : "";
+    challengeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      // 【PR #89 第4回】詳細モーダル経由で挑戦したので、「戻る」で
+      // この一覧(絞り込み・スクロール位置込み)へ戻れるよう記録しておく
+      state.puzzleReturnContext = { trophyId: card.dataset.trophyId, scrollY: window.scrollY };
+      closeTrophyDetailModal();
+      PuzzleModule.open({ questionId, questionText });
+      showScreen("screen-puzzle-flag-select");
+    });
+  }
+
+  body.appendChild(clone);
+  $("trophy-detail-modal").classList.remove("hidden");
+  // モーダル表示中はスクロール移動ボタンを隠す
+  updateTrophyScrollButtons();
+}
+
+function initTrophyDetailModal() {
+  $("trophy-detail-close").addEventListener("click", closeTrophyDetailModal);
+  $("trophy-detail-modal").addEventListener("click", (e) => {
+    if (e.target.id === "trophy-detail-modal") closeTrophyDetailModal(); // 背景タップでも閉じる
+  });
+  $("trophy-grid").addEventListener("click", (e) => {
+    const card = e.target.closest(".trophy-card");
+    if (card) openTrophyDetailModal(card);
   });
 }
 
 function renderTrophyListScreen() {
-  const summary = TrophyModule.getProgressSummary();
-  $("trophy-progress-summary").textContent = `🏆 ${summary.earnedCount} / ${summary.totalCount} 件 獲得`;
+  renderTrophyHero();
+  renderTrophyBucketGrid();
+  renderTrophySubCategoryRow();
   renderTrophyGrid();
+  $("trophy-search-input").value = state.trophyListFilter.search || "";
   applyTrophyFilters();
 }
 
 function initTrophyListScreen() {
   renderTrophyFilterControls();
+  initTrophyDetailModal();
+  initTrophyScrollButtons();
+
+  $("trophy-search-input").addEventListener("input", (e) => {
+    state.trophyListFilter.search = e.target.value;
+    applyTrophyFilters();
+  });
+
+  // ヒーローカードの「目標の詳細」: 絞り込みを一旦リセットしてから
+  // (非表示状態のカードを開けないようにするため)該当カードの詳細を開く
+  $("trophy-hero-next-btn").addEventListener("click", () => {
+    const trophyId = $("trophy-hero-next").dataset.trophyId;
+    if (!trophyId) return;
+    state.trophyListFilter.topBucket = "all";
+    state.trophyListFilter.category = "all";
+    state.trophyListFilter.status = "all";
+    state.trophyListFilter.search = "";
+    renderTrophyListScreen();
+    requestAnimationFrame(() => {
+      const card = document.querySelector(`#trophy-grid [data-trophy-id="${trophyId}"]`);
+      if (card) openTrophyDetailModal(card);
+    });
+  });
 }
 
 // ==========================================================

@@ -110,7 +110,7 @@ async function openEncyclopedia(page) {
     await page.goto(base, { waitUntil: "load" });
     await openTrophyList(page);
 
-    const encTab = await page.$('#trophy-category-tabs [data-category="encyclopedia"]');
+    const encTab = await page.$('#trophy-bucket-grid [data-bucket="encyclopedia"]');
     check("テスト1: 「世界図鑑」カテゴリータブが存在する", !!encTab);
     await encTab.click();
     await page.waitForTimeout(150);
@@ -404,7 +404,7 @@ async function openEncyclopedia(page) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
       await page.goto(base, { waitUntil: "load" });
       await openTrophyList(page);
-      const encTab = await page.$('#trophy-category-tabs [data-category="encyclopedia"]');
+      const encTab = await page.$('#trophy-bucket-grid [data-bucket="encyclopedia"]');
       await encTab.click();
       await page.waitForTimeout(150);
 

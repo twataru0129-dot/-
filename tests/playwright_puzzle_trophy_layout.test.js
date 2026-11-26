@@ -190,7 +190,9 @@ async function getCardStyleInfo(page, questionId) {
 
   // ========================================================
   // テスト4: 他のトロフィーカテゴリー(世界の国どこかな？専用等)の
-  // .trophy-cond中央揃えには影響していない(既存デザインの回帰確認)
+  // .trophy-condにも、PR#89フォロー(第3ラウンド)の指示で導入された
+  // 「獲得条件は左揃え」という共通ルールが適用されている(アイコン・
+  // 名前・獲得状態の中央揃えは変更していない)
   // ========================================================
   {
     const page = await newPage(browser, consoleErrors);
@@ -200,7 +202,7 @@ async function getCardStyleInfo(page, questionId) {
       const card = document.querySelector('#trophy-grid .trophy-card[data-category="findcountry"] .trophy-cond');
       return card ? getComputedStyle(card).textAlign : null;
     });
-    check("テスト4: 謎解き以外のトロフィーカード(findcountry)の.trophy-condは中央揃えのまま", otherCondAlign === "center");
+    check("テスト4: 謎解き以外のトロフィーカード(findcountry)の.trophy-condも左揃え(共通ルール)", otherCondAlign === "left");
 
     check("テスト4: コンソール/ページエラーが発生していない", consoleErrors.length === 0);
     await page.close();

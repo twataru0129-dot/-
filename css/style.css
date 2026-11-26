@@ -21,6 +21,35 @@
   --radius-sm: 10px;
   --shadow-card: 0 4px 16px rgba(30, 40, 60, 0.08);
   --font-main: system-ui, -apple-system, "Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+
+  /* ---------- トロフィー一覧・詳細画面専用(UI刷新)のダークネイビー×ゴールド
+       配色。既存の--color-*はこの画面のためには一切変更せず、新しい変数名
+       (--tl-*)だけを追加する。これらはscreen-trophy-list・trophy-detail-modal
+       の中でしか参照しないため、他の画面の見た目には影響しない ---------- */
+  --tl-bg: #0a0f1e;
+  --tl-bg-soft: #0f1630;
+  --tl-card-bg: #141c35;
+  --tl-card-bg-locked: #10172c;
+  --tl-border: rgba(212, 175, 55, 0.22);
+  --tl-border-strong: rgba(231, 196, 104, 0.55);
+  --tl-text: #eef1fb;
+  --tl-text-sub: #8d98bd;
+  --tl-gold: #e7c468;
+  --tl-gold-strong: #ffd76a;
+  --tl-gold-deep: #b8860b;
+  --tl-shadow: 0 10px 28px rgba(2, 5, 15, 0.55);
+
+  /* 追加(配色修正): 画面全体・カテゴリーカード・検索欄などの「白系」
+     パート専用の変数。上記のダークネイビー系(--tl-bg等)はヘッダー・
+     ヒーローカード・トロフィーカード・詳細モーダルのみで使い続ける */
+  --tl-page-bg: #eef1f8;
+  --tl-surface: #ffffff;
+  --tl-surface-border: #dde3f0;
+  --tl-ink: #1b2540;
+  --tl-ink-sub: #5b6684;
+  --tl-surface-shadow: 0 4px 16px rgba(20, 30, 60, 0.08);
+  --tl-gold-pale: #fbe9c6;
+  --tl-gold-on-light: #a3700f;
 }
 
 * { box-sizing: border-box; }
@@ -955,9 +984,18 @@ img { max-width: 100%; }
    ========================================================== */
 
 /* ---------- トロフィー一覧画面 ---------- */
-.trophy-panel { max-width: 1100px; }
+/* ==========================================================
+   トロフィー一覧・詳細画面(UI刷新): ダークネイビー×ゴールド
+   ==========================================================
+   このセクション(#screen-trophy-list内と#trophy-detail-modal)だけに
+   適用され、--color-*を参照する他の画面には一切影響しない。 */
+#screen-trophy-list {
+  background: var(--tl-page-bg);
+  color: var(--tl-ink);
+}
+.trophy-panel { max-width: 1320px; }
 
-/* トロフィー一覧(153件)を下までスクロールしても「戻る」まで迷わないよう、
+/* 453件規模のカードを下までスクロールしても「戻る」まで迷わないよう、
    戻るボタン+タイトルだけをposition: stickyで画面上部に固定する。
    .screenが実際のスクロールコンテナ(window/body)の祖先であり、
    .panel/.trophy-panelにoverflow・transformが設定されていないため、
@@ -970,9 +1008,8 @@ img { max-width: 100%; }
      iPhoneのノッチ・Dynamic Island・ステータスバーに重ならないよう
      内容を下にずらす(ヘッダー自体の背景は0から開始するため、
      ノッチ部分も背景色で途切れなく覆われる)
-   - background: ページ全体と同じ色にし、スクロール中にカードの文字が
-     ヘッダーの下を透けて見えないようにする(スクロール位置に関わらず
-     文字が読みやすい状態を保つ) */
+   - background: この画面と同じ色にし、スクロール中にカードの文字が
+     ヘッダーの下を透けて見えないようにする */
 .trophy-list-header {
   position: sticky;
   top: 0;
@@ -982,8 +1019,8 @@ img { max-width: 100%; }
   gap: 12px;
   margin: -24px -20px 20px;
   padding: calc(14px + env(safe-area-inset-top)) 20px 14px;
-  background: var(--color-bg);
-  border-bottom: 1px solid var(--color-border);
+  background: var(--tl-bg);
+  border-bottom: 1px solid var(--tl-border);
 }
 /* 既存の.btn-back(position: absolute)は他の画面(図鑑・地図・復習等)で
    そのまま使われているため、グローバルなルールは変更せず、この固定
@@ -996,124 +1033,433 @@ img { max-width: 100%; }
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+  color: var(--tl-gold);
+  border-color: var(--tl-border-strong);
 }
 .trophy-list-header .screen-title {
   flex: 1;
   margin: 0;
   font-size: 1.15rem;
+  color: var(--tl-text);
 }
 
-.trophy-progress-summary {
-  text-align: center;
-  font-weight: 800;
-  color: var(--color-primary-dark);
-  margin: 0 0 16px;
+/* ---------- ヒーローカード: 全体獲得数・円形達成率・進捗バー・次の目標 ---------- */
+.trophy-hero-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--tl-card-bg) 0%, var(--tl-bg-soft) 100%);
+  border: 1px solid var(--tl-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 18px;
+  box-shadow: var(--tl-shadow);
 }
-
-/* ---------- 共通トロフィー31種類(#395〜425)用: 達成状況の数値進捗 ---------- */
-.trophy-common-progress {
-  margin: 4px 0 0;
-  padding: 6px 10px;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm, 8px);
+/* 地球儀の透かし模様。position:absoluteの装飾を、他の非配置コンテンツより
+   常に手前に描画させないよう、本文側(.trophy-hero-top等)もposition:relative
+   にしてスタッキング順を揃える(DOM順=透かしが先→背面、本文が後→前面) */
+.trophy-hero-globe-watermark {
+  position: absolute;
+  top: -24px;
+  right: -16px;
+  width: 190px;
+  height: 190px;
+  color: var(--tl-gold);
+  opacity: 0.14;
+  pointer-events: none;
 }
-.trophy-common-progress-row {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--color-text-sub);
-}
-.trophy-common-progress-row + .trophy-common-progress-row {
-  margin-top: 2px;
-}
-
-.trophy-category-tabs {
+.trophy-hero-top {
+  position: relative;
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  margin-bottom: 10px;
-  scrollbar-width: thin;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
-.trophy-tab {
+.trophy-hero-kicker {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--tl-text-sub);
+}
+.trophy-hero-count {
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: var(--tl-gold-strong);
+  line-height: 1.1;
+}
+.trophy-hero-laurel {
   flex-shrink: 0;
-  padding: 9px 14px;
-  border: 1px solid var(--color-border);
+  width: 18px;
+  height: 38px;
+  color: var(--tl-gold);
+  opacity: 0.85;
+}
+.trophy-hero-laurel-right { transform: scaleX(-1); }
+.trophy-hero-slash { font-size: 1.3rem; color: var(--tl-text-sub); font-weight: 700; }
+.trophy-hero-count .trophy-hero-slash + span { color: var(--tl-text); }
+.trophy-hero-label { margin: 2px 0 0; font-size: 0.82rem; color: var(--tl-text-sub); }
+
+.trophy-hero-ring-wrap {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  flex-shrink: 0;
+}
+.trophy-ring-svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.trophy-ring-track {
+  fill: none;
+  stroke: rgba(255,255,255,0.08);
+  stroke-width: 10;
+}
+.trophy-ring-fill {
+  fill: none;
+  stroke: var(--tl-gold-strong);
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.6s ease;
+}
+.trophy-ring-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.trophy-ring-percent { font-size: 1.05rem; font-weight: 800; color: var(--tl-text); }
+.trophy-ring-sub { font-size: 0.56rem; font-weight: 700; letter-spacing: 0.08em; color: var(--tl-text-sub); }
+
+.trophy-hero-bar-track {
+  position: relative;
+  margin-top: 16px;
+  height: 10px;
   border-radius: 999px;
-  background: #fff;
-  color: var(--color-text-sub);
-  font-size: 0.85rem;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.trophy-hero-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--tl-gold-deep), var(--tl-gold-strong));
+  transition: width 0.6s ease;
+}
+
+/* 【PR #89 第4回】③「次の目標」欄は、トロフィー名とボタンが横並びだと
+   長い名前(例:「チュートリアルは終わりだ」)で不自然な改行が起きるため、
+   上段(アイコン+「次の目標」ラベル)/中段(目標名、単独行)/下段(進捗文言+
+   ボタン)の3段構成に変更する。目標の選出ロジック・進捗計算・詳細画面への
+   遷移は一切変更せず、表示構造のみを変更する */
+.trophy-hero-next {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: rgba(231, 196, 104, 0.08);
+  border: 1px dashed var(--tl-border-strong);
+  border-radius: var(--radius-md);
+}
+.trophy-hero-next-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trophy-hero-next-icon { font-size: 1.1rem; flex-shrink: 0; }
+.trophy-hero-next-label { font-size: 0.78rem; font-weight: 700; color: var(--tl-text-sub); }
+.trophy-hero-next-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--tl-text);
+  text-align: left;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.trophy-hero-next-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+.trophy-hero-next-sub { font-size: 0.78rem; color: var(--tl-gold); }
+.trophy-hero-next-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 8px 14px;
+  border: 1px solid var(--tl-border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tl-gold);
+  font-size: 0.78rem;
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
 }
-.trophy-tab.active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fff;
+.trophy-hero-next-btn:hover { background: rgba(231, 196, 104, 0.12); }
+
+/* ---------- 共通の見出し行(カテゴリー・一覧セクション) ---------- */
+.trophy-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 22px 0 10px;
+}
+.trophy-section-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--tl-ink);
+}
+.trophy-section-toggle {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--tl-gold-on-light);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.trophy-toggle-caret { display: inline-block; transition: transform 0.2s ease; }
+.trophy-toggle-caret-up { transform: rotate(-90deg); }
+
+/* ---------- カテゴリー別の獲得数・進捗(折りたたみ) ---------- */
+/* 8トップカテゴリー: スマホでは縦に長くなりすぎないよう3列を基本とし、
+   画面幅が広がるにつれて列数を増やす(900px以上では1行に収まる8列) */
+.trophy-category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+@media (min-width: 480px) {
+  .trophy-category-grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+}
+@media (min-width: 900px) {
+  .trophy-category-grid { grid-template-columns: repeat(8, 1fr); gap: 12px; }
+}
+.trophy-category-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  background: var(--tl-surface);
+  border: 1px solid var(--tl-surface-border);
+  border-radius: var(--radius-md);
+  color: var(--tl-ink);
+  cursor: pointer;
+  text-align: left;
+  box-shadow: var(--tl-surface-shadow);
+}
+.trophy-category-chip.active {
+  border-color: var(--tl-gold-deep);
+  background: linear-gradient(160deg, var(--tl-gold-pale), var(--tl-surface) 70%);
+  box-shadow: 0 0 0 1px var(--tl-gold-deep) inset;
+}
+.trophy-category-chip-icon { font-size: 1.2rem; }
+.trophy-category-chip-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.trophy-category-chip-count { font-size: 0.78rem; color: var(--tl-ink-sub); font-weight: 700; }
+.trophy-category-chip-bar-track {
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(27, 37, 64, 0.1);
+  overflow: hidden;
+  display: block;
+}
+.trophy-category-chip-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--tl-gold-deep), var(--tl-gold-strong));
 }
 
+/* ---------- 下位カテゴリー行(8分類のうち選択中の1つをさらに絞り込み) ---------- */
+.trophy-subcategory-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.trophy-subcategory-row.hidden { display: none; }
+.trophy-subcategory-chip {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  padding: 7px 14px;
+  border: 1px solid var(--tl-surface-border);
+  border-radius: 999px;
+  background: var(--tl-surface);
+  color: var(--tl-ink-sub);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
+}
+.trophy-subcategory-chip.active {
+  background: var(--tl-gold-pale);
+  border-color: var(--tl-gold-deep);
+  color: var(--tl-gold-on-light);
+}
+.trophy-subcategory-chip .trophy-category-chip-bar-track,
+.trophy-subcategory-chip .trophy-category-chip-icon { display: none; }
+.trophy-subcategory-chip .trophy-category-chip-count { color: inherit; opacity: 0.8; margin-left: 4px; }
+
+/* ---------- トロフィー一覧: 絞り込み・検索 ---------- */
 .trophy-status-filter {
   display: flex;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 .trophy-status-btn {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 68px;
   padding: 9px 8px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--tl-surface-border);
   border-radius: 999px;
-  background: #fff;
-  color: var(--color-text-sub);
+  background: var(--tl-surface);
+  color: var(--tl-ink-sub);
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
 }
 .trophy-status-btn.active {
-  background: var(--color-gold);
-  border-color: var(--color-gold);
-  color: #fff;
+  background: var(--tl-gold-strong);
+  border-color: var(--tl-gold-strong);
+  color: var(--tl-ink);
+}
+
+.trophy-search-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+.trophy-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+.trophy-search-input {
+  width: 100%;
+  padding: 10px 12px 10px 34px;
+  border: 1px solid var(--tl-surface-border);
+  border-radius: 999px;
+  background: var(--tl-surface);
+  color: var(--tl-ink);
+  font-size: 0.88rem;
+  box-shadow: var(--tl-surface-shadow);
+}
+.trophy-search-input::placeholder { color: var(--tl-ink-sub); }
+.trophy-search-input:focus {
+  outline: none;
+  border-color: var(--tl-gold-deep);
 }
 
 .trophy-result-count {
   font-size: 0.82rem;
-  color: var(--color-text-sub);
+  color: var(--tl-ink-sub);
   margin: 0 2px 12px;
 }
+.trophy-empty-message {
+  text-align: center;
+  color: var(--tl-ink-sub);
+  padding: 32px 12px;
+  font-size: 0.9rem;
+}
 
+/* ---------- カードグリッド本体 ----------
+   画面幅に応じて自動的に列数が変わるようminmax+auto-fillを使う
+   (スマホ: 約2〜3列・タブレット: 約4〜5列・PC: 約5〜6列相当になる
+   カード最小幅を採用している。固定のブレークポイント数に頼らず、実際の
+   幅で列数が決まるため、途中の幅でも不自然に1列だけ余ったりしない) ---------- */
+/* 国旗/首都分割カード(.trophy-dual-pair)が1マスの中でさらに2枚に割れる
+   構造のため、極端に列数を増やすと分割後の1枚あたりの幅が文字・バッジ
+   よりも狭くなってしまう。560px未満は1列・900px未満は2列・900px以上は
+   3列という段階は分割カードの可読性を確認済みの幅のため変更せず、
+   より広いPC領域だけ追加の段階(4〜6列)を設けて列数を増やす */
 .trophy-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 14px;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 @media (min-width: 560px) {
   .trophy-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (min-width: 900px) {
-  .trophy-grid { grid-template-columns: repeat(3, 1fr); }
+  .trophy-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
 }
-
+@media (min-width: 1100px) {
+  .trophy-grid { grid-template-columns: repeat(4, 1fr); }
+}
+@media (min-width: 1320px) {
+  .trophy-grid { grid-template-columns: repeat(5, 1fr); gap: 18px; }
+}
+@media (min-width: 1600px) {
+  .trophy-grid { grid-template-columns: repeat(6, 1fr); }
+}
 .trophy-card {
-  background: var(--color-bg-card);
+  position: relative;
+  background: var(--tl-card-bg);
+  border: 1px solid var(--tl-border);
   border-radius: var(--radius-md);
   padding: 16px;
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--tl-shadow);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.trophy-card.locked { opacity: 0.85; }
+.trophy-card:hover { border-color: var(--tl-border-strong); transform: translateY(-2px); }
+/* 獲得済みカードに適度な光沢・ゴールド装飾を付与し、未獲得と明確に区別する。
+   世界7不思議(専用デザイン)・図鑑No.142/158演出(trophy-card-legend)・
+   隠しトロフィー(trophy-card-secret、獲得前は名称自体が伏せられ別デザイン)は
+   既存の専用デザインを維持するため対象から除外する */
+.trophy-card:not(.locked):not(.trophy-card-sevenwonder):not(.trophy-card-legend):not(.trophy-card-secret) {
+  border-color: var(--tl-gold-strong);
+  box-shadow: var(--tl-shadow), 0 0 0 1px rgba(231, 196, 104, 0.3) inset, 0 0 16px rgba(231, 196, 104, 0.16);
+}
+.trophy-card:not(.locked):not(.trophy-card-sevenwonder):not(.trophy-card-legend):not(.trophy-card-secret)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 16%, rgba(255,255,255,0) 30%);
+  pointer-events: none;
+}
+/* 未獲得カード: アイコン(.trophy-mark.locked、個別に既存のgrayscale/opacityを
+   持つ)だけで未獲得であることを示し、カード全体にopacity/filterはかけない。
+   名称・獲得条件・説明文の文字色(--tl-text/--tl-text-sub)は獲得済みと
+   同じ値のまま保ち、十分なコントラストを確保する */
+.trophy-card.locked {
+  background: var(--tl-card-bg-locked);
+}
 .trophy-card-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
 }
-.trophy-number { font-size: 0.78rem; font-weight: 800; color: var(--color-text-sub); }
+.trophy-number { font-size: 0.78rem; font-weight: 800; color: var(--tl-text-sub); }
 .trophy-category-badge {
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--color-primary-dark);
-  background: var(--color-bg);
+  color: var(--tl-gold);
+  background: rgba(231, 196, 104, 0.12);
   border-radius: 999px;
   padding: 3px 10px;
 }
@@ -1161,26 +1507,39 @@ img { max-width: 100%; }
   align-items: center;
   justify-content: center;
   font-size: 1.3rem;
-  border: 3px solid rgba(255,255,255,0.6);
-  box-shadow: inset 0 -4px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.15);
+  overflow: hidden;
+  border: 3px solid rgba(255,255,255,0.12);
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.35);
 }
 .trophy-mark.earned {
   background: linear-gradient(135deg, #ffe27a, #d4a017);
+  border-color: rgba(255, 215, 106, 0.5);
 }
 .trophy-mark.locked {
-  background: #cbd5e1;
+  background: rgba(255,255,255,0.06);
   filter: grayscale(1);
-  opacity: 0.6;
+  opacity: 0.55;
+}
+/* 将来、トロフィー固有画像(TROPHY_ICON_IMAGE_URLS)が登録された場合に
+   表示される画像アイコン。丸いマークの内側いっぱいに収める */
+.trophy-mark-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 .trophy-mark-date {
   font-size: 0.68rem;
-  color: var(--color-text-sub);
+  color: var(--tl-text-sub);
   margin: 0;
   text-align: center;
 }
 
-.trophy-name { font-weight: 800; margin: 0 0 4px; text-align: center; }
-.trophy-cond { font-size: 0.85rem; color: var(--color-text-sub); margin: 0; text-align: center; }
+.trophy-name { font-weight: 800; margin: 0 0 4px; text-align: center; color: var(--tl-text); }
+/* 獲得条件・謎解きの問題文(.trophy-cond.trophy-puzzle-question)は、
+   複数行になっても自然に読めるよう左揃えにする(トロフィー名・アイコン・
+   獲得状態は引き続き中央揃え) */
+.trophy-cond { font-size: 0.85rem; color: var(--tl-text-sub); margin: 0; text-align: left; line-height: 1.6; }
 
 /* ---------- トロフィー一覧 集計方式A案: 国旗/首都分割カード ----------
    同じ番号の国旗クイズカード・首都クイズカードを横並びの2枚にし、
@@ -1208,8 +1567,8 @@ img { max-width: 100%; }
 .trophy-split-mode-badge {
   font-size: 0.62rem;
   font-weight: 700;
-  color: var(--color-primary-dark);
-  background: var(--color-bg);
+  color: var(--tl-gold);
+  background: rgba(231, 196, 104, 0.12);
   border-radius: 999px;
   padding: 2px 7px;
   white-space: nowrap;
@@ -1245,19 +1604,133 @@ img { max-width: 100%; }
 .trophy-pair {
   font-size: 0.78rem;
   font-weight: 700;
-  color: var(--color-primary-dark);
+  color: var(--tl-gold);
   margin: 8px 0 0;
-  text-align: center;
+  text-align: left;
   word-break: break-word;
 }
 .trophy-description {
   font-size: 0.8rem;
-  color: var(--color-text-sub);
+  color: var(--tl-text-sub);
   margin: 4px 0 0;
   text-align: left;
-  line-height: 1.5;
+  line-height: 1.6;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+.trophy-common-progress-row {
+  font-size: 0.78rem;
+  color: var(--tl-text-sub);
+  margin: 2px 0 0;
+  text-align: left;
+}
+
+/* ---------- トロフィー詳細モーダル(新規) ---------- */
+#trophy-detail-modal .trophy-detail-box {
+  background: var(--tl-card-bg);
+  color: var(--tl-text);
+  max-width: 420px;
+  max-height: 86vh;
+  overflow-y: auto;
+  position: relative;
+  text-align: left;
+  border: 1px solid var(--tl-border-strong);
+}
+.trophy-detail-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.08);
+  color: var(--tl-text);
+  font-size: 1rem;
+  cursor: pointer;
+  z-index: 1;
+}
+/* ==========================================================
+   トロフィー詳細モーダル: 一覧カードの拡大表示ではなく、独立した
+   「展示室」として3段構成(上部バー/メインビジュアル/詳細情報)に
+   組み替える(js/app.jsのopenTrophyDetailModal()が既存のカード内の
+   要素をそのまま移動するだけで、ここでは見た目だけを整える)。
+   世界7不思議はこのモーダルの対象外のまま(既存の専用画面を維持)。
+   ========================================================== */
+/* 複製したカードをモーダル内で大きく見せる(クリック可能カーソル・
+   ホバー移動・カーソルポインタは詳細表示では不要なので打ち消す) */
+.trophy-detail-content.trophy-card {
+  cursor: default;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: none;
+}
+.trophy-detail-content.trophy-card:hover { transform: none; }
+
+/* 上部バー: トロフィー番号・カテゴリー/レア度バッジ。右側は既存の
+   閉じるボタン(#trophy-detail-close、絶対配置)と重ならないよう余白を取る */
+.trophy-detail-topbar {
+  padding: 0 36px 14px 0;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--tl-border);
+}
+
+/* メインビジュアル: アイコン(将来の固有画像含む)・トロフィー名・
+   アイコン直下の既存キャプションが獲得済み/未獲得/未発見の状態を兼ねる */
+.trophy-detail-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-bottom: 20px;
+}
+.trophy-detail-content .trophy-mark { width: 104px; height: 104px; font-size: 2.6rem; }
+.trophy-detail-content .trophy-mark.earned {
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.35), 0 0 0 4px rgba(231, 196, 104, 0.22), 0 0 24px 4px rgba(231, 196, 104, 0.35);
+}
+.trophy-detail-content .trophy-name { font-size: 1.3rem; margin-top: 12px; }
+/* アイコン直下の「獲得済み(日付)/未獲得/未発見」キャプションを、状態が
+   ひと目で分かる小さなピル表示にする(新しい文言は増やさず、既存の
+   テキストにスタイルだけ与える) */
+.trophy-detail-content .trophy-mark-date {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 800;
+  margin-top: 8px;
+  padding: 3px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  color: var(--tl-text-sub);
+}
+.trophy-detail-content .trophy-mark.earned + .trophy-mark-date {
+  background: rgba(231, 196, 104, 0.18);
+  color: var(--tl-gold-strong);
+}
+@media (max-width: 380px) {
+  .trophy-detail-content .trophy-mark { width: 84px; height: 84px; font-size: 2.1rem; }
+}
+
+/* 詳細情報: 獲得条件・謎解きの問題文・説明文・注釈・共通トロフィーの
+   数値進捗。「展示ケースの説明書き」のように本文より一段落ち着いた
+   背景の帯で区切り、長文も左揃え・ゆったりした行間で読める */
+.trophy-detail-info {
+  background: var(--tl-bg-soft);
+  border: 1px solid var(--tl-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+.trophy-detail-info > :first-child { margin-top: 0; }
+.trophy-detail-info .trophy-cond { font-size: 0.92rem; }
+.trophy-detail-info .trophy-description { font-size: 0.86rem; }
+
+/* 謎解きの「この謎に挑む」ボタンは詳細情報の下、モーダル最下部の
+   操作エリアとして配置する。色も一覧画面のネイビー+ゴールドに合わせる
+   (一覧カード側の青ボタンはこのモーダル専用の上書きのため変更しない) */
+.trophy-detail-content > .btn-puzzle-challenge {
+  margin-top: 18px;
+  background: linear-gradient(135deg, var(--tl-gold-strong), var(--tl-gold-deep));
+  color: #1b1333;
 }
 
 /* ---------- 新トロフィー獲得演出画面 ---------- */
@@ -1313,7 +1786,7 @@ img { max-width: 100%; }
 /* 一覧画面: 未発見の隠しトロフィーカード(通常のlockedより少し上品に強調する) */
 .trophy-card-secret {
   border: 1.5px dashed #a78bfa;
-  background: linear-gradient(180deg, #faf7ff, var(--color-bg-card) 60%);
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.12), var(--tl-card-bg) 60%);
 }
 
 /* 獲得演出画面: 隠しトロフィー発見時のバナー・アイテム・鍵解除アニメーション */
@@ -1664,7 +2137,7 @@ img { max-width: 100%; }
    問題でも余計な空白・ラベルは表示されない */
 .trophy-card-puzzle .trophy-note {
   font-size: 0.72rem;
-  color: var(--color-text-sub);
+  color: var(--tl-text-sub);
   text-align: left;
   line-height: 1.5;
   margin: 6px 0 0;
@@ -1694,7 +2167,7 @@ img { max-width: 100%; }
   animation: puzzleCardHighlight 2.2s ease;
 }
 @keyframes puzzleCardHighlight {
-  0%, 100% { box-shadow: var(--shadow-card); }
+  0%, 100% { box-shadow: var(--tl-shadow); }
   15%, 60% { box-shadow: 0 0 0 3px #ffd76a, 0 0 20px 4px rgba(255, 215, 106, .6); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1810,4 +2283,51 @@ img { max-width: 100%; }
   .puzzle-award-icon-wrap { width: 112px; height: 112px; font-size: 3.2rem; }
   .puzzle-award-heading { font-size: 1.3rem; }
   .puzzle-award-subheading { font-size: 1rem; }
+}
+
+/* ---------- トロフィー一覧: スクロール移動ボタン(PR #89 第4回⑤) ----------
+   452件規模の一覧を素早く移動するための、画面右下固定の小さなボタン2つ
+   (先頭へ/末尾へ)。#screen-trophy-list内にのみ存在するため、詳細モーダル・
+   謎解き挑戦画面など他の画面には表示されない(画面が非アクティブになると
+   祖先の.screenごとdisplay:noneになるため)。詳細モーダル表示中だけは
+   同じ画面のまま上に重なるオーバーレイのため、JS側で個別にhiddenを付けて
+   隠す。表示/非表示・スクロール先の計算はJS(updateTrophyScrollButtons()・
+   scrollTrophyListToEdge())が行い、既存のカテゴリー・検索・絞り込み・
+   表示形式(グリッド/一覧)の挙動には一切手を加えない */
+.trophy-scroll-buttons {
+  position: fixed;
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.trophy-scroll-buttons.hidden { display: none; }
+/* 【PR #89 第5回】カード右側のカテゴリー名・レア度バッジ・獲得条件
+   (例: No.194「新世界の神」の長文)に重なる度合いを減らすため、以前より
+   表示サイズ・配置オフセットを少し小さくした。タップ領域は44×44px
+   (iOSの推奨最小値)を下回らない範囲で縮小している */
+.trophy-scroll-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--tl-gold-on-light);
+  /* 【PR #89 第5回】カードの右端と重なる際、下の文字を硬く遮らず少しでも
+     読めるよう、不透明の白ではなく半透明+背景ぼかしにしている
+     (タップ領域・配色は白/ゴールド基調のまま変えていない) */
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  color: var(--tl-gold-on-light);
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: var(--tl-surface-shadow);
+  cursor: pointer;
+}
+.trophy-scroll-btn.hidden { display: none; }
+.trophy-scroll-btn:active { transform: scale(0.94); }
+@media (max-width: 420px) {
+  .trophy-scroll-buttons { right: max(8px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); }
 }

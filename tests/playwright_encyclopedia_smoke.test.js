@@ -131,22 +131,23 @@ function check(name, cond) {
     await page.waitForSelector("#screen-top.active");
     await page.click("#btn-trophy-list");
     await page.waitForSelector("#trophy-grid .trophy-card");
-
-    const specialTab = await page.$('#trophy-category-tabs [data-category="special"]');
-    check('trophy list has a "特別チャレンジ" (special) category tab', !!specialTab);
-    if (specialTab) {
-      await specialTab.click();
-      await page.waitForTimeout(150);
-    }
+    // UI刷新: 旧来の単一フラットなカテゴリータブ(「特別チャレンジ」等)は廃止され、
+    // 上位8分類+下位カテゴリーの2段構成になった。隠しトロフィーの表示確認自体は
+    // どのフィルター状態でも(「？？？？？？」のtextContentを直接見るだけなので)
+    // 影響を受けないため、カテゴリー操作はせずそのまま確認する
     const hiddenNames = await page.$$eval(".trophy-card.trophy-card-secret .trophy-name", (els) => els.map((e) => e.textContent));
     check(
       'unearned hidden trophies show the name as exactly "？？？？？？"',
       hiddenNames.length > 0 && hiddenNames.every((t) => (t || "").trim() === "？？？？？？")
     );
-    const encTab = await page.$('#trophy-category-tabs [data-category="encyclopedia"]');
+    const encTab = await page.$('#trophy-bucket-grid [data-bucket="encyclopedia"]');
     check('trophy list has a "世界図鑑" category tab', !!encTab);
     if (encTab) {
       await encTab.click();
+      await page.waitForTimeout(150);
+      // 「世界図鑑」上位分類には#158(categoryは「special」)も含まれるため、
+      // 既存カテゴリー(category="encyclopedia")の19件だけに絞り込む下位チップを選ぶ
+      await page.click('#trophy-subcategory-row [data-category="encyclopedia"]');
       await page.waitForTimeout(150);
       const encCount = await page.$$eval("#trophy-grid .trophy-card", (els) => els.filter((e) => !e.classList.contains("hidden")).length);
       check('"世界図鑑" category shows 19 trophies (#143-157 + #259-262)', encCount === 19);
