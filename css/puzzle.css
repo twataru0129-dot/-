@@ -624,3 +624,20 @@
 /* 世界7不思議: ロック中タップ案内モーダルの鍵アイコン */
 .seven-wonder-locked-box { text-align: center; }
 .seven-wonder-locked-icon { font-size: 2.6rem; margin-bottom: 8px; }
+
+/* 世界7不思議: ロック中タップ案内モーダルの案内文(常に1行に収める)。
+   共通の.modal-boxは幅340pxで頭打ちになり、既定の.modal-text(16px)では
+   「全ての謎を解き明かした者のみが挑戦できる」が1文字だけ次行に
+   はみ出していた。このモーダルの幅だけ少し広げたうえで、文字サイズを
+   画面幅に応じてclamp()で縮小し、320px〜1280pxのいずれでも1行に収まる
+   ようにする(.modal-box自体は他のモーダルでも使う共通クラスのため、
+   ここでは.seven-wonder-locked-boxにだけ強いセレクターで上書きし、
+   他のモーダルの見た目には影響しない) */
+.modal-box.seven-wonder-locked-box { max-width: 400px; }
+.seven-wonder-locked-text {
+  font-size: clamp(0.71875rem, 3.6vw, 1rem);
+  line-height: 1.5;
+}
+@media (max-width: 400px) {
+  .modal-box.seven-wonder-locked-box { padding-left: 16px; padding-right: 16px; }
+}
