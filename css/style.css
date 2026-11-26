@@ -1456,10 +1456,12 @@ img { max-width: 100%; }
   background: linear-gradient(120deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.04) 16%, rgba(255,255,255,0) 30%);
   pointer-events: none;
 }
+/* 未獲得カード: アイコン(.trophy-mark.locked、個別に既存のgrayscale/opacityを
+   持つ)だけで未獲得であることを示し、カード全体にopacity/filterはかけない。
+   名称・獲得条件・説明文の文字色(--tl-text/--tl-text-sub)は獲得済みと
+   同じ値のまま保ち、十分なコントラストを確保する */
 .trophy-card.locked {
   background: var(--tl-card-bg-locked);
-  opacity: 0.78;
-  filter: grayscale(0.5) brightness(0.92);
 }
 .trophy-card-top {
   display: flex;
@@ -1549,7 +1551,10 @@ img { max-width: 100%; }
 }
 
 .trophy-name { font-weight: 800; margin: 0 0 4px; text-align: center; color: var(--tl-text); }
-.trophy-cond { font-size: 0.85rem; color: var(--tl-text-sub); margin: 0; text-align: center; }
+/* 獲得条件・謎解きの問題文(.trophy-cond.trophy-puzzle-question)は、
+   複数行になっても自然に読めるよう左揃えにする(トロフィー名・アイコン・
+   獲得状態は引き続き中央揃え) */
+.trophy-cond { font-size: 0.85rem; color: var(--tl-text-sub); margin: 0; text-align: left; line-height: 1.6; }
 
 /* ---------- トロフィー一覧 集計方式A案: 国旗/首都分割カード ----------
    同じ番号の国旗クイズカード・首都クイズカードを横並びの2枚にし、
@@ -1616,7 +1621,7 @@ img { max-width: 100%; }
   font-weight: 700;
   color: var(--tl-gold);
   margin: 8px 0 0;
-  text-align: center;
+  text-align: left;
   word-break: break-word;
 }
 .trophy-description {
@@ -1624,9 +1629,15 @@ img { max-width: 100%; }
   color: var(--tl-text-sub);
   margin: 4px 0 0;
   text-align: left;
-  line-height: 1.5;
+  line-height: 1.6;
   word-break: break-word;
   overflow-wrap: anywhere;
+}
+.trophy-common-progress-row {
+  font-size: 0.78rem;
+  color: var(--tl-text-sub);
+  margin: 2px 0 0;
+  text-align: left;
 }
 
 /* ---------- トロフィー詳細モーダル(新規) ---------- */
@@ -1654,22 +1665,13 @@ img { max-width: 100%; }
   cursor: pointer;
   z-index: 1;
 }
-.trophy-detail-status {
-  display: inline-block;
-  font-size: 0.78rem;
-  font-weight: 800;
-  padding: 4px 12px;
-  border-radius: 999px;
-  margin-bottom: 10px;
-}
-.trophy-detail-status.earned { background: rgba(231, 196, 104, 0.18); color: var(--tl-gold-strong); }
-.trophy-detail-status.locked { background: rgba(255,255,255,0.08); color: var(--tl-text-sub); }
-.trophy-detail-category {
-  margin: 0 0 10px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--tl-text-sub);
-}
+/* ==========================================================
+   トロフィー詳細モーダル: 一覧カードの拡大表示ではなく、独立した
+   「展示室」として3段構成(上部バー/メインビジュアル/詳細情報)に
+   組み替える(js/app.jsのopenTrophyDetailModal()が既存のカード内の
+   要素をそのまま移動するだけで、ここでは見た目だけを整える)。
+   世界7不思議はこのモーダルの対象外のまま(既存の専用画面を維持)。
+   ========================================================== */
 /* 複製したカードをモーダル内で大きく見せる(クリック可能カーソル・
    ホバー移動・カーソルポインタは詳細表示では不要なので打ち消す) */
 .trophy-detail-content.trophy-card {
@@ -1680,9 +1682,71 @@ img { max-width: 100%; }
   background: none;
 }
 .trophy-detail-content.trophy-card:hover { transform: none; }
-.trophy-detail-content .trophy-mark { width: 76px; height: 76px; font-size: 2rem; }
-.trophy-detail-content .trophy-name { font-size: 1.15rem; }
-.trophy-detail-content .trophy-cond { font-size: 0.92rem; }
+
+/* 上部バー: トロフィー番号・カテゴリー/レア度バッジ。右側は既存の
+   閉じるボタン(#trophy-detail-close、絶対配置)と重ならないよう余白を取る */
+.trophy-detail-topbar {
+  padding: 0 36px 14px 0;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--tl-border);
+}
+
+/* メインビジュアル: アイコン(将来の固有画像含む)・トロフィー名・
+   アイコン直下の既存キャプションが獲得済み/未獲得/未発見の状態を兼ねる */
+.trophy-detail-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding-bottom: 20px;
+}
+.trophy-detail-content .trophy-mark { width: 104px; height: 104px; font-size: 2.6rem; }
+.trophy-detail-content .trophy-mark.earned {
+  box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.35), 0 0 0 4px rgba(231, 196, 104, 0.22), 0 0 24px 4px rgba(231, 196, 104, 0.35);
+}
+.trophy-detail-content .trophy-name { font-size: 1.3rem; margin-top: 12px; }
+/* アイコン直下の「獲得済み(日付)/未獲得/未発見」キャプションを、状態が
+   ひと目で分かる小さなピル表示にする(新しい文言は増やさず、既存の
+   テキストにスタイルだけ与える) */
+.trophy-detail-content .trophy-mark-date {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 800;
+  margin-top: 8px;
+  padding: 3px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  color: var(--tl-text-sub);
+}
+.trophy-detail-content .trophy-mark.earned + .trophy-mark-date {
+  background: rgba(231, 196, 104, 0.18);
+  color: var(--tl-gold-strong);
+}
+@media (max-width: 380px) {
+  .trophy-detail-content .trophy-mark { width: 84px; height: 84px; font-size: 2.1rem; }
+}
+
+/* 詳細情報: 獲得条件・謎解きの問題文・説明文・注釈・共通トロフィーの
+   数値進捗。「展示ケースの説明書き」のように本文より一段落ち着いた
+   背景の帯で区切り、長文も左揃え・ゆったりした行間で読める */
+.trophy-detail-info {
+  background: var(--tl-bg-soft);
+  border: 1px solid var(--tl-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+.trophy-detail-info > :first-child { margin-top: 0; }
+.trophy-detail-info .trophy-cond { font-size: 0.92rem; }
+.trophy-detail-info .trophy-description { font-size: 0.86rem; }
+
+/* 謎解きの「この謎に挑む」ボタンは詳細情報の下、モーダル最下部の
+   操作エリアとして配置する。色も一覧画面のネイビー+ゴールドに合わせる
+   (一覧カード側の青ボタンはこのモーダル専用の上書きのため変更しない) */
+.trophy-detail-content > .btn-puzzle-challenge {
+  margin-top: 18px;
+  background: linear-gradient(135deg, var(--tl-gold-strong), var(--tl-gold-deep));
+  color: #1b1333;
+}
 
 /* ---------- 新トロフィー獲得演出画面 ---------- */
 .trophy-award-list {

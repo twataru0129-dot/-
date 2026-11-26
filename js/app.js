@@ -2088,8 +2088,29 @@ function renderTrophySubCategoryRow() {
   }
   const { subcats } = computeBucketProgress();
   const bucketSubcats = subcats[bucketId] || {};
-  row.innerHTML = "";
 
+  const subDefs = bucketId === "common"
+    ? COMMON_BUCKET_SUBGROUPS
+    : Object.keys(bucketSubcats).map((id) => ({ id, label: TROPHY_CATEGORY_LABELS[id] || id }));
+  // 「すべて」は下位カテゴリーの種類数に含めない共通ルール。実質的な
+  // 下位カテゴリー(1件以上のトロフィーを持つもの)が1種類以下の場合、
+  // どちらを選んでも表示内容が同じになり選択欄自体が不要なため、
+  // カテゴリーの種類を問わず共通で非表示にする(謎解き・世界7不思議など
+  // 個別対応はしない)
+  const realSubDefs = subDefs.filter((s) => (bucketSubcats[s.id] || { totalCount: 0 }).totalCount > 0);
+  if (realSubDefs.length <= 1) {
+    row.classList.add("hidden");
+    row.innerHTML = "";
+    // 選択欄を隠した場合、以前選択していた下位カテゴリーの絞り込みが
+    // 残って表示件数が不正にならないよう、「すべて」に戻す
+    if (state.trophyListFilter.category !== "all") {
+      state.trophyListFilter.category = "all";
+      applyTrophyFilters();
+    }
+    return;
+  }
+
+  row.innerHTML = "";
   const bucketMeta = TOP_BUCKETS.find((b) => b.id === bucketId);
   const bucketTotal = Object.values(bucketSubcats).reduce(
     (acc, p) => ({ earnedCount: acc.earnedCount + p.earnedCount, totalCount: acc.totalCount + p.totalCount }),
@@ -2100,12 +2121,8 @@ function renderTrophySubCategoryRow() {
     applyTrophyFilters();
   }));
 
-  const subDefs = bucketId === "common"
-    ? COMMON_BUCKET_SUBGROUPS
-    : Object.keys(bucketSubcats).map((id) => ({ id, label: TROPHY_CATEGORY_LABELS[id] || id }));
-  subDefs.forEach((s) => {
+  realSubDefs.forEach((s) => {
     const p = bucketSubcats[s.id] || { earnedCount: 0, totalCount: 0 };
-    if (p.totalCount === 0) return;
     row.appendChild(buildBucketOrCategoryChip("trophy-subcategory-chip", "category", s.id, s.label, "", p.earnedCount, p.totalCount, () => {
       state.trophyListFilter.category = s.id;
       applyTrophyFilters();
@@ -2250,36 +2267,60 @@ function closeTrophyDetailModal() {
   $("trophy-detail-body").innerHTML = "";
 }
 
+// 一覧カードの既存の子要素(number/category/rarityバッジ・アイコン・名前・
+// 獲得条件・説明文・注釈・共通トロフィー進捗・謎解き挑戦ボタン等)を
+// そのまま"移動"して、独立した展示レイアウト(上部バー/メインビジュアル/
+// 詳細情報/操作ボタン)に組み替える。新しいテキストや情報は一切生成せず、
+// querySelector(All)で見つかった既存ノードをappendChildで配置し直すだけ
+// なので、カードに存在しない情報(未発見の隠しトロフィーの条件文など)は
+// 元々DOMに無く、そのままモーダルにも出てこない。クローンのルート要素
+// (card自身)が持つ修飾クラス(trophy-card-legend/trophy-card-secret/
+// trophy-card-puzzle/trophy-card-split等)はそのまま残るため、既存の
+// カテゴリー別専用デザイン(CSS側の子孫セレクター)は変更なく適用される
 function openTrophyDetailModal(card) {
   if (!isTrophyDetailEligible(card)) return;
   const body = $("trophy-detail-body");
   body.innerHTML = "";
 
-  const earnedOverall = card.dataset.earned === "true";
-  const isHiddenTrophy = card.dataset.hidden === "true";
-  const statusBadge = document.createElement("div");
-  statusBadge.className = `trophy-detail-status ${earnedOverall ? "earned" : "locked"}`;
-  statusBadge.textContent = earnedOverall ? "✓ 獲得済み" : (isHiddenTrophy ? "未発見のトロフィー" : "未獲得");
-  body.appendChild(statusBadge);
+  const clone = card.cloneNode(true);
+  clone.classList.add("trophy-detail-content");
 
-  const categoryLabel = TROPHY_CATEGORY_LABELS[card.dataset.category] || "";
-  if (categoryLabel) {
-    const categoryEl = document.createElement("p");
-    categoryEl.className = "trophy-detail-category";
-    categoryEl.textContent = categoryLabel;
-    body.appendChild(categoryEl);
-  }
+  // 上部: トロフィー番号・カテゴリー(+レア度)バッジ(閉じるボタンは
+  // #trophy-detail-bodyの外にある既存の#trophy-detail-closeをそのまま使う)
+  const topbar = document.createElement("div");
+  topbar.className = "trophy-detail-topbar";
+  const topEl = clone.querySelector(".trophy-card-top");
+  if (topEl) topbar.appendChild(topEl);
+
+  // メインビジュアル: アイコン(将来の固有画像含む)・トロフィー名・
+  // 獲得済み/未獲得/未発見の状態表示(アイコン直下の既存キャプションが兼ねる)
+  const hero = document.createElement("div");
+  hero.className = "trophy-detail-hero";
+  const marksEl = clone.querySelector(".trophy-marks");
+  if (marksEl) hero.appendChild(marksEl);
+  const nameEl = clone.querySelector(".trophy-name");
+  if (nameEl) hero.appendChild(nameEl);
+
+  // 詳細情報: 獲得条件・謎解きの問題文・説明文(解説)・注釈・共通トロフィー
+  // の数値進捗。存在しないものはそもそもクローンにノードが無いため自動的に省略される
+  const info = document.createElement("div");
+  info.className = "trophy-detail-info";
+  clone.querySelectorAll(".trophy-cond, .trophy-pair, .trophy-description, .trophy-note, .trophy-common-progress")
+    .forEach((el) => info.appendChild(el));
 
   // cloneNode()はイベントリスナーを複製しないため、謎解きトロフィーの
   // 「この謎に挑む」ボタンだけ、既存ハンドラ(PuzzleModule.open→
   // screen-puzzle-flag-select)と同じ処理を付け直す。モーダルは別画面へ
   // 遷移する前に必ず閉じる(開いたまま裏に残らないようにする)
-  const clone = card.cloneNode(true);
-  clone.classList.add("trophy-detail-content");
   const challengeBtn = clone.querySelector(".btn-puzzle-challenge");
+
+  if (topbar.children.length > 0) clone.appendChild(topbar);
+  if (hero.children.length > 0) clone.appendChild(hero);
+  if (info.children.length > 0) clone.appendChild(info);
   if (challengeBtn) {
+    clone.appendChild(challengeBtn);
     const questionId = challengeBtn.dataset.questionId;
-    const questionTextEl = clone.querySelector(".trophy-puzzle-question");
+    const questionTextEl = info.querySelector(".trophy-puzzle-question");
     const questionText = questionTextEl ? questionTextEl.textContent : "";
     challengeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -2288,8 +2329,8 @@ function openTrophyDetailModal(card) {
       showScreen("screen-puzzle-flag-select");
     });
   }
-  body.appendChild(clone);
 
+  body.appendChild(clone);
   $("trophy-detail-modal").classList.remove("hidden");
 }
 
