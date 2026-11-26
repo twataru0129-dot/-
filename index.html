@@ -484,12 +484,15 @@
       </div>
       <div class="trophy-hero-bar-track"><div id="trophy-hero-bar-fill" class="trophy-hero-bar-fill"></div></div>
       <div id="trophy-hero-next" class="trophy-hero-next hidden">
-        <span class="trophy-hero-next-icon" aria-hidden="true">🎯</span>
-        <p class="trophy-hero-next-text">
-          <span class="trophy-hero-next-label">次の目標：</span><span id="trophy-hero-next-name" class="trophy-hero-next-name"></span>
+        <div class="trophy-hero-next-head">
+          <span class="trophy-hero-next-icon" aria-hidden="true">🎯</span>
+          <span class="trophy-hero-next-label">次の目標</span>
+        </div>
+        <p id="trophy-hero-next-name" class="trophy-hero-next-name"></p>
+        <div class="trophy-hero-next-foot">
           <span id="trophy-hero-next-sub" class="trophy-hero-next-sub"></span>
-        </p>
-        <button type="button" id="trophy-hero-next-btn" class="trophy-hero-next-btn">目標の詳細 ›</button>
+          <button type="button" id="trophy-hero-next-btn" class="trophy-hero-next-btn">目標の詳細 ›</button>
+        </div>
       </div>
     </div>
 
@@ -532,6 +535,14 @@
       <div id="trophy-grid" class="trophy-grid"></div>
       <p id="trophy-empty-message" class="trophy-empty-message hidden">条件に一致するトロフィーがありません</p>
     </div>
+  </div>
+  <!-- 【PR #89 第4回】⑤452件規模の一覧を素早く移動するための、画面右下
+       固定のスクロール移動ボタン(上端/下端へ)。表示/非表示はJS側
+       (updateTrophyScrollButtons())がスクロール位置に応じて切り替える。
+       詳細モーダル表示中・謎解き挑戦画面では表示しない -->
+  <div id="trophy-scroll-buttons" class="trophy-scroll-buttons hidden">
+    <button type="button" id="trophy-scroll-top-btn" class="trophy-scroll-btn hidden" aria-label="トロフィー一覧の先頭へ戻る">↑</button>
+    <button type="button" id="trophy-scroll-bottom-btn" class="trophy-scroll-btn hidden" aria-label="トロフィー一覧の末尾へ移動する">↓</button>
   </div>
 </section>
 
@@ -929,7 +940,7 @@
 <div id="seven-wonder-locked-modal" class="modal hidden">
   <div class="modal-box seven-wonder-locked-box">
     <div class="seven-wonder-locked-icon" aria-hidden="true">🔒</div>
-    <p class="modal-text">全ての謎を解き明かしたい者のみが挑戦できる</p>
+    <p class="modal-text">全ての謎を解き明かした者のみが挑戦できる</p>
     <div class="modal-buttons">
       <button id="seven-wonder-locked-close" class="btn btn-plain">閉じる</button>
     </div>

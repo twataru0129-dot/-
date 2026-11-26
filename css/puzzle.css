@@ -473,7 +473,7 @@
 }
 
 /* ロック中(通常謎解きを全問獲得していない間): 封印された質感を強調し、
-   タップで「全ての謎を解き明かしたい者のみが挑戦できる」演出に誘導する */
+   タップで「全ての謎を解き明かした者のみが挑戦できる」演出に誘導する */
 .trophy-card-sevenwonder-locked {
   text-align: center;
   padding-top: 20px;
@@ -624,3 +624,60 @@
 /* 世界7不思議: ロック中タップ案内モーダルの鍵アイコン */
 .seven-wonder-locked-box { text-align: center; }
 .seven-wonder-locked-icon { font-size: 2.6rem; margin-bottom: 8px; }
+
+/* ============================================================
+   【PR #89 第4回】謎解きトロフィーの一覧(リスト)表示専用レイアウト
+   ------------------------------------------------------------
+   css/style.css側の汎用一覧表示ルール(.trophy-grid-list .trophy-card)は
+   「アイコン+短い1行テキスト+番号」を横一列のflexアイテムとして並べる
+   設計のため、長い問題文・解説文や幅100%のボタンを持つ謎解きカードに
+   適用すると、それぞれが別々のflexアイテムとして競合し、極端に狭い幅へ
+   押し込められて文字が1〜2文字ずつ改行される・ボタン文字が縦に流れる、
+   といった崩れが発生する(フォントサイズの問題ではなく、flexの横1列
+   モデル自体がこのカードの情報量に合っていないことが原因)。
+   そのため謎解きカード(.trophy-card-puzzle)に限り、一覧表示でも
+   「上段:番号・カテゴリー」「中段:アイコン+名前」「下段:問題文・解説・
+   挑戦ボタンを全幅」の3段(縦積み)構成を維持する専用ルールを追加する。
+   セレクタをtrophy-card-puzzleに限定しているため通常トロフィーの一覧
+   表示・グリッド表示双方に影響せず、詳細モーダル(#trophy-detail-body)
+   は.trophy-grid-listを継承しないクラスのため同様に影響しない。
+   style.css側の同等ルールと詳細度(クラス数)を揃えた上で、CSS読み込み
+   順(style.css→…→puzzle.css)により本ファイルのルールを後勝ちさせて
+   いる ============================================================ */
+.trophy-grid-list .trophy-card.trophy-card-puzzle {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  padding: 14px 16px;
+  gap: 10px;
+}
+.trophy-grid-list .trophy-card-puzzle .trophy-card-top {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0;
+  gap: 8px;
+  order: 0;
+  flex-shrink: 0;
+}
+.trophy-grid-list .trophy-card-puzzle .trophy-puzzle-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+}
+.trophy-grid-list .trophy-card-puzzle .trophy-marks {
+  order: 0;
+  margin: 0;
+  flex-shrink: 0;
+}
+.trophy-grid-list .trophy-card-puzzle .trophy-puzzle-heading-text {
+  order: 1;
+  flex: 1;
+  min-width: 0;
+}
+.trophy-grid-list .trophy-card-puzzle .trophy-puzzle-heading-text .trophy-name {
+  margin: 0;
+}

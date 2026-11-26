@@ -4,7 +4,7 @@
 // 検証項目(企画書の受け入れテスト19項目のうち、UI操作を伴うもの):
 //   1. 通常謎解き125/126の状態では世界7不思議の7枚は全てロック表示
 //      (「？？？？？？」・鍵アイコン)で、タップしても回答画面を開かず、
-//      「全ての謎を解き明かしたい者のみが挑戦できる」の案内だけが出ること。
+//      「全ての謎を解き明かした者のみが挑戦できる」の案内だけが出ること。
 //   2. 126問目に正解した瞬間、(a)その問題のトロフィー獲得演出→
 //      (b)世界7不思議解放演出(「世界の七不思議が解放された」)の順に
 //      画面が進み、閉じるとトロフィー一覧に戻ること。ミステリーハンターが
@@ -96,7 +96,7 @@ async function answerCurrentFlagScreen(page, answerIds) {
     await firstLocked.click();
     await page.waitForSelector("#seven-wonder-locked-modal:not(.hidden)", { timeout: 3000 });
     const lockedText = await page.$eval("#seven-wonder-locked-modal .modal-text", (el) => el.textContent.trim());
-    check("ロック中タップ案内の文言が正確", lockedText === "全ての謎を解き明かしたい者のみが挑戦できる");
+    check("ロック中タップ案内の文言が正確", lockedText === "全ての謎を解き明かした者のみが挑戦できる");
     await page.click("#seven-wonder-locked-close");
     await page.waitForSelector("#seven-wonder-locked-modal", { state: "hidden", timeout: 3000 });
     await page.close();

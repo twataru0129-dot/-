@@ -1148,24 +1148,50 @@ img { max-width: 100%; }
   transition: width 0.6s ease;
 }
 
+/* 【PR #89 第4回】③「次の目標」欄は、トロフィー名とボタンが横並びだと
+   長い名前(例:「チュートリアルは終わりだ」)で不自然な改行が起きるため、
+   上段(アイコン+「次の目標」ラベル)/中段(目標名、単独行)/下段(進捗文言+
+   ボタン)の3段構成に変更する。目標の選出ロジック・進捗計算・詳細画面への
+   遷移は一切変更せず、表示構造のみを変更する */
 .trophy-hero-next {
   position: relative;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 16px;
   padding: 12px 14px;
   background: rgba(231, 196, 104, 0.08);
   border: 1px dashed var(--tl-border-strong);
   border-radius: var(--radius-md);
 }
-.trophy-hero-next-icon { font-size: 1.3rem; flex-shrink: 0; }
-.trophy-hero-next-text { flex: 1; min-width: 0; margin: 0; font-size: 0.85rem; line-height: 1.5; }
-.trophy-hero-next-label { color: var(--tl-text-sub); }
-.trophy-hero-next-name { font-weight: 800; color: var(--tl-text); }
-.trophy-hero-next-sub { display: block; font-size: 0.78rem; color: var(--tl-gold); }
+.trophy-hero-next-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.trophy-hero-next-icon { font-size: 1.1rem; flex-shrink: 0; }
+.trophy-hero-next-label { font-size: 0.78rem; font-weight: 700; color: var(--tl-text-sub); }
+.trophy-hero-next-name {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--tl-text);
+  text-align: left;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.trophy-hero-next-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+}
+.trophy-hero-next-sub { font-size: 0.78rem; color: var(--tl-gold); }
 .trophy-hero-next-btn {
   flex-shrink: 0;
+  margin-left: auto;
   padding: 8px 14px;
   border: 1px solid var(--tl-border-strong);
   border-radius: 999px;
@@ -2298,4 +2324,42 @@ img { max-width: 100%; }
   .puzzle-award-icon-wrap { width: 112px; height: 112px; font-size: 3.2rem; }
   .puzzle-award-heading { font-size: 1.3rem; }
   .puzzle-award-subheading { font-size: 1rem; }
+}
+
+/* ---------- トロフィー一覧: スクロール移動ボタン(PR #89 第4回⑤) ----------
+   452件規模の一覧を素早く移動するための、画面右下固定の小さなボタン2つ
+   (先頭へ/末尾へ)。#screen-trophy-list内にのみ存在するため、詳細モーダル・
+   謎解き挑戦画面など他の画面には表示されない(画面が非アクティブになると
+   祖先の.screenごとdisplay:noneになるため)。詳細モーダル表示中だけは
+   同じ画面のまま上に重なるオーバーレイのため、JS側で個別にhiddenを付けて
+   隠す。表示/非表示・スクロール先の計算はJS(updateTrophyScrollButtons()・
+   scrollTrophyListToEdge())が行い、既存のカテゴリー・検索・絞り込み・
+   表示形式(グリッド/一覧)の挙動には一切手を加えない */
+.trophy-scroll-buttons {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.trophy-scroll-buttons.hidden { display: none; }
+.trophy-scroll-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--tl-gold-on-light);
+  background: var(--tl-surface);
+  color: var(--tl-gold-on-light);
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: var(--tl-surface-shadow);
+  cursor: pointer;
+}
+.trophy-scroll-btn.hidden { display: none; }
+.trophy-scroll-btn:active { transform: scale(0.94); }
+@media (max-width: 420px) {
+  .trophy-scroll-buttons { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); }
 }

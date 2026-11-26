@@ -63,10 +63,20 @@ const state = {
   // 再現する(永続保存はしない。ページ再読み込みでリセットされてよい表示上の
   // 状態のため)
   trophyListFilter: { topBucket: "all", category: "all", status: "all", search: "", view: "grid" },
+  // 【PR #89 第4回】トロフィー一覧→謎解き挑戦画面へ遷移した際、挑戦画面の
+  // 「戻る」でどのカード・スクロール位置に戻ればよいかを覚えておくための
+  // 一時的な記録。trophyListFilterとは異なり画面をまたいで保持する必要が
+  // 無いため、挑戦が終わって一覧に戻った時点で必ずnullへ戻す(保存データ・
+  // localStorageには一切書き込まない、純粋なメモリ上の状態)
+  puzzleReturnContext: null,
 };
 
 function modeEmoji(mode) {
   return mode === "capital" ? "🏙️" : "🌍";
+}
+
+function prefersReducedMotion() {
+  return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
 
 function $(id) { return document.getElementById(id); }
@@ -141,6 +151,16 @@ function initTopScreen() {
       // 離れている間に変わっている可能性があるため、必ず再描画してから表示する
       if (btn.dataset.back === "screen-findcountry-difficulty") {
         FindCountryModule.openDifficultyScreen();
+        return;
+      }
+      // 【PR #89 第4回】謎解き挑戦画面(screen-puzzle-flag-select)の
+      // 「戻る」: トロフィー一覧のカード・詳細モーダルから挑戦した場合
+      // (state.puzzleReturnContextが設定されている場合)だけ、一覧の
+      // 元の絞り込み・スクロール位置へ戻す。世界7不思議の専用挑戦画面・
+      // 開発用入口から入った場合はこのcontextが設定されないため、
+      // 従来どおりbtn.dataset.back(screen-top)への遷移のまま変更しない
+      if (btn.id === "btn-puzzle-back" && state.puzzleReturnContext) {
+        returnToTrophyListFromPuzzleBack();
         return;
       }
       showScreen(btn.dataset.back);
@@ -1298,6 +1318,12 @@ function proceedAfterPuzzleTrophyAward(nextFn) {
 // (ユーザーが戻った後に再び絞り込みたい場合は、一覧画面側で改めて
 // タブを選べばよい。この画面遷移専用の一時的な初期化)
 function openTrophyListAndHighlight(trophyId) {
+  // 【PR #89 第4回】この経路(「トロフィーを見る」)で既にトロフィー一覧へ
+  // 到達するため、挑戦開始時に記録した戻り先情報は役目を終えている。
+  // 残したままだと、この後に世界7不思議などの別の挑戦を始めて
+  // #btn-puzzle-backを押した際、古い戻り先情報が誤って使われてしまうため、
+  // ここで必ず破棄する
+  state.puzzleReturnContext = null;
   state.trophyListFilter = { topBucket: "all", category: "all", status: "all" };
   renderTrophyListScreen();
   showScreen("screen-trophy-list");
@@ -1307,6 +1333,42 @@ function openTrophyListAndHighlight(trophyId) {
     card.scrollIntoView({ behavior: "smooth", block: "center" });
     card.classList.add("trophy-card-highlight");
     setTimeout(() => card.classList.remove("trophy-card-highlight"), 2200);
+  });
+}
+
+// 【PR #89 第4回】④謎解き挑戦画面からトロフィー一覧への戻り導線。
+// トロフィー一覧のカード、または詳細モーダルの「この謎に挑む」から挑戦
+// した場合に限り(state.puzzleReturnContextが設定されている場合のみ)、
+// #btn-puzzle-backのクリックをここで横取りする。
+// - state.trophyListFilter(カテゴリー・絞り込み・検索語・表示形式)は
+//   挑戦中も一切変更していないため、そのままrenderTrophyListScreen()を
+//   呼ぶだけで元の絞り込み状態がそのまま再現される
+// - 正解・不正解・未回答(途中で戻る)のいずれの場合でもこの1つの経路に
+//   まとまる(不正解時はscreen-puzzle-flag-selectに留まったまま再挑戦
+//   でき、正解時は演出画面の「閉じる」でscreen-puzzle-flag-selectに
+//   戻ってから、どちらも最終的にこのボタンを押して初めて一覧へ戻るため)
+// - renderTrophyGrid()はTrophyModule.getEarned()を毎回読み直すため、
+//   今回新しく獲得したトロフィーの状態・カテゴリー進捗も自動的に反映される
+// - 挑戦直後の絞り込みで対象カードが非表示になっている場合(例:
+//   「未獲得」フィルター中に正解した等)は、無理に表示させず、挑戦前の
+//   おおよそのスクロール位置に戻すだけに留める
+function returnToTrophyListFromPuzzleBack() {
+  const ctx = state.puzzleReturnContext;
+  state.puzzleReturnContext = null;
+  closeTrophyDetailModal();
+  renderTrophyListScreen();
+  showScreen("screen-trophy-list");
+  requestAnimationFrame(() => {
+    const card = ctx && ctx.trophyId
+      ? document.querySelector(`#trophy-grid [data-trophy-id="${ctx.trophyId}"]`)
+      : null;
+    if (card && !card.classList.contains("hidden")) {
+      card.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+      card.classList.add("trophy-card-highlight");
+      setTimeout(() => card.classList.remove("trophy-card-highlight"), 2200);
+    } else if (ctx) {
+      window.scrollTo({ top: ctx.scrollY, behavior: "auto" });
+    }
   });
 }
 
@@ -1569,6 +1631,13 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
     ? ""
     : `<button type="button" class="btn-puzzle-challenge" data-question-id="${def.puzzleQuestionId}">この謎に挑む</button>`;
 
+  // 【PR #89 第4回】一覧(リスト)表示では謎解きカードだけ専用レイアウト
+  // (上段:番号/カテゴリー、中段:アイコン+名前、下段:問題文・解説・ボタン)
+  // を適用するため、中段・下段をそれぞれ<div>でグループ化しておく。
+  // querySelector/querySelectorAll は子孫要素を深さに関わらず検索するため、
+  // 詳細モーダル側のノード移動処理やテストの要素取得には影響しない。
+  // グリッド表示ではこれらの<div>に特別なスタイルを与えないため、
+  // 見た目は従来通り(アイコン→名前→問題文...の縦並び)のまま変化しない。
   card.innerHTML = `
     <div class="trophy-card-top">
       <span class="trophy-number">No.${def.number}</span>
@@ -1576,20 +1645,29 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
         <span class="trophy-category-badge">${categoryLabel}</span>
       </div>
     </div>
-    <div class="trophy-marks">
-      <div class="trophy-mark-col">
-        ${buildTrophyMarkHtml("🧩", "🧩", st.earned, dateStr, "獲得マーク", false)}
+    <div class="trophy-puzzle-heading">
+      <div class="trophy-marks">
+        <div class="trophy-mark-col">
+          ${buildTrophyMarkHtml("🧩", "🧩", st.earned, dateStr, "獲得マーク", false)}
+        </div>
+      </div>
+      <div class="trophy-puzzle-heading-text">
+        <p class="trophy-name">${nameHtml}</p>
       </div>
     </div>
-    <p class="trophy-name">${nameHtml}</p>
-    <p class="trophy-cond trophy-puzzle-question">${questionText}</p>
-    ${descHtml}
-    ${noteHtml}
-    ${actionHtml}`;
+    <div class="trophy-puzzle-body">
+      <p class="trophy-cond trophy-puzzle-question">${questionText}</p>
+      ${descHtml}
+      ${noteHtml}
+      ${actionHtml}
+    </div>`;
 
   if (!st.earned) {
     card.querySelector(".btn-puzzle-challenge").addEventListener("click", (e) => {
       e.stopPropagation();
+      // 【PR #89 第4回】トロフィー一覧のカードから挑戦したので、「戻る」で
+      // この一覧(絞り込み・スクロール位置込み)へ戻れるよう記録しておく
+      state.puzzleReturnContext = { trophyId: def.id, scrollY: window.scrollY };
       PuzzleModule.open({ questionId: def.puzzleQuestionId, questionText });
       showScreen("screen-puzzle-flag-select");
     });
@@ -2232,6 +2310,9 @@ function applyTrophyFilters() {
   document.querySelectorAll("#trophy-status-filter .trophy-status-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.status === filter.status);
   });
+  // 絞り込み・検索結果によって表示件数(=スクロール可能な高さ)が変わる
+  // ため、スクロール移動ボタンの表示/非表示もここで再計算する
+  updateTrophyScrollButtons();
 }
 
 // グリッド/一覧表示の切り替え。カードのDOM構造・判定・絞り込みは一切
@@ -2246,6 +2327,84 @@ function setTrophyView(view) {
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-pressed", String(active));
   });
+  // グリッド/一覧の切り替えで1画面あたりの高さが変わるため、スクロール
+  // 移動ボタンの表示/非表示もここで再計算する
+  updateTrophyScrollButtons();
+}
+
+// ==========================================================
+// トロフィー一覧: スクロール移動ボタン(PR #89 第4回⑤)。
+// 452件規模の一覧を素早く移動できるよう、画面右下に固定の「先頭へ」
+// 「末尾へ」ボタンを表示する。既存のカテゴリー・検索・絞り込み・表示形式
+// (グリッド/一覧)の挙動には一切手を加えず、スクロール位置の監視と移動
+// だけを行う一般的な機能(謎解き専用ではない)
+// ==========================================================
+const TROPHY_SCROLL_NEAR_EDGE_PX = 24; // この距離以内ならその端にいるとみなす
+const TROPHY_SCROLL_MIN_RANGE_PX = 240; // スクロール可能な範囲がこれ未満ならボタンごと隠す
+
+function trophyScrollMetrics() {
+  const doc = document.documentElement;
+  const viewportH = window.innerHeight;
+  const maxScroll = Math.max(0, doc.scrollHeight - viewportH);
+  return { scrollY: window.scrollY, maxScroll };
+}
+
+// トロフィー一覧画面がアクティブでない場合・詳細モーダル表示中は常に
+// 非表示にする(詳細モーダルは#screen-trophy-listの外にある別要素の
+// オーバーレイのため、画面自体はアクティブなままなので個別に判定する)
+// screen-trophy-listがアクティブかどうかはここでは判定しない。一覧を
+// 開く処理の多く(renderTrophyListScreen()等)がrender→showScreen()の
+// 順で呼ばれ、showScreen()前の時点ではまだ画面がアクティブになっていない
+// ため、ここで判定すると常に非表示になってしまう。非アクティブな画面に
+// 属する間はCSS側(.screen:not(.active){display:none})が祖先ごと確実に
+// 隠すため、JS側では詳細モーダルの開閉状態だけを見ればよい
+function updateTrophyScrollButtons() {
+  // renderTrophyListScreen()等はrender→showScreen()の順で呼ばれるため、
+  // この関数が呼ばれた時点ではまだ#screen-trophy-listにactiveが付いて
+  // おらず(display:none)、document.documentElement.scrollHeightが
+  // 一覧の内容を含まない誤った(小さすぎる)値になることがある。
+  // 次の描画フレームまで計算を遅延させることで、呼び出し元がrender→
+  // showScreen()のどちらの順でも、確定した高さで正しく判定できるようにする
+  requestAnimationFrame(() => {
+    const wrap = $("trophy-scroll-buttons");
+    if (!wrap) return;
+    const modalOpen = !$("trophy-detail-modal").classList.contains("hidden");
+    if (modalOpen) {
+      wrap.classList.add("hidden");
+      return;
+    }
+    const { scrollY, maxScroll } = trophyScrollMetrics();
+    if (maxScroll < TROPHY_SCROLL_MIN_RANGE_PX) {
+      wrap.classList.add("hidden");
+      return;
+    }
+    wrap.classList.remove("hidden");
+    $("trophy-scroll-top-btn").classList.toggle("hidden", scrollY <= TROPHY_SCROLL_NEAR_EDGE_PX);
+    $("trophy-scroll-bottom-btn").classList.toggle("hidden", scrollY >= maxScroll - TROPHY_SCROLL_NEAR_EDGE_PX);
+  });
+}
+
+// 非常に長い一覧(452件規模)では、先頭↔末尾間のsmoothスクロールが
+// 何秒もかかって逆に使いづらくなるため、移動距離が大きい場合は瞬間移動に
+// 切り替える(ユーザー指定の「非常に長い一覧では瞬間移動も許容する」仕様)
+const TROPHY_SCROLL_INSTANT_DISTANCE_PX = 4000;
+
+function scrollTrophyListToEdge(edge) {
+  const { scrollY, maxScroll } = trophyScrollMetrics();
+  const top = edge === "top" ? 0 : maxScroll;
+  const distance = Math.abs(top - scrollY);
+  const instant = prefersReducedMotion() || distance > TROPHY_SCROLL_INSTANT_DISTANCE_PX;
+  window.scrollTo({ top, behavior: instant ? "auto" : "smooth" });
+}
+
+function initTrophyScrollButtons() {
+  $("trophy-scroll-top-btn").addEventListener("click", () => scrollTrophyListToEdge("top"));
+  $("trophy-scroll-bottom-btn").addEventListener("click", () => scrollTrophyListToEdge("bottom"));
+  const handler = () => {
+    if ($("screen-trophy-list").classList.contains("active")) updateTrophyScrollButtons();
+  };
+  window.addEventListener("scroll", handler, { passive: true });
+  window.addEventListener("resize", handler);
 }
 
 // ==========================================================
@@ -2265,6 +2424,8 @@ function isTrophyDetailEligible(card) {
 function closeTrophyDetailModal() {
   $("trophy-detail-modal").classList.add("hidden");
   $("trophy-detail-body").innerHTML = "";
+  // モーダルが閉じたので、スクロール移動ボタンを再表示してよいか判定し直す
+  updateTrophyScrollButtons();
 }
 
 // 一覧カードの既存の子要素(number/category/rarityバッジ・アイコン・名前・
@@ -2324,14 +2485,29 @@ function openTrophyDetailModal(card) {
     const questionText = questionTextEl ? questionTextEl.textContent : "";
     challengeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      // 【PR #89 第4回】詳細モーダル経由で挑戦したので、「戻る」で
+      // この一覧(絞り込み・スクロール位置込み)へ戻れるよう記録しておく
+      state.puzzleReturnContext = { trophyId: card.dataset.trophyId, scrollY: window.scrollY };
       closeTrophyDetailModal();
       PuzzleModule.open({ questionId, questionText });
       showScreen("screen-puzzle-flag-select");
     });
   }
 
+  // 【PR #89 第4回】謎解きカードの一覧表示用ラッパー(trophy-puzzle-heading/
+  // trophy-puzzle-heading-text/trophy-puzzle-body)は、中身を上のtopbar/
+  // hero/infoへ移動し終えると空の抜け殻として残るだけなので、詳細モーダル
+  // 側には不要な空divとして残さず取り除く
+  // trophy-puzzle-heading-textを内側に持つtrophy-puzzle-headingを正しく
+  // 取り除くため、内側の要素から先に判定する(DOM順の逆順で処理)
+  Array.from(clone.querySelectorAll(".trophy-puzzle-heading, .trophy-puzzle-heading-text, .trophy-puzzle-body"))
+    .reverse()
+    .forEach((el) => { if (el.children.length === 0) el.remove(); });
+
   body.appendChild(clone);
   $("trophy-detail-modal").classList.remove("hidden");
+  // モーダル表示中はスクロール移動ボタンを隠す
+  updateTrophyScrollButtons();
 }
 
 function initTrophyDetailModal() {
@@ -2358,6 +2534,7 @@ function renderTrophyListScreen() {
 function initTrophyListScreen() {
   renderTrophyFilterControls();
   initTrophyDetailModal();
+  initTrophyScrollButtons();
 
   document.querySelectorAll(".trophy-view-btn").forEach((btn) => {
     btn.addEventListener("click", () => setTrophyView(btn.dataset.view));
