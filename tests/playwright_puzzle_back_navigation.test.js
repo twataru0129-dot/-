@@ -5,7 +5,7 @@
 // (#screen-puzzle-flag-select)へ入り、#btn-puzzle-backで戻る導線。
 // 以下を確認する。
 //   - 一覧カードから挑戦し、未回答のまま「戻る」で一覧に戻ると、カテゴリー・
-//     絞り込み・検索語・表示形式(グリッド/一覧)・スクロール位置が復元される
+//     絞り込み・検索語・スクロール位置が復元される
 //   - 詳細モーダルの「この謎に挑む」から挑戦した場合も同様に戻れ、モーダルは
 //     戻った時点で閉じている
 //   - 正解して獲得演出を「閉じる」→挑戦画面→「戻る」の経路でも同様に戻り、
@@ -89,13 +89,12 @@ async function answerQuestion(page, questionId) {
 
   // ========================================================
   // テスト1: 一覧カードから挑戦→未回答のまま「戻る」で、絞り込み・検索語・
-  // 表示形式・スクロール位置が復元される
+  // スクロール位置が復元される
   // ========================================================
   {
     const page = await newPage(browser, consoleErrors);
     await gotoTrophyList(page, base);
     await page.click('.trophy-category-chip[data-bucket="puzzle"]');
-    await page.click('.trophy-view-btn[data-view="list"]');
     await page.waitForTimeout(100);
 
     const def01 = await page.evaluate(() => TrophyModule.getAllDefinitions().find((d) => d.puzzleQuestionId === "puzzle-01").id);
@@ -118,13 +117,11 @@ async function answerQuestion(page, questionId) {
 
     const info = await page.evaluate(() => ({
       topBucket: state.trophyListFilter.topBucket,
-      view: state.trophyListFilter.view,
       search: state.trophyListFilter.search,
       searchInputValue: document.getElementById("trophy-search-input").value,
       scrollY: window.scrollY,
     }));
     check("テスト1: 上位分類(謎解き)の絞り込みが維持されている", info.topBucket === "puzzle");
-    check("テスト1: 表示形式(一覧)が維持されている", info.view === "list");
     check("テスト1: 検索語が維持されている", info.search === numberText);
     check("テスト1: 検索入力欄にも検索語が復元されている", info.searchInputValue === numberText);
     check("テスト1: スクロール位置がおおよそ元の位置に復元されている(±400px)", Math.abs(info.scrollY - scrollBefore) < 400);

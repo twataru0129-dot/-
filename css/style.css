@@ -1318,24 +1318,7 @@ img { max-width: 100%; }
 .trophy-subcategory-chip .trophy-category-chip-icon { display: none; }
 .trophy-subcategory-chip .trophy-category-chip-count { color: inherit; opacity: 0.8; margin-left: 4px; }
 
-/* ---------- トロフィー一覧: 表示切替・絞り込み・検索 ---------- */
-.trophy-view-toggle { display: flex; gap: 6px; flex-shrink: 0; }
-.trophy-view-btn {
-  padding: 7px 12px;
-  border: 1px solid var(--tl-surface-border);
-  border-radius: 999px;
-  background: var(--tl-surface);
-  color: var(--tl-ink-sub);
-  font-size: 0.78rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-.trophy-view-btn.active {
-  background: var(--tl-gold-strong);
-  border-color: var(--tl-gold-strong);
-  color: var(--tl-ink);
-}
-
+/* ---------- トロフィー一覧: 絞り込み・検索 ---------- */
 .trophy-status-filter {
   display: flex;
   gap: 8px;
@@ -1431,30 +1414,6 @@ img { max-width: 100%; }
 @media (min-width: 1600px) {
   .trophy-grid { grid-template-columns: repeat(6, 1fr); }
 }
-/* 一覧(リスト)表示: 横長1列・カード内部を横並びにして情報密度を上げる */
-.trophy-grid.trophy-grid-list {
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-.trophy-grid-list .trophy-card:not(.trophy-card-split) {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  text-align: left;
-  padding: 12px 16px;
-}
-.trophy-grid-list .trophy-card .trophy-card-top { flex-direction: column; align-items: flex-start; margin: 0; gap: 4px; order: 3; flex-shrink: 0; }
-.trophy-grid-list .trophy-card .trophy-marks { margin: 0; flex-shrink: 0; order: 1; }
-.trophy-grid-list .trophy-card .trophy-name,
-.trophy-grid-list .trophy-card .trophy-cond,
-.trophy-grid-list .trophy-card .trophy-description,
-.trophy-grid-list .trophy-card .trophy-pair,
-.trophy-grid-list .trophy-card .trophy-common-progress { text-align: left; }
-.trophy-grid-list .trophy-card > :not(.trophy-card-top):not(.trophy-marks) { order: 2; }
-.trophy-grid-list .trophy-card-badges { justify-content: flex-start; }
-.trophy-grid-list .trophy-dual-pair { flex-direction: column; }
-.trophy-grid-list .trophy-dual-pair .trophy-card-split { flex-basis: auto; }
-
 .trophy-card {
   position: relative;
   background: var(--tl-card-bg);
@@ -2337,22 +2296,31 @@ img { max-width: 100%; }
    表示形式(グリッド/一覧)の挙動には一切手を加えない */
 .trophy-scroll-buttons {
   position: fixed;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 7px;
 }
 .trophy-scroll-buttons.hidden { display: none; }
+/* 【PR #89 第5回】カード右側のカテゴリー名・レア度バッジ・獲得条件
+   (例: No.194「新世界の神」の長文)に重なる度合いを減らすため、以前より
+   表示サイズ・配置オフセットを少し小さくした。タップ領域は44×44px
+   (iOSの推奨最小値)を下回らない範囲で縮小している */
 .trophy-scroll-btn {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   border: 1px solid var(--tl-gold-on-light);
-  background: var(--tl-surface);
+  /* 【PR #89 第5回】カードの右端と重なる際、下の文字を硬く遮らず少しでも
+     読めるよう、不透明の白ではなく半透明+背景ぼかしにしている
+     (タップ領域・配色は白/ゴールド基調のまま変えていない) */
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   color: var(--tl-gold-on-light);
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 800;
   line-height: 1;
   box-shadow: var(--tl-surface-shadow);
@@ -2361,5 +2329,5 @@ img { max-width: 100%; }
 .trophy-scroll-btn.hidden { display: none; }
 .trophy-scroll-btn:active { transform: scale(0.94); }
 @media (max-width: 420px) {
-  .trophy-scroll-buttons { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); }
+  .trophy-scroll-buttons { right: max(8px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); }
 }
