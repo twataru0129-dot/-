@@ -1,0 +1,626 @@
+{
+  "generatedAt": "2026-11-27T03:58:53.837Z",
+  "sheetConfigPath": "/tmp/claude-0/trophy-image-tool-wt/tools/trophy-image-pipeline/config/sheets/sample-flag-trivia-9.json",
+  "sheetPath": "/tmp/claude-0/trophy-image-tool-wt/tools/trophy-image-pipeline/input/sample-flag-trivia-9.png",
+  "sheetSize": {
+    "width": 1536,
+    "height": 1024
+  },
+  "darkThreshold": 18,
+  "expectedCellCount": 9,
+  "problems": [],
+  "warnings": [
+    "trophy_71: 512px出力は元のbbox(402x332)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_74: 512px出力は元のbbox(408x332)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_75: 512px出力は元のbbox(409x332)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_78: 512px出力は元のbbox(406x312)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_78: 512px出力(56300bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_79: 512px出力は元のbbox(409x310)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_87: 512px出力は元のbbox(409x311)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_87: 512px出力(63794bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_88: 512px出力は元のbbox(405x333)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_98: 512px出力は元のbbox(410x336)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_100: 512px出力は元のbbox(410x334)より大きいためアップスケールが発生しています(画質劣化の可能性)。"
+  ],
+  "cells": [
+    {
+      "key": "trophy_71",
+      "number": 71,
+      "name": "太陽と月の出会い",
+      "detectedBbox": [
+        85,
+        0,
+        486,
+        331
+      ],
+      "detectedSize": 100750,
+      "side": 443,
+      "bbox": {
+        "width": 402,
+        "height": 332
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_71.webp",
+          "pixelSize": "443x443",
+          "bytes": 66460,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_71.webp",
+          "pixelSize": "128x128",
+          "bytes": 5430,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_71.webp",
+          "pixelSize": "256x256",
+          "bytes": 16050,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_71.webp",
+          "pixelSize": "512x512",
+          "bytes": 39974,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_74",
+      "number": 74,
+      "name": "南十字星のきずな",
+      "detectedBbox": [
+        561,
+        0,
+        968,
+        331
+      ],
+      "detectedSize": 102664,
+      "side": 449,
+      "bbox": {
+        "width": 408,
+        "height": 332
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_74.webp",
+          "pixelSize": "449x449",
+          "bytes": 162686,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_74.webp",
+          "pixelSize": "128x128",
+          "bytes": 7540,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_74.webp",
+          "pixelSize": "256x256",
+          "bytes": 20530,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_74.webp",
+          "pixelSize": "512x512",
+          "bytes": 47754,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_75",
+      "number": 75,
+      "name": "型破りな国旗たち",
+      "detectedBbox": [
+        1040,
+        0,
+        1448,
+        331
+      ],
+      "detectedSize": 102909,
+      "side": 450,
+      "bbox": {
+        "width": 409,
+        "height": 332
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_75.webp",
+          "pixelSize": "450x450",
+          "bytes": 59284,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_75.webp",
+          "pixelSize": "128x128",
+          "bytes": 4858,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_75.webp",
+          "pixelSize": "256x256",
+          "bytes": 14456,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_75.webp",
+          "pixelSize": "512x512",
+          "bytes": 36044,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_78",
+      "number": 78,
+      "name": "ピラミッドの謎",
+      "detectedBbox": [
+        82,
+        343,
+        487,
+        654
+      ],
+      "detectedSize": 97353,
+      "side": 447,
+      "bbox": {
+        "width": 406,
+        "height": 312
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_78.webp",
+          "pixelSize": "447x447",
+          "bytes": 143818,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_78.webp",
+          "pixelSize": "128x128",
+          "bytes": 7966,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_78.webp",
+          "pixelSize": "256x256",
+          "bytes": 22490,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_78.webp",
+          "pixelSize": "512x512",
+          "bytes": 56300,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_79",
+      "number": 79,
+      "name": "火山の国を巡る",
+      "detectedBbox": [
+        561,
+        343,
+        969,
+        652
+      ],
+      "detectedSize": 98328,
+      "side": 450,
+      "bbox": {
+        "width": 409,
+        "height": 310
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_79.webp",
+          "pixelSize": "450x450",
+          "bytes": 168564,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_79.webp",
+          "pixelSize": "128x128",
+          "bytes": 7096,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_79.webp",
+          "pixelSize": "256x256",
+          "bytes": 18972,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_79.webp",
+          "pixelSize": "512x512",
+          "bytes": 43750,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_87",
+      "number": 87,
+      "name": "国旗の動物園",
+      "detectedBbox": [
+        1041,
+        343,
+        1449,
+        653
+      ],
+      "detectedSize": 98837,
+      "side": 450,
+      "bbox": {
+        "width": 409,
+        "height": 311
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_87.webp",
+          "pixelSize": "450x450",
+          "bytes": 150662,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_87.webp",
+          "pixelSize": "128x128",
+          "bytes": 8134,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_87.webp",
+          "pixelSize": "256x256",
+          "bytes": 24464,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_87.webp",
+          "pixelSize": "512x512",
+          "bytes": 63794,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_88",
+      "number": 88,
+      "name": "国旗の中の地図",
+      "detectedBbox": [
+        83,
+        666,
+        487,
+        998
+      ],
+      "detectedSize": 99723,
+      "side": 446,
+      "bbox": {
+        "width": 405,
+        "height": 333
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_88.webp",
+          "pixelSize": "446x446",
+          "bytes": 88216,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_88.webp",
+          "pixelSize": "128x128",
+          "bytes": 7026,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_88.webp",
+          "pixelSize": "256x256",
+          "bytes": 19466,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_88.webp",
+          "pixelSize": "512x512",
+          "bytes": 45696,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_98",
+      "number": 98,
+      "name": "二つの大陸をまたぐ国",
+      "detectedBbox": [
+        560,
+        664,
+        969,
+        999
+      ],
+      "detectedSize": 102208,
+      "side": 452,
+      "bbox": {
+        "width": 410,
+        "height": 336
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_98.webp",
+          "pixelSize": "452x452",
+          "bytes": 175936,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_98.webp",
+          "pixelSize": "128x128",
+          "bytes": 7268,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_98.webp",
+          "pixelSize": "256x256",
+          "bytes": 20012,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_98.webp",
+          "pixelSize": "512x512",
+          "bytes": 47850,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_100",
+      "number": 100,
+      "name": "太平洋の島々",
+      "detectedBbox": [
+        1040,
+        665,
+        1449,
+        998
+      ],
+      "detectedSize": 101797,
+      "side": 452,
+      "bbox": {
+        "width": 410,
+        "height": 334
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_100.webp",
+          "pixelSize": "452x452",
+          "bytes": 102178,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_100.webp",
+          "pixelSize": "128x128",
+          "bytes": 7064,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_100.webp",
+          "pixelSize": "256x256",
+          "bytes": 20088,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_100.webp",
+          "pixelSize": "512x512",
+          "bytes": 50980,
+          "upscaled": true
+        }
+      ]
+    }
+  ],
+  "seamCutsApplied": [
+    {
+      "column": 0,
+      "boundaryIndex": 1,
+      "waistY": 337,
+      "waistForegroundPixelCount": 7,
+      "searchRange": [
+        183,
+        483
+      ],
+      "cutRange": [
+        332,
+        342
+      ],
+      "columnXRange": [
+        82,
+        487
+      ]
+    },
+    {
+      "column": 0,
+      "boundaryIndex": 2,
+      "waistY": 660,
+      "waistForegroundPixelCount": 8,
+      "searchRange": [
+        516,
+        816
+      ],
+      "cutRange": [
+        655,
+        665
+      ],
+      "columnXRange": [
+        82,
+        487
+      ]
+    },
+    {
+      "column": 1,
+      "boundaryIndex": 1,
+      "waistY": 337,
+      "waistForegroundPixelCount": 7,
+      "searchRange": [
+        183,
+        483
+      ],
+      "cutRange": [
+        332,
+        342
+      ],
+      "columnXRange": [
+        560,
+        969
+      ]
+    },
+    {
+      "column": 1,
+      "boundaryIndex": 2,
+      "waistY": 658,
+      "waistForegroundPixelCount": 10,
+      "searchRange": [
+        517,
+        817
+      ],
+      "cutRange": [
+        653,
+        663
+      ],
+      "columnXRange": [
+        560,
+        969
+      ]
+    },
+    {
+      "column": 2,
+      "boundaryIndex": 1,
+      "waistY": 337,
+      "waistForegroundPixelCount": 8,
+      "searchRange": [
+        183,
+        483
+      ],
+      "cutRange": [
+        332,
+        342
+      ],
+      "columnXRange": [
+        1040,
+        1449
+      ]
+    },
+    {
+      "column": 2,
+      "boundaryIndex": 2,
+      "waistY": 659,
+      "waistForegroundPixelCount": 9,
+      "searchRange": [
+        516,
+        816
+      ],
+      "cutRange": [
+        654,
+        664
+      ],
+      "columnXRange": [
+        1040,
+        1449
+      ]
+    }
+  ],
+  "sourceResolutionNote": "このシート(1536x1024px, 3行3列)から検出した各トロフィーの正方形キャンバスは平均449px角。512px出力はこれより大きいため全セルで軽度のアップスケール(約14%拡大)が発生している。次回シート生成時は、1セルあたりネイティブ解像度が512px角以上になるよう、より高解像度(例: 3x3なら2048x2048px以上)で生成することを推奨する。",
+  "montagePath": "output/preview/montage.png",
+  "ok": true
+}

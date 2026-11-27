@@ -1,0 +1,16 @@
+{
+  "sheet": "input/sample-flag-trivia-9.png",
+  "rows": 3,
+  "cols": 3,
+  "cells": [
+    { "number": 71, "key": "trophy_71", "name": "太陽と月の出会い" },
+    { "number": 74, "key": "trophy_74", "name": "南十字星のきずな" },
+    { "number": 75, "key": "trophy_75", "name": "型破りな国旗たち" },
+    { "number": 78, "key": "trophy_78", "name": "ピラミッドの謎" },
+    { "number": 79, "key": "trophy_79", "name": "火山の国を巡る" },
+    { "number": 87, "key": "trophy_87", "name": "国旗の動物園" },
+    { "number": 88, "key": "trophy_88", "name": "国旗の中の地図" },
+    { "number": 98, "key": "trophy_98", "name": "二つの大陸をまたぐ国" },
+    { "number": 100, "key": "trophy_100", "name": "太平洋の島々" }
+  ]
+}
