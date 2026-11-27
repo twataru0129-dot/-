@@ -15,11 +15,24 @@ async function buildSmoothedAlpha(labels, width, height, blurSigma) {
   const binary = Buffer.alloc(n);
   for (let i = 0; i < n; i++) binary[i] = labels[i] !== 0 ? 255 : 0;
   if (!blurSigma || blurSigma <= 0) return binary;
-  const blurred = await sharp(binary, { raw: { width, height, channels: 1 } })
+  // 重要: sharpの.blur()は単一チャンネル(グレースケール)入力でも内部的に
+  // sRGB(3チャンネル)へ変換してから処理することがある。.toColourspace("b-w")
+  // を挟まずraw().toBuffer()すると出力が3チャンネル(サイズ3倍)になり、
+  // それを1チャンネルとして読み取ると全ピクセルがズレて壊れたマスクになる
+  // (実際にこのバグで複数のトロフィー画像が斜めに大きく欠けていた)。
+  // 必ずグレースケールに戻してから1チャンネルで受け取る。
+  const { data, info } = await sharp(binary, { raw: { width, height, channels: 1 } })
     .blur(blurSigma)
+    .toColourspace("b-w")
     .raw()
-    .toBuffer();
-  return blurred;
+    .toBuffer({ resolveWithObject: true });
+  if (info.channels !== 1 || data.length !== n) {
+    throw new Error(
+      `buildSmoothedAlpha: 予期しないチャンネル数/サイズ(channels=${info.channels}, size=${data.length}, 期待=${n})。` +
+        `sharpのバージョン差異の可能性があるため処理を中断する。`
+    );
+  }
+  return data;
 }
 
 /**

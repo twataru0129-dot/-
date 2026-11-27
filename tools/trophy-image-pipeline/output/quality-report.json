@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-27T03:58:53.837Z",
+  "generatedAt": "2026-11-27T11:38:29.830Z",
   "sheetConfigPath": "/tmp/claude-0/trophy-image-tool-wt/tools/trophy-image-pipeline/config/sheets/sample-flag-trivia-9.json",
   "sheetPath": "/tmp/claude-0/trophy-image-tool-wt/tools/trophy-image-pipeline/input/sample-flag-trivia-9.png",
   "sheetSize": {
@@ -14,10 +14,9 @@
     "trophy_74: 512px出力は元のbbox(408x332)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_75: 512px出力は元のbbox(409x332)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_78: 512px出力は元のbbox(406x312)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_78: 512px出力(56300bytes)が目標サイズ(51200bytes)を超えています。",
     "trophy_79: 512px出力は元のbbox(409x310)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_87: 512px出力は元のbbox(409x311)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_87: 512px出力(63794bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_87: 512px出力(51482bytes)が目標サイズ(51200bytes)を超えています。",
     "trophy_88: 512px出力は元のbbox(405x333)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_98: 512px出力は元のbbox(410x336)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_100: 512px出力は元のbbox(410x334)より大きいためアップスケールが発生しています(画質劣化の可能性)。"
@@ -51,28 +50,28 @@
           "tier": "original",
           "path": "output/original/trophy_71.webp",
           "pixelSize": "443x443",
-          "bytes": 66460,
+          "bytes": 169054,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_71.webp",
           "pixelSize": "128x128",
-          "bytes": 5430,
+          "bytes": 7252,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_71.webp",
           "pixelSize": "256x256",
-          "bytes": 16050,
+          "bytes": 19366,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_71.webp",
           "pixelSize": "512x512",
-          "bytes": 39974,
+          "bytes": 44726,
           "upscaled": true
         }
       ]
@@ -105,28 +104,28 @@
           "tier": "original",
           "path": "output/original/trophy_74.webp",
           "pixelSize": "449x449",
-          "bytes": 162686,
+          "bytes": 168794,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_74.webp",
           "pixelSize": "128x128",
-          "bytes": 7540,
+          "bytes": 7194,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_74.webp",
           "pixelSize": "256x256",
-          "bytes": 20530,
+          "bytes": 19418,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_74.webp",
           "pixelSize": "512x512",
-          "bytes": 47754,
+          "bytes": 45116,
           "upscaled": true
         }
       ]
@@ -159,28 +158,28 @@
           "tier": "original",
           "path": "output/original/trophy_75.webp",
           "pixelSize": "450x450",
-          "bytes": 59284,
+          "bytes": 163124,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_75.webp",
           "pixelSize": "128x128",
-          "bytes": 4858,
+          "bytes": 7172,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_75.webp",
           "pixelSize": "256x256",
-          "bytes": 14456,
+          "bytes": 19072,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_75.webp",
           "pixelSize": "512x512",
-          "bytes": 36044,
+          "bytes": 43738,
           "upscaled": true
         }
       ]
@@ -213,28 +212,28 @@
           "tier": "original",
           "path": "output/original/trophy_78.webp",
           "pixelSize": "447x447",
-          "bytes": 143818,
+          "bytes": 169582,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_78.webp",
           "pixelSize": "128x128",
-          "bytes": 7966,
+          "bytes": 7062,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_78.webp",
           "pixelSize": "256x256",
-          "bytes": 22490,
+          "bytes": 19008,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_78.webp",
           "pixelSize": "512x512",
-          "bytes": 56300,
+          "bytes": 44542,
           "upscaled": true
         }
       ]
@@ -267,28 +266,28 @@
           "tier": "original",
           "path": "output/original/trophy_79.webp",
           "pixelSize": "450x450",
-          "bytes": 168564,
+          "bytes": 170778,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_79.webp",
           "pixelSize": "128x128",
-          "bytes": 7096,
+          "bytes": 7086,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_79.webp",
           "pixelSize": "256x256",
-          "bytes": 18972,
+          "bytes": 19072,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_79.webp",
           "pixelSize": "512x512",
-          "bytes": 43750,
+          "bytes": 44914,
           "upscaled": true
         }
       ]
@@ -321,28 +320,28 @@
           "tier": "original",
           "path": "output/original/trophy_87.webp",
           "pixelSize": "450x450",
-          "bytes": 150662,
+          "bytes": 182980,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_87.webp",
           "pixelSize": "128x128",
-          "bytes": 8134,
+          "bytes": 7128,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_87.webp",
           "pixelSize": "256x256",
-          "bytes": 24464,
+          "bytes": 20390,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_87.webp",
           "pixelSize": "512x512",
-          "bytes": 63794,
+          "bytes": 51482,
           "upscaled": true
         }
       ]
@@ -375,28 +374,28 @@
           "tier": "original",
           "path": "output/original/trophy_88.webp",
           "pixelSize": "446x446",
-          "bytes": 88216,
+          "bytes": 159392,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_88.webp",
           "pixelSize": "128x128",
-          "bytes": 7026,
+          "bytes": 7312,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_88.webp",
           "pixelSize": "256x256",
-          "bytes": 19466,
+          "bytes": 18868,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_88.webp",
           "pixelSize": "512x512",
-          "bytes": 45696,
+          "bytes": 42020,
           "upscaled": true
         }
       ]
@@ -429,28 +428,28 @@
           "tier": "original",
           "path": "output/original/trophy_98.webp",
           "pixelSize": "452x452",
-          "bytes": 175936,
+          "bytes": 177408,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_98.webp",
           "pixelSize": "128x128",
-          "bytes": 7268,
+          "bytes": 7288,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_98.webp",
           "pixelSize": "256x256",
-          "bytes": 20012,
+          "bytes": 20112,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_98.webp",
           "pixelSize": "512x512",
-          "bytes": 47850,
+          "bytes": 49032,
           "upscaled": true
         }
       ]
@@ -483,21 +482,21 @@
           "tier": "original",
           "path": "output/original/trophy_100.webp",
           "pixelSize": "452x452",
-          "bytes": 102178,
+          "bytes": 186518,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_100.webp",
           "pixelSize": "128x128",
-          "bytes": 7064,
+          "bytes": 7468,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_100.webp",
           "pixelSize": "256x256",
-          "bytes": 20088,
+          "bytes": 20382,
           "upscaled": false
         },
         {
