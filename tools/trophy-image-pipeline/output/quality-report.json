@@ -1,146 +1,47 @@
 {
-  "generatedAt": "2026-11-28T13:23:51.273Z",
-  "sheetConfigPath": "/tmp/claude-0/trophy-image-batch6-wt/tools/trophy-image-pipeline/config/sheets/flag-trophy-batch6-final-16.json",
-  "sheetPath": "/tmp/claude-0/trophy-image-batch6-wt/tools/trophy-image-pipeline/input/flag-trophy-batch6-final-16.png",
+  "generatedAt": "2026-11-28T14:44:07.030Z",
+  "sheetConfigPath": "/tmp/claude-0/trophy-image-title-collection-wt/tools/trophy-image-pipeline/config/sheets/title-collection-12.json",
+  "sheetPath": "/tmp/claude-0/trophy-image-title-collection-wt/tools/trophy-image-pipeline/input/title-collection-12.png",
   "sheetSize": {
-    "width": 2560,
-    "height": 2560
+    "width": 1448,
+    "height": 1086
   },
   "darkThreshold": 18,
   "lightThreshold": 245,
   "lightMetric": "min",
   "backgroundMode": "light",
-  "expectedCellCount": 16,
+  "expectedCellCount": 12,
   "problems": [],
   "warnings": [
-    "trophy_17_flag: 512px出力(63002bytes)が目標サイズ(51200bytes)を超えています。",
-    "trophy_27_flag: 512px出力(58708bytes)が目標サイズ(51200bytes)を超えています。",
-    "trophy_39_flag: 512px出力(58386bytes)が目標サイズ(51200bytes)を超えています。"
+    "trophy_101: 512px出力は元のbbox(289x285)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_102: 512px出力は元のbbox(315x307)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_103: 512px出力は元のbbox(310x305)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_104: 512px出力は元のbbox(310x308)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_105: 512px出力は元のbbox(314x330)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_106: 512px出力は元のbbox(330x345)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_107: 512px出力は元のbbox(294x293)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_108: 512px出力は元のbbox(327x317)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_109: 512px出力は元のbbox(317x322)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_110: 512px出力は元のbbox(326x325)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_111: 512px出力は元のbbox(329x336)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_112: 512px出力は元のbbox(336x358)より大きいためアップスケールが発生しています(画質劣化の可能性)。"
   ],
   "cells": [
     {
-      "key": "trophy_17_flag",
-      "number": 17,
-      "name": "完全制覇",
+      "key": "trophy_101",
+      "number": 101,
+      "name": "国旗ビギナー",
       "detectedBbox": [
-        65,
-        52,
-        572,
-        581
-      ],
-      "detectedSize": 193915,
-      "side": 583,
-      "bbox": {
-        "width": 508,
-        "height": 530
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_17_flag.webp",
-          "pixelSize": "583x583",
-          "bytes": 372362,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_17_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 8594,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_17_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 23626,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_17_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 63002,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_18_flag",
-      "number": 18,
-      "name": "バランスの達人",
-      "detectedBbox": [
-        690,
-        55,
-        1229,
-        582
-      ],
-      "detectedSize": 206237,
-      "side": 594,
-      "bbox": {
-        "width": 540,
-        "height": 528
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_18_flag.webp",
-          "pixelSize": "594x594",
-          "bytes": 277756,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_18_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 8824,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_18_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 21304,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_18_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 45216,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_19_flag",
-      "number": 19,
-      "name": "安定の世界マスター",
-      "detectedBbox": [
-        1331,
         60,
-        1868,
-        578
+        36,
+        348,
+        320
       ],
-      "detectedSize": 187760,
-      "side": 592,
+      "detectedSize": 64156,
+      "side": 336,
       "bbox": {
-        "width": 538,
-        "height": 519
+        "width": 289,
+        "height": 285
       },
       "circleSafety": {
         "ok": true,
@@ -152,49 +53,49 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_19_flag.webp",
-          "pixelSize": "592x592",
-          "bytes": 267068,
+          "path": "output/original/trophy_101.webp",
+          "pixelSize": "336x336",
+          "bytes": 82368,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_19_flag.webp",
+          "path": "output/128/trophy_101.webp",
           "pixelSize": "128x128",
-          "bytes": 8538,
+          "bytes": 6448,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_19_flag.webp",
+          "path": "output/256/trophy_101.webp",
           "pixelSize": "256x256",
-          "bytes": 20550,
+          "bytes": 15396,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_19_flag.webp",
+          "path": "output/512/trophy_101.webp",
           "pixelSize": "512x512",
-          "bytes": 44520,
-          "upscaled": false
+          "bytes": 31492,
+          "upscaled": true
         }
       ]
     },
     {
-      "key": "trophy_21_flag",
-      "number": 21,
-      "name": "ロケット回答",
+      "key": "trophy_102",
+      "number": 102,
+      "name": "国旗チャレンジャー",
       "detectedBbox": [
-        1971,
-        62,
-        2508,
-        577
+        394,
+        21,
+        708,
+        327
       ],
-      "detectedSize": 216311,
-      "side": 592,
+      "detectedSize": 70236,
+      "side": 366,
       "bbox": {
-        "width": 538,
-        "height": 516
+        "width": 315,
+        "height": 307
       },
       "circleSafety": {
         "ok": true,
@@ -206,49 +107,481 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_21_flag.webp",
-          "pixelSize": "592x592",
-          "bytes": 260018,
+          "path": "output/original/trophy_102.webp",
+          "pixelSize": "366x366",
+          "bytes": 119840,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_21_flag.webp",
+          "path": "output/128/trophy_102.webp",
+          "pixelSize": "128x128",
+          "bytes": 7784,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_102.webp",
+          "pixelSize": "256x256",
+          "bytes": 19068,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_102.webp",
+          "pixelSize": "512x512",
+          "bytes": 42156,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_103",
+      "number": 103,
+      "name": "国旗トラベラー",
+      "detectedBbox": [
+        738,
+        22,
+        1047,
+        326
+      ],
+      "detectedSize": 69319,
+      "side": 360,
+      "bbox": {
+        "width": 310,
+        "height": 305
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_103.webp",
+          "pixelSize": "360x360",
+          "bytes": 110198,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_103.webp",
+          "pixelSize": "128x128",
+          "bytes": 7572,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_103.webp",
+          "pixelSize": "256x256",
+          "bytes": 19096,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_103.webp",
+          "pixelSize": "512x512",
+          "bytes": 40668,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_104",
+      "number": 104,
+      "name": "国旗エキスパート",
+      "detectedBbox": [
+        1078,
+        21,
+        1387,
+        328
+      ],
+      "detectedSize": 69499,
+      "side": 360,
+      "bbox": {
+        "width": 310,
+        "height": 308
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_104.webp",
+          "pixelSize": "360x360",
+          "bytes": 127694,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_104.webp",
+          "pixelSize": "128x128",
+          "bytes": 8494,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_104.webp",
+          "pixelSize": "256x256",
+          "bytes": 21244,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_104.webp",
+          "pixelSize": "512x512",
+          "bytes": 46702,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_105",
+      "number": 105,
+      "name": "国旗マスター",
+      "detectedBbox": [
+        44,
+        346,
+        357,
+        675
+      ],
+      "detectedSize": 73850,
+      "side": 383,
+      "bbox": {
+        "width": 314,
+        "height": 330
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_105.webp",
+          "pixelSize": "383x383",
+          "bytes": 134646,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_105.webp",
+          "pixelSize": "128x128",
+          "bytes": 7970,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_105.webp",
+          "pixelSize": "256x256",
+          "bytes": 20500,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_105.webp",
+          "pixelSize": "512x512",
+          "bytes": 45016,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_106",
+      "number": 106,
+      "name": "国旗レジェンド",
+      "detectedBbox": [
+        385,
+        332,
+        714,
+        676
+      ],
+      "detectedSize": 87613,
+      "side": 401,
+      "bbox": {
+        "width": 330,
+        "height": 345
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_106.webp",
+          "pixelSize": "401x401",
+          "bytes": 171668,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_106.webp",
+          "pixelSize": "128x128",
+          "bytes": 8898,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_106.webp",
+          "pixelSize": "256x256",
+          "bytes": 22992,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_106.webp",
+          "pixelSize": "512x512",
+          "bytes": 50756,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_107",
+      "number": 107,
+      "name": "首都ビギナー",
+      "detectedBbox": [
+        747,
+        368,
+        1040,
+        660
+      ],
+      "detectedSize": 67133,
+      "side": 342,
+      "bbox": {
+        "width": 294,
+        "height": 293
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_107.webp",
+          "pixelSize": "342x342",
+          "bytes": 89920,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_107.webp",
+          "pixelSize": "128x128",
+          "bytes": 6894,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_107.webp",
+          "pixelSize": "256x256",
+          "bytes": 16368,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_107.webp",
+          "pixelSize": "512x512",
+          "bytes": 32714,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_108",
+      "number": 108,
+      "name": "首都チャレンジャー",
+      "detectedBbox": [
+        1074,
+        353,
+        1400,
+        669
+      ],
+      "detectedSize": 75093,
+      "side": 380,
+      "bbox": {
+        "width": 327,
+        "height": 317
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_108.webp",
+          "pixelSize": "380x380",
+          "bytes": 139276,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_108.webp",
+          "pixelSize": "128x128",
+          "bytes": 7998,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_108.webp",
+          "pixelSize": "256x256",
+          "bytes": 20972,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_108.webp",
+          "pixelSize": "512x512",
+          "bytes": 48050,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_109",
+      "number": 109,
+      "name": "世界都市トラベラー",
+      "detectedBbox": [
+        46,
+        701,
+        362,
+        1022
+      ],
+      "detectedSize": 74663,
+      "side": 374,
+      "bbox": {
+        "width": 317,
+        "height": 322
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_109.webp",
+          "pixelSize": "374x374",
+          "bytes": 124448,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_109.webp",
+          "pixelSize": "128x128",
+          "bytes": 7844,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_109.webp",
+          "pixelSize": "256x256",
+          "bytes": 19882,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_109.webp",
+          "pixelSize": "512x512",
+          "bytes": 44578,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_110",
+      "number": 110,
+      "name": "首都エキスパート",
+      "detectedBbox": [
+        381,
+        698,
+        706,
+        1022
+      ],
+      "detectedSize": 77148,
+      "side": 379,
+      "bbox": {
+        "width": 326,
+        "height": 325
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_110.webp",
+          "pixelSize": "379x379",
+          "bytes": 145154,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_110.webp",
           "pixelSize": "128x128",
           "bytes": 8428,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_21_flag.webp",
+          "path": "output/256/trophy_110.webp",
           "pixelSize": "256x256",
-          "bytes": 19918,
+          "bytes": 21496,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_21_flag.webp",
+          "path": "output/512/trophy_110.webp",
           "pixelSize": "512x512",
-          "bytes": 42410,
-          "upscaled": false
+          "bytes": 48628,
+          "upscaled": true
         }
       ]
     },
     {
-      "key": "trophy_26_flag",
-      "number": 26,
-      "name": "瞬間判断の達人",
+      "key": "trophy_111",
+      "number": 111,
+      "name": "首都マスター",
       "detectedBbox": [
-        51,
-        698,
-        587,
-        1221
+        724,
+        694,
+        1052,
+        1029
       ],
-      "detectedSize": 205021,
-      "side": 591,
+      "detectedSize": 79004,
+      "side": 390,
       "bbox": {
-        "width": 537,
-        "height": 524
+        "width": 329,
+        "height": 336
       },
       "circleSafety": {
         "ok": true,
@@ -260,49 +593,49 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_26_flag.webp",
-          "pixelSize": "591x591",
-          "bytes": 252900,
+          "path": "output/original/trophy_111.webp",
+          "pixelSize": "390x390",
+          "bytes": 143962,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_26_flag.webp",
+          "path": "output/128/trophy_111.webp",
           "pixelSize": "128x128",
-          "bytes": 8126,
+          "bytes": 8238,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_26_flag.webp",
+          "path": "output/256/trophy_111.webp",
           "pixelSize": "256x256",
-          "bytes": 19820,
+          "bytes": 21542,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_26_flag.webp",
+          "path": "output/512/trophy_111.webp",
           "pixelSize": "512x512",
-          "bytes": 42030,
-          "upscaled": false
+          "bytes": 48576,
+          "upscaled": true
         }
       ]
     },
     {
-      "key": "trophy_27_flag",
-      "number": 27,
-      "name": "反射神経の鬼",
+      "key": "trophy_112",
+      "number": 112,
+      "name": "首都レジェンド",
       "detectedBbox": [
-        697,
-        692,
-        1229,
-        1224
+        1070,
+        684,
+        1405,
+        1041
       ],
-      "detectedSize": 190633,
-      "side": 587,
+      "detectedSize": 91079,
+      "side": 416,
       "bbox": {
-        "width": 533,
-        "height": 533
+        "width": 336,
+        "height": 358
       },
       "circleSafety": {
         "ok": true,
@@ -314,577 +647,37 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_27_flag.webp",
-          "pixelSize": "587x587",
-          "bytes": 337188,
+          "path": "output/original/trophy_112.webp",
+          "pixelSize": "416x416",
+          "bytes": 176278,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_27_flag.webp",
+          "path": "output/128/trophy_112.webp",
           "pixelSize": "128x128",
-          "bytes": 8758,
+          "bytes": 8448,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_27_flag.webp",
+          "path": "output/256/trophy_112.webp",
           "pixelSize": "256x256",
-          "bytes": 23182,
+          "bytes": 22324,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_27_flag.webp",
+          "path": "output/512/trophy_112.webp",
           "pixelSize": "512x512",
-          "bytes": 58708,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_30_flag",
-      "number": 30,
-      "name": "アジアマスター",
-      "detectedBbox": [
-        1331,
-        697,
-        1869,
-        1221
-      ],
-      "detectedSize": 205143,
-      "side": 593,
-      "bbox": {
-        "width": 539,
-        "height": 525
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_30_flag.webp",
-          "pixelSize": "593x593",
-          "bytes": 236674,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_30_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 7842,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_30_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 19058,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_30_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 39988,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_31_flag",
-      "number": 31,
-      "name": "ヨーロッパマスター",
-      "detectedBbox": [
-        1971,
-        698,
-        2508,
-        1221
-      ],
-      "detectedSize": 205030,
-      "side": 592,
-      "bbox": {
-        "width": 538,
-        "height": 524
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_31_flag.webp",
-          "pixelSize": "592x592",
-          "bytes": 241902,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_31_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 7842,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_31_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 18954,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_31_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 39556,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_32_flag",
-      "number": 32,
-      "name": "アフリカマスター",
-      "detectedBbox": [
-        52,
-        1340,
-        588,
-        1859
-      ],
-      "detectedSize": 203247,
-      "side": 591,
-      "bbox": {
-        "width": 537,
-        "height": 520
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_32_flag.webp",
-          "pixelSize": "591x591",
-          "bytes": 223822,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_32_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 7422,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_32_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 17626,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_32_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 36086,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_33_flag",
-      "number": 33,
-      "name": "北米マスター",
-      "detectedBbox": [
-        691,
-        1340,
-        1228,
-        1859
-      ],
-      "detectedSize": 204012,
-      "side": 592,
-      "bbox": {
-        "width": 538,
-        "height": 520
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_33_flag.webp",
-          "pixelSize": "592x592",
-          "bytes": 234372,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_33_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 7826,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_33_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 18864,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_33_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 39288,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_34_flag",
-      "number": 34,
-      "name": "南米マスター",
-      "detectedBbox": [
-        1331,
-        1341,
-        1867,
-        1858
-      ],
-      "detectedSize": 203071,
-      "side": 591,
-      "bbox": {
-        "width": 537,
-        "height": 518
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_34_flag.webp",
-          "pixelSize": "591x591",
-          "bytes": 218422,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_34_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 7420,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_34_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 17556,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_34_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 36618,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_35_flag",
-      "number": 35,
-      "name": "オセアニアマスター",
-      "detectedBbox": [
-        1971,
-        1339,
-        2507,
-        1858
-      ],
-      "detectedSize": 203349,
-      "side": 591,
-      "bbox": {
-        "width": 537,
-        "height": 520
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_35_flag.webp",
-          "pixelSize": "591x591",
-          "bytes": 228740,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_35_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 7594,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_35_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 18036,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_35_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 38364,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_36_flag",
-      "number": 36,
-      "name": "六大地域制覇",
-      "detectedBbox": [
-        51,
-        1972,
-        588,
-        2506
-      ],
-      "detectedSize": 197501,
-      "side": 592,
-      "bbox": {
-        "width": 538,
-        "height": 535
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_36_flag.webp",
-          "pixelSize": "592x592",
-          "bytes": 298520,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_36_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 9000,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_36_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 22618,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_36_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 49128,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_37_flag",
-      "number": 37,
-      "name": "地域探検家",
-      "detectedBbox": [
-        691,
-        1973,
-        1227,
-        2506
-      ],
-      "detectedSize": 207506,
-      "side": 591,
-      "bbox": {
-        "width": 537,
-        "height": 534
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_37_flag.webp",
-          "pixelSize": "591x591",
-          "bytes": 258890,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_37_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 8430,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_37_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 21156,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_37_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 45798,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_38_flag",
-      "number": 38,
-      "name": "世界一周達成",
-      "detectedBbox": [
-        1331,
-        1975,
-        1868,
-        2503
-      ],
-      "detectedSize": 195236,
-      "side": 592,
-      "bbox": {
-        "width": 538,
-        "height": 529
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_38_flag.webp",
-          "pixelSize": "592x592",
-          "bytes": 277290,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_38_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 8602,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_38_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 21308,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_38_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 45814,
-          "upscaled": false
-        }
-      ]
-    },
-    {
-      "key": "trophy_39_flag",
-      "number": 39,
-      "name": "地球の知識王",
-      "detectedBbox": [
-        2009,
-        1969,
-        2486,
-        2498
-      ],
-      "detectedSize": 175482,
-      "side": 583,
-      "bbox": {
-        "width": 478,
-        "height": 530
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_39_flag.webp",
-          "pixelSize": "583x583",
-          "bytes": 340416,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_39_flag.webp",
-          "pixelSize": "128x128",
-          "bytes": 8150,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_39_flag.webp",
-          "pixelSize": "256x256",
-          "bytes": 21784,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_39_flag.webp",
-          "pixelSize": "512x512",
-          "bytes": 58386,
-          "upscaled": false
+          "bytes": 49786,
+          "upscaled": true
         }
       ]
     }
   ],
   "seamCutsApplied": [],
-  "sourceResolutionNote": "このシート(2560x2560px, 4行4列)から検出した各トロフィーの正方形キャンバスは平均590px角。512px出力はこれより大きいため全セルで軽度のアップスケール(約-13%拡大)が発生している。次回シート生成時は、1セルあたりネイティブ解像度が512px角以上になるよう、より高解像度(例: 3x3なら2048x2048px以上)で生成することを推奨する。",
+  "sourceResolutionNote": "このシート(1448x1086px, 3行4列)から検出した各トロフィーの正方形キャンバスは平均374px角。512px出力はこれより大きいため全セルで軽度のアップスケール(約37%拡大)が発生している。次回シート生成時は、1セルあたりネイティブ解像度が512px角以上になるよう、より高解像度(例: 3x3なら2048x2048px以上)で生成することを推奨する。",
   "montagePath": "output/preview/montage.png",
   "ok": true
 }

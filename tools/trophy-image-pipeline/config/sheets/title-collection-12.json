@@ -1,0 +1,22 @@
+{
+  "sheet": "input/title-collection-12.png",
+  "rows": 3,
+  "cols": 4,
+  "lightThreshold": 245,
+  "lightMetric": "min",
+  "circleSafetyMargin": 0.16,
+  "cells": [
+    { "number": 101, "key": "trophy_101", "name": "国旗ビギナー" },
+    { "number": 102, "key": "trophy_102", "name": "国旗チャレンジャー" },
+    { "number": 103, "key": "trophy_103", "name": "国旗トラベラー" },
+    { "number": 104, "key": "trophy_104", "name": "国旗エキスパート" },
+    { "number": 105, "key": "trophy_105", "name": "国旗マスター" },
+    { "number": 106, "key": "trophy_106", "name": "国旗レジェンド" },
+    { "number": 107, "key": "trophy_107", "name": "首都ビギナー" },
+    { "number": 108, "key": "trophy_108", "name": "首都チャレンジャー" },
+    { "number": 109, "key": "trophy_109", "name": "世界都市トラベラー" },
+    { "number": 110, "key": "trophy_110", "name": "首都エキスパート" },
+    { "number": 111, "key": "trophy_111", "name": "首都マスター" },
+    { "number": 112, "key": "trophy_112", "name": "首都レジェンド" }
+  ]
+}

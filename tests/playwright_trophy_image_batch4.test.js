@@ -63,19 +63,19 @@ function check(name, cond) {
     await page.waitForSelector("#screen-top.active");
 
     // ---- 登録整合性: 国旗トリビア用の素の番号キー(trophy_<番号>、_flag/_capital
-    // 接尾辞なし)が期待どおり29件・重複なしであることを確認する。TROPHY_
-    // IMAGE_ASSETS全体の件数は、トロフィー画像第5弾(通常トロフィー、
-    // trophy_<番号>_flagキー)以降は29を超えるため、ここでは全体件数ではなく
-    // 国旗トリビア分のキーだけを抽出して検証する ----
+    // 接尾辞なし)が期待どおり29件すべて登録されていることを確認する。
+    // trophy_<番号>の素のキーは、トロフィー画像第7弾(称号コレクション、
+    // No.101〜112)以降は国旗トリビア以外にも使われるため、ここでは全体件数
+    // ではなく国旗トリビア29種類が部分集合として全件存在するかだけを見る ----
     const registry = await page.evaluate(() => {
       const keys = Object.keys(TROPHY_IMAGE_ASSETS).filter((k) => /^trophy_\d+$/.test(k));
       const nums = keys.map((k) => parseInt(k.replace("trophy_", ""), 10)).sort((a, b) => a - b);
       return { count: keys.length, nums, dupFree: new Set(nums).size === nums.length };
     });
     const expected = [71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100];
-    check("国旗トリビア用の素の番号キーが29件", registry.count === 29);
+    check("国旗トリビア用の素の番号キーが29件以上(以後の弾の追加で件数が増える)", registry.count >= 29);
     check("重複なし", registry.dupFree === true);
-    check("国旗トリビア29種類と完全一致", JSON.stringify(registry.nums) === JSON.stringify(expected));
+    check("国旗トリビア29種類が全件含まれる", expected.every((n) => registry.nums.includes(n)));
 
     // ---- 452件集計が維持されている ----
     const total = await page.evaluate(() => TrophyModule.getProgressSummary().totalCount);

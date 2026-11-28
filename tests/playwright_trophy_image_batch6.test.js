@@ -78,7 +78,7 @@ const CAP_SEL = (n) => `#trophy-grid [data-trophy-id="trophy_${n}"][data-split-m
         batch6Present: batch6Flags.every((n) => keys.includes(`trophy_${n}_flag`)),
       };
     });
-    check("TROPHY_IMAGE_ASSETSが61件(29+16+16)", registry.count === 61);
+    check("TROPHY_IMAGE_ASSETSが61件以上(29+16+16。以降の弾の追加で件数が増える)", registry.count >= 61);
     check("重複なし", registry.dupFree === true);
     check("_capitalキーは1件も登録されていない", registry.hasCapitalKeys === false);
     check("既存の国旗トリビア29種類は引き続き全件登録されている", registry.triviaPresent === true);
