@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-28T12:35:57.213Z",
+  "generatedAt": "2026-11-28T13:23:51.273Z",
   "sheetConfigPath": "/tmp/claude-0/trophy-image-batch6-wt/tools/trophy-image-pipeline/config/sheets/flag-trophy-batch6-final-16.json",
   "sheetPath": "/tmp/claude-0/trophy-image-batch6-wt/tools/trophy-image-pipeline/input/flag-trophy-batch6-final-16.png",
   "sheetSize": {
@@ -8,14 +8,14 @@
   },
   "darkThreshold": 18,
   "lightThreshold": 245,
+  "lightMetric": "min",
   "backgroundMode": "light",
   "expectedCellCount": 16,
   "problems": [],
   "warnings": [
-    "trophy_17_flag: 512px出力(67190bytes)が目標サイズ(51200bytes)を超えています。",
-    "trophy_27_flag: 512px出力(58868bytes)が目標サイズ(51200bytes)を超えています。",
-    "trophy_36_flag: 512px出力(51336bytes)が目標サイズ(51200bytes)を超えています。",
-    "trophy_39_flag: 512px出力(59684bytes)が目標サイズ(51200bytes)を超えています。"
+    "trophy_17_flag: 512px出力(63002bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_27_flag: 512px出力(58708bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_39_flag: 512px出力(58386bytes)が目標サイズ(51200bytes)を超えています。"
   ],
   "cells": [
     {
@@ -23,16 +23,16 @@
       "number": 17,
       "name": "完全制覇",
       "detectedBbox": [
-        67,
-        57,
-        569,
+        65,
+        52,
+        572,
         581
       ],
-      "detectedSize": 183434,
-      "side": 578,
+      "detectedSize": 193915,
+      "side": 583,
       "bbox": {
-        "width": 503,
-        "height": 525
+        "width": 508,
+        "height": 530
       },
       "circleSafety": {
         "ok": true,
@@ -45,29 +45,29 @@
         {
           "tier": "original",
           "path": "output/original/trophy_17_flag.webp",
-          "pixelSize": "578x578",
-          "bytes": 365202,
+          "pixelSize": "583x583",
+          "bytes": 372362,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_17_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 9176,
+          "bytes": 8594,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_17_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 25364,
+          "bytes": 23626,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_17_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 67190,
+          "bytes": 63002,
           "upscaled": false
         }
       ]
@@ -77,15 +77,15 @@
       "number": 18,
       "name": "バランスの達人",
       "detectedBbox": [
-        691,
+        690,
         55,
-        1228,
+        1229,
         582
       ],
-      "detectedSize": 198263,
-      "side": 592,
+      "detectedSize": 206237,
+      "side": 594,
       "bbox": {
-        "width": 538,
+        "width": 540,
         "height": 528
       },
       "circleSafety": {
@@ -99,29 +99,29 @@
         {
           "tier": "original",
           "path": "output/original/trophy_18_flag.webp",
-          "pixelSize": "592x592",
-          "bytes": 271150,
+          "pixelSize": "594x594",
+          "bytes": 277756,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_18_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 9168,
+          "bytes": 8824,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_18_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 22522,
+          "bytes": 21304,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_18_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 49674,
+          "bytes": 45216,
           "upscaled": false
         }
       ]
@@ -132,15 +132,15 @@
       "name": "安定の世界マスター",
       "detectedBbox": [
         1331,
-        61,
+        60,
         1868,
-        577
+        578
       ],
-      "detectedSize": 181410,
+      "detectedSize": 187760,
       "side": 592,
       "bbox": {
         "width": 538,
-        "height": 517
+        "height": 519
       },
       "circleSafety": {
         "ok": true,
@@ -154,28 +154,28 @@
           "tier": "original",
           "path": "output/original/trophy_19_flag.webp",
           "pixelSize": "592x592",
-          "bytes": 257854,
+          "bytes": 267068,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_19_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 8642,
+          "bytes": 8538,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_19_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 21540,
+          "bytes": 20550,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_19_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 47292,
+          "bytes": 44520,
           "upscaled": false
         }
       ]
@@ -186,15 +186,15 @@
       "name": "ロケット回答",
       "detectedBbox": [
         1971,
-        63,
+        62,
         2508,
         577
       ],
-      "detectedSize": 206754,
+      "detectedSize": 216311,
       "side": 592,
       "bbox": {
         "width": 538,
-        "height": 515
+        "height": 516
       },
       "circleSafety": {
         "ok": true,
@@ -208,28 +208,28 @@
           "tier": "original",
           "path": "output/original/trophy_21_flag.webp",
           "pixelSize": "592x592",
-          "bytes": 251032,
+          "bytes": 260018,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_21_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 8866,
+          "bytes": 8428,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_21_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 21892,
+          "bytes": 19918,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_21_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 48266,
+          "bytes": 42410,
           "upscaled": false
         }
       ]
@@ -244,7 +244,7 @@
         587,
         1221
       ],
-      "detectedSize": 204858,
+      "detectedSize": 205021,
       "side": 591,
       "bbox": {
         "width": 537,
@@ -262,28 +262,28 @@
           "tier": "original",
           "path": "output/original/trophy_26_flag.webp",
           "pixelSize": "591x591",
-          "bytes": 252188,
+          "bytes": 252900,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_26_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 8120,
+          "bytes": 8126,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_26_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 19872,
+          "bytes": 19820,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_26_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 42056,
+          "bytes": 42030,
           "upscaled": false
         }
       ]
@@ -298,7 +298,7 @@
         1229,
         1224
       ],
-      "detectedSize": 190404,
+      "detectedSize": 190633,
       "side": 587,
       "bbox": {
         "width": 533,
@@ -316,28 +316,28 @@
           "tier": "original",
           "path": "output/original/trophy_27_flag.webp",
           "pixelSize": "587x587",
-          "bytes": 337650,
+          "bytes": 337188,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_27_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 8716,
+          "bytes": 8758,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_27_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 23222,
+          "bytes": 23182,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_27_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 58868,
+          "bytes": 58708,
           "upscaled": false
         }
       ]
@@ -349,13 +349,13 @@
       "detectedBbox": [
         1331,
         697,
-        1868,
+        1869,
         1221
       ],
-      "detectedSize": 204861,
-      "side": 592,
+      "detectedSize": 205143,
+      "side": 593,
       "bbox": {
-        "width": 538,
+        "width": 539,
         "height": 525
       },
       "circleSafety": {
@@ -369,29 +369,29 @@
         {
           "tier": "original",
           "path": "output/original/trophy_30_flag.webp",
-          "pixelSize": "592x592",
-          "bytes": 238126,
+          "pixelSize": "593x593",
+          "bytes": 236674,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_30_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 7936,
+          "bytes": 7842,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_30_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 19030,
+          "bytes": 19058,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_30_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 39156,
+          "bytes": 39988,
           "upscaled": false
         }
       ]
@@ -406,7 +406,7 @@
         2508,
         1221
       ],
-      "detectedSize": 204818,
+      "detectedSize": 205030,
       "side": 592,
       "bbox": {
         "width": 538,
@@ -424,28 +424,28 @@
           "tier": "original",
           "path": "output/original/trophy_31_flag.webp",
           "pixelSize": "592x592",
-          "bytes": 241792,
+          "bytes": 241902,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_31_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 7838,
+          "bytes": 7842,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_31_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 18922,
+          "bytes": 18954,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_31_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 39606,
+          "bytes": 39556,
           "upscaled": false
         }
       ]
@@ -460,7 +460,7 @@
         588,
         1859
       ],
-      "detectedSize": 203038,
+      "detectedSize": 203247,
       "side": 591,
       "bbox": {
         "width": 537,
@@ -478,28 +478,28 @@
           "tier": "original",
           "path": "output/original/trophy_32_flag.webp",
           "pixelSize": "591x591",
-          "bytes": 223516,
+          "bytes": 223822,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_32_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 7448,
+          "bytes": 7422,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_32_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 17546,
+          "bytes": 17626,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_32_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 36622,
+          "bytes": 36086,
           "upscaled": false
         }
       ]
@@ -514,7 +514,7 @@
         1228,
         1859
       ],
-      "detectedSize": 203843,
+      "detectedSize": 204012,
       "side": 592,
       "bbox": {
         "width": 538,
@@ -532,7 +532,7 @@
           "tier": "original",
           "path": "output/original/trophy_33_flag.webp",
           "pixelSize": "592x592",
-          "bytes": 234040,
+          "bytes": 234372,
           "upscaled": false
         },
         {
@@ -546,14 +546,14 @@
           "tier": "256",
           "path": "output/256/trophy_33_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 18882,
+          "bytes": 18864,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_33_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 38918,
+          "bytes": 39288,
           "upscaled": false
         }
       ]
@@ -568,7 +568,7 @@
         1867,
         1858
       ],
-      "detectedSize": 202898,
+      "detectedSize": 203071,
       "side": 591,
       "bbox": {
         "width": 537,
@@ -586,28 +586,28 @@
           "tier": "original",
           "path": "output/original/trophy_34_flag.webp",
           "pixelSize": "591x591",
-          "bytes": 218160,
+          "bytes": 218422,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_34_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 7370,
+          "bytes": 7420,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_34_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 17574,
+          "bytes": 17556,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_34_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 36614,
+          "bytes": 36618,
           "upscaled": false
         }
       ]
@@ -622,7 +622,7 @@
         2507,
         1858
       ],
-      "detectedSize": 203157,
+      "detectedSize": 203349,
       "side": 591,
       "bbox": {
         "width": 537,
@@ -640,7 +640,7 @@
           "tier": "original",
           "path": "output/original/trophy_35_flag.webp",
           "pixelSize": "591x591",
-          "bytes": 228464,
+          "bytes": 228740,
           "upscaled": false
         },
         {
@@ -654,14 +654,14 @@
           "tier": "256",
           "path": "output/256/trophy_35_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 18240,
+          "bytes": 18036,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_35_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 38428,
+          "bytes": 38364,
           "upscaled": false
         }
       ]
@@ -672,15 +672,15 @@
       "name": "六大地域制覇",
       "detectedBbox": [
         51,
-        1973,
+        1972,
         588,
         2506
       ],
-      "detectedSize": 192440,
+      "detectedSize": 197501,
       "side": 592,
       "bbox": {
         "width": 538,
-        "height": 534
+        "height": 535
       },
       "circleSafety": {
         "ok": true,
@@ -694,28 +694,28 @@
           "tier": "original",
           "path": "output/original/trophy_36_flag.webp",
           "pixelSize": "592x592",
-          "bytes": 290908,
+          "bytes": 298520,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_36_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 9124,
+          "bytes": 9000,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_36_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 23292,
+          "bytes": 22618,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_36_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 51336,
+          "bytes": 49128,
           "upscaled": false
         }
       ]
@@ -730,7 +730,7 @@
         1227,
         2506
       ],
-      "detectedSize": 206913,
+      "detectedSize": 207506,
       "side": 591,
       "bbox": {
         "width": 537,
@@ -748,28 +748,28 @@
           "tier": "original",
           "path": "output/original/trophy_37_flag.webp",
           "pixelSize": "591x591",
-          "bytes": 258326,
+          "bytes": 258890,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_37_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 8478,
+          "bytes": 8430,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_37_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 21114,
+          "bytes": 21156,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_37_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 46118,
+          "bytes": 45798,
           "upscaled": false
         }
       ]
@@ -780,15 +780,15 @@
       "name": "世界一周達成",
       "detectedBbox": [
         1331,
-        1976,
+        1975,
         1868,
         2503
       ],
-      "detectedSize": 191426,
+      "detectedSize": 195236,
       "side": 592,
       "bbox": {
         "width": 538,
-        "height": 528
+        "height": 529
       },
       "circleSafety": {
         "ok": true,
@@ -802,28 +802,28 @@
           "tier": "original",
           "path": "output/original/trophy_38_flag.webp",
           "pixelSize": "592x592",
-          "bytes": 272226,
+          "bytes": 277290,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_38_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 8810,
+          "bytes": 8602,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_38_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 22024,
+          "bytes": 21308,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_38_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 48028,
+          "bytes": 45814,
           "upscaled": false
         }
       ]
@@ -838,7 +838,7 @@
         2486,
         2498
       ],
-      "detectedSize": 170389,
+      "detectedSize": 175482,
       "side": 583,
       "bbox": {
         "width": 478,
@@ -856,28 +856,28 @@
           "tier": "original",
           "path": "output/original/trophy_39_flag.webp",
           "pixelSize": "583x583",
-          "bytes": 331158,
+          "bytes": 340416,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_39_flag.webp",
           "pixelSize": "128x128",
-          "bytes": 8216,
+          "bytes": 8150,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_39_flag.webp",
           "pixelSize": "256x256",
-          "bytes": 22160,
+          "bytes": 21784,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_39_flag.webp",
           "pixelSize": "512x512",
-          "bytes": 59684,
+          "bytes": 58386,
           "upscaled": false
         }
       ]

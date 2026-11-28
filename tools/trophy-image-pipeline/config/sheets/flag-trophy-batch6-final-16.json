@@ -3,6 +3,7 @@
   "rows": 4,
   "cols": 4,
   "lightThreshold": 245,
+  "lightMetric": "min",
   "cells": [
     { "number": 17, "key": "trophy_17_flag", "name": "完全制覇" },
     { "number": 18, "key": "trophy_18_flag", "name": "バランスの達人" },
