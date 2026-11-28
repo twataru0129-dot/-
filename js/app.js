@@ -1112,9 +1112,14 @@ function renderTrophyAwardScreen(overrideData) {
     // (国旗/首都)の達成かをcontextのmodeで表す(evaluate()はcontext.modeに
     // 対応する側しか判定しないため、このプレイで新規獲得できるのは必ず
     // mode(今回プレイしたモード)側のみ)
-    const markIcon = isLegend
+    const fallbackMarkIcon = isLegend
       ? legendIconSvgForNumber(def.number)
       : (def.category === "common" ? commonTrophyIcon(def.number) : (def.mode === "both" ? trophyModeIcon(mode) : trophyModeIcon(def.mode)));
+    // このリストは今回新規獲得したトロフィーのみを表示するため、常にearned
+    // (=画像を見せてよい)。国旗/首都分割トロフィーは、このプレイで実際に
+    // 達成した側(mode)の画像キーを使う
+    const awardSide = def.mode === "both" ? (mode === "capital" ? "capital" : "flag") : null;
+    const markIcon = trophyHeroImageHtml(trophyImageKey(def.number, awardSide), def.number, fallbackMarkIcon, "52px");
     const markLabel = def.mode === "both" ? (mode === "capital" ? "首都クイズで達成" : "国旗クイズで達成") : "";
     // 隠しトロフィーの発見演出: 鍵アイコンが外れて本来のトロフィーアイコンが
     // 現れるアニメーション(CSS側の@keyframesで表現、過度な点滅・長時間化は避ける)
@@ -1209,7 +1214,9 @@ function renderLegendAwardScreen(number) {
   $("trophy-legend-subheading").innerHTML = isTruth
     ? "その名は――<strong>世界の真理 ～アカシック・レコード～</strong>。"
     : (isGreat ? "その名は――<strong>世界の叡智</strong>。" : "その名は――<strong>都の神話</strong>。");
-  $("legend-icon-wrap").innerHTML = legendIconSvgForNumber(n);
+  // レジェンド3種(#142/#158/#425)専用の固有画像が将来登録された場合は
+  // それを使い、未登録の間は既存の専用SVG(王冠+地球儀 等)のまま変わらない
+  $("legend-icon-wrap").innerHTML = trophyHeroImageHtml(trophyImageKey(n), n, legendIconSvgForNumber(n), "112px");
   const panel = $("screen-trophy-legend").querySelector(".legend-panel");
   panel.classList.toggle("legend-panel-great", isGreat);
   panel.classList.toggle("legend-panel-truth", isTruth);
@@ -1262,6 +1269,10 @@ function renderPuzzleTrophyAwardScreen(def, options) {
   lastPuzzleAwardTrophyId = def.id;
   $("puzzle-award-name").textContent = def.name;
   $("puzzle-award-description").textContent = def.description || "";
+  // 謎解き・世界7不思議専用の固有画像が将来登録された場合はそれを使い、
+  // 未登録の間は既存の🏆のまま変わらない。この演出は正解直後(=獲得済み)
+  // にのみ表示されるため、常に画像を見せてよい
+  $("puzzle-award-icon-wrap").innerHTML = trophyHeroImageHtml(trophyImageKey(def.number), def.number, "🏆", "112px");
   const screenEl = $("screen-puzzle-trophy-award");
   const panel = screenEl.querySelector(".puzzle-award-panel");
   panel.classList.remove("puzzle-award-skip"); // 前回表示時のスキップ状態を引き継がない
@@ -1513,28 +1524,131 @@ function trophyEarnedState(def, earnedEntry) {
   };
 }
 
-// 将来のトロフィー固有画像用の共通化: 番号をキーに画像URLを登録すると、
-// 一覧・詳細画面の丸アイコンがその画像に差し替わる構造だけを用意する。
-// 現時点ではどの番号も未登録(空のまま)のため、既存の絵文字アイコン表示は
-// 一切変わらない。保存データ・判定ロジック(js/trophy.js)には関与しない、
-// 表示専用のマッピングで、将来はここに{番号: 画像URL}を追加するだけでよい
+// 後方互換: 番号をキーに画像URLを1件登録すると、一覧・詳細画面の丸
+// アイコンがその画像に差し替わる(現時点ではどの番号も未登録のため、
+// 既存の絵文字アイコン表示は一切変わらない)。保存データ・判定ロジック
+// (js/trophy.js)には関与しない、表示専用のマッピング
 const TROPHY_ICON_IMAGE_URLS = {};
-function trophyIconGlyphHtml(emoji, number) {
-  const url = typeof number === "number" ? TROPHY_ICON_IMAGE_URLS[number] : null;
-  return url
-    ? `<img src="${url}" alt="" class="trophy-mark-image">`
-    : `<span class="trophy-mark-icon">${emoji}</span>`;
+
+// ============================================================
+// トロフィー固有画像 表示機構
+// ------------------------------------------------------------
+// 「画像制作専用キー」(トロフィー画像制作事前調査で定義した単位。
+// 通常は trophy_<表示番号>、国旗/首都で独立に獲得する32種類
+// (TrophyModule.isDualSplitCardNumber()対象)は trophy_<表示番号>_flag /
+// trophy_<表示番号>_capital)ごとに、128/256/512pxのWebP画像パスを
+// 登録する。ここに追加するだけで一覧・詳細・各種獲得演出の丸アイコンが
+// 自動的に画像表示へ切り替わる。未登録の番号・カテゴリーは既存の絵文字/
+// SVG表示のまま変わらない。判定・保存データ・獲得条件には一切関与しない、
+// 表示専用の対応表(将来452件分をここに追記していく)
+const TROPHY_IMAGE_ASSETS = {
+  trophy_71: { 128: "assets/trophies/128/trophy_71.webp", 256: "assets/trophies/256/trophy_71.webp", 512: "assets/trophies/512/trophy_71.webp" },
+  trophy_74: { 128: "assets/trophies/128/trophy_74.webp", 256: "assets/trophies/256/trophy_74.webp", 512: "assets/trophies/512/trophy_74.webp" },
+  trophy_75: { 128: "assets/trophies/128/trophy_75.webp", 256: "assets/trophies/256/trophy_75.webp", 512: "assets/trophies/512/trophy_75.webp" },
+  trophy_78: { 128: "assets/trophies/128/trophy_78.webp", 256: "assets/trophies/256/trophy_78.webp", 512: "assets/trophies/512/trophy_78.webp" },
+  trophy_79: { 128: "assets/trophies/128/trophy_79.webp", 256: "assets/trophies/256/trophy_79.webp", 512: "assets/trophies/512/trophy_79.webp" },
+  trophy_87: { 128: "assets/trophies/128/trophy_87.webp", 256: "assets/trophies/256/trophy_87.webp", 512: "assets/trophies/512/trophy_87.webp" },
+  trophy_88: { 128: "assets/trophies/128/trophy_88.webp", 256: "assets/trophies/256/trophy_88.webp", 512: "assets/trophies/512/trophy_88.webp" },
+  trophy_98: { 128: "assets/trophies/128/trophy_98.webp", 256: "assets/trophies/256/trophy_98.webp", 512: "assets/trophies/512/trophy_98.webp" },
+  trophy_100: { 128: "assets/trophies/128/trophy_100.webp", 256: "assets/trophies/256/trophy_100.webp", 512: "assets/trophies/512/trophy_100.webp" },
+};
+
+// 国旗/首都で独立に獲得する32種類は、side("flag"|"capital")を渡すと
+// 専用キーになる。それ以外(side省略)は表示番号のみのキー
+function trophyImageKey(number, side) {
+  return side ? `trophy_${number}_${side}` : `trophy_${number}`;
+}
+
+// 画像セット({128,256,512}のURL)を解決する。新方式(キー指定)を優先し、
+// 見つからない場合のみ既存のTROPHY_ICON_IMAGE_URLS(番号→単一URL文字列)
+// にフォールバックする(後方互換。単一URLは3解像度すべてに同じものを使う)
+function resolveTrophyImageAssets(key, legacyNumber) {
+  if (key && TROPHY_IMAGE_ASSETS[key]) return TROPHY_IMAGE_ASSETS[key];
+  if (typeof legacyNumber === "number" && TROPHY_ICON_IMAGE_URLS[legacyNumber]) {
+    const url = TROPHY_ICON_IMAGE_URLS[legacyNumber];
+    return { 128: url, 256: url, 512: url };
+  }
+  return null;
+}
+
+// 一覧・獲得演出の丸アイコン用(基本解像度128px)。detail-src-256/512を
+// data属性に持たせておき、詳細モーダル表示時により高い解像度へ差し替える
+// (trophyUpgradeImageForDetail参照)。画像読み込み失敗時は、documentに
+// 仕込んだ単一のcaptureフェーズerrorリスナー(initTrophyImageFallback)が
+// 自動的にこのemojiへフォールバックする
+//
+// 呼び出し側の責務: key/legacyNumberは「今この場で画像を見せてよい」と
+// 判断した場合のみ渡すこと(未獲得・未発見・未解決の間は必ずnull/undefined
+// を渡す)。buildTrophyMarkHtml経由の呼び出しは既にearnedでゲートされている
+function trophyIconGlyphHtml(emoji, key, legacyNumber) {
+  const assets = resolveTrophyImageAssets(key, legacyNumber);
+  if (!assets) return `<span class="trophy-mark-icon">${emoji}</span>`;
+  const src128 = assets[128] || assets[256] || assets[512];
+  const src256 = assets[256] || src128;
+  const src512 = assets[512] || src256;
+  return `<img src="${src128}" data-src256="${src256}" data-src512="${src512}" data-fallback-emoji="${emoji}" alt="" class="trophy-mark-image" loading="lazy" decoding="async">`;
+}
+
+// 詳細画面・各種獲得演出(通常/レジェンド/謎解き)など、一覧よりも大きく
+// 表示する場面向け。512pxを基本の情報源としつつ、srcsetで端末解像度に
+// 応じて256pxも選べる構造にする。assetsが無ければfallbackHtml(既存の
+// 絵文字/SVG文字列)をそのまま返す(=今回画像登録の無いカテゴリーは
+// 従来表示のまま)
+function trophyHeroImageHtml(key, legacyNumber, fallbackHtml, sizeHint) {
+  const assets = resolveTrophyImageAssets(key, legacyNumber);
+  if (!assets) return fallbackHtml;
+  const src256 = assets[256] || assets[512] || assets[128];
+  const src512 = assets[512] || assets[256] || assets[128];
+  const sizes = sizeHint || "104px";
+  return `<img src="${src512}" srcset="${src256} 256w, ${src512} 512w" sizes="${sizes}" data-fallback-emoji="" alt="" class="trophy-mark-image" loading="lazy" decoding="async">`;
+}
+
+// トロフィー詳細モーダル用: 一覧カードをcloneNode()した直後に呼び、
+// 128px基本のimgをdata-src256/512を使って512px基本(srcset付き)に
+// 差し替える。画像が登録されていないカードには.trophy-mark-imageが
+// 存在しないため何もしない
+function upgradeTrophyImagesForDetail(root) {
+  root.querySelectorAll(".trophy-mark-image[data-src512]").forEach((img) => {
+    const src256 = img.dataset.src256 || img.dataset.src512;
+    const src512 = img.dataset.src512;
+    img.srcset = `${src256} 256w, ${src512} 512w`;
+    img.sizes = "104px";
+    img.src = src512;
+    img.loading = "eager";
+  });
+}
+
+// 画像読み込み失敗時のフォールバック。imgのerrorイベントはバブリングしない
+// ため、documentへのcaptureフェーズリスナー1つだけで全画面・全アイコンを
+// カバーする(initApp()から1回だけ呼ぶ)
+function initTrophyImageFallback() {
+  document.addEventListener(
+    "error",
+    (e) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement) || !img.classList.contains("trophy-mark-image")) return;
+      const emoji = img.dataset.fallbackEmoji || "🏆";
+      const span = document.createElement("span");
+      span.className = "trophy-mark-icon";
+      span.textContent = emoji;
+      img.replaceWith(span);
+    },
+    true
+  );
 }
 
 // isSecretLocked: このトロフィー全体が隠し(hidden:true)かつ未獲得の間、
 // マーク自体も鍵アイコン・「未発見」表記にする(名称・条件を伏せるのと揃える)。
-// numberは省略可(指定時のみTROPHY_ICON_IMAGE_URLSを参照する)
-function buildTrophyMarkHtml(iconEarned, iconLocked, earned, dateStr, label, isSecretLocked, number) {
+// number/sideは常に渡してよい(獲得済み(earned)の場合のみ画像解決を
+// 行うため、未獲得・未発見のトロフィーの画像が誤って表示されることはない)
+function buildTrophyMarkHtml(iconEarned, iconLocked, earned, dateStr, label, isSecretLocked, number, side) {
   const icon = earned ? iconEarned : (isSecretLocked ? "🔒" : iconLocked);
   const lockedText = isSecretLocked ? "未発見" : "未獲得";
+  const imageKey = earned && typeof number === "number" ? trophyImageKey(number, side) : null;
+  const legacyNumber = earned ? number : null;
   return `
     <div class="trophy-mark ${earned ? "earned" : "locked"}" title="${label}">
-      ${trophyIconGlyphHtml(icon, number)}
+      ${trophyIconGlyphHtml(icon, imageKey, legacyNumber)}
     </div>
     <p class="trophy-mark-date">${earned ? `${dateStr} 取得` : lockedText}</p>`;
 }
@@ -1552,7 +1666,7 @@ function formatCompactDate(date) {
 
 // No.1〜19専用: 国旗クイズ側/首都クイズ側いずれか一方だけの獲得状態を持つ、
 // 単一モードのミニカードを1枚作る
-function buildTrophySplitSideCard(def, modeLabel, icon, earned, earnedAt) {
+function buildTrophySplitSideCard(def, modeLabel, icon, earned, earnedAt, side) {
   const card = document.createElement("div");
   card.className = "trophy-card trophy-card-split" + (earned ? "" : " locked");
   card.dataset.category = def.category;
@@ -1569,7 +1683,7 @@ function buildTrophySplitSideCard(def, modeLabel, icon, earned, earnedAt) {
     </div>
     <div class="trophy-marks">
       <div class="trophy-mark-col">
-        ${buildTrophyMarkHtml(icon, icon, earned, dateStr, modeLabel, false, def.number)}
+        ${buildTrophyMarkHtml(icon, icon, earned, dateStr, modeLabel, false, def.number, side)}
       </div>
     </div>
     <p class="trophy-name">${def.name}</p>
@@ -1586,8 +1700,8 @@ function buildDualSplitCardPair(def, earnedEntry) {
   const st = trophyEarnedState(def, earnedEntry);
   const wrap = document.createElement("div");
   wrap.className = "trophy-dual-pair";
-  wrap.appendChild(buildTrophySplitSideCard(def, "国旗クイズ", "🌍", st.flagEarned, st.flagEarnedAt));
-  wrap.appendChild(buildTrophySplitSideCard(def, "首都クイズ", "🏙️", st.capitalEarned, st.capitalEarnedAt));
+  wrap.appendChild(buildTrophySplitSideCard(def, "国旗クイズ", "🌍", st.flagEarned, st.flagEarnedAt, "flag"));
+  wrap.appendChild(buildTrophySplitSideCard(def, "首都クイズ", "🏙️", st.capitalEarned, st.capitalEarnedAt, "capital"));
   return wrap;
 }
 
@@ -1640,7 +1754,7 @@ function buildPuzzleTrophyCardElement(def, earnedEntry) {
     </div>
     <div class="trophy-marks">
       <div class="trophy-mark-col">
-        ${buildTrophyMarkHtml("🧩", "🧩", st.earned, dateStr, "獲得マーク", false)}
+        ${buildTrophyMarkHtml("🧩", "🧩", st.earned, dateStr, "獲得マーク", false, def.number)}
       </div>
     </div>
     <p class="trophy-name">${nameHtml}</p>
@@ -1748,7 +1862,7 @@ function buildSevenWonderPuzzleCard(card, def, st) {
     </div>
     <div class="trophy-marks">
       <div class="trophy-mark-col">
-        ${buildTrophyMarkHtml("🗝️", "🗝️", state === "completed", st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "", "獲得マーク", false)}
+        ${buildTrophyMarkHtml("🗝️", "🗝️", state === "completed", st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "", "獲得マーク", false, def.number)}
       </div>
     </div>
     <p class="trophy-name">${nameHtml}</p>
@@ -1788,7 +1902,7 @@ function buildSevenWonderSpecialCard(card, def, st) {
     </div>
     <div class="trophy-marks">
       <div class="trophy-mark-col">
-        ${buildTrophyMarkHtml("👑", "🔒", st.earned, dateStr, secretLocked ? "未発見のトロフィー" : "獲得マーク", secretLocked)}
+        ${buildTrophyMarkHtml("👑", "🔒", st.earned, dateStr, secretLocked ? "未発見のトロフィー" : "獲得マーク", secretLocked, def.number)}
       </div>
     </div>
     <p class="trophy-name">${nameHtml}</p>
@@ -1845,25 +1959,24 @@ function buildTrophyCardElement(def, earnedEntry) {
         </div>
       </div>`;
   } else if (st.dual) {
-    // secretLocked(隠しトロフィー未発見)の間は、将来TROPHY_ICON_IMAGE_URLSに
-    // 画像が登録されてもnumberを渡さず、既存どおり🔒のまま表示を変えない
-    const imgNumber = secretLocked ? undefined : def.number;
+    // 画像は獲得済み(flagEarned/capitalEarned)の側だけbuildTrophyMarkHtml内部で
+    // 解決される(未獲得の間はnumberを渡しても🔒のまま変わらない)ため、
+    // secretLockedによる個別のゲートは不要
     marksHtml = `
       <div class="trophy-marks trophy-marks-dual">
         <div class="trophy-mark-col">
-          ${buildTrophyMarkHtml("🌍", "🌍", st.flagEarned, st.flagEarnedAt ? formatJapaneseDate(new Date(st.flagEarnedAt)) : "", "国旗クイズ", secretLocked, imgNumber)}
+          ${buildTrophyMarkHtml("🌍", "🌍", st.flagEarned, st.flagEarnedAt ? formatJapaneseDate(new Date(st.flagEarnedAt)) : "", "国旗クイズ", secretLocked, def.number, "flag")}
         </div>
         <div class="trophy-mark-col">
-          ${buildTrophyMarkHtml("🏙️", "🏙️", st.capitalEarned, st.capitalEarnedAt ? formatJapaneseDate(new Date(st.capitalEarnedAt)) : "", "首都クイズ", secretLocked, imgNumber)}
+          ${buildTrophyMarkHtml("🏙️", "🏙️", st.capitalEarned, st.capitalEarnedAt ? formatJapaneseDate(new Date(st.capitalEarnedAt)) : "", "首都クイズ", secretLocked, def.number, "capital")}
         </div>
       </div>`;
   } else {
     const icon = def.category === "common" ? commonTrophyIcon(def.number) : trophyModeIcon(def.mode);
-    const imgNumber = secretLocked ? undefined : def.number;
     marksHtml = `
       <div class="trophy-marks">
         <div class="trophy-mark-col">
-          ${buildTrophyMarkHtml(icon, icon, st.earned, st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "", secretLocked ? "未発見のトロフィー" : "獲得マーク", secretLocked, imgNumber)}
+          ${buildTrophyMarkHtml(icon, icon, st.earned, st.earnedAt ? formatJapaneseDate(new Date(st.earnedAt)) : "", secretLocked ? "未発見のトロフィー" : "獲得マーク", secretLocked, def.number)}
         </div>
       </div>`;
   }
@@ -2415,6 +2528,9 @@ function openTrophyDetailModal(card) {
 
   const clone = card.cloneNode(true);
   clone.classList.add("trophy-detail-content");
+  // 一覧の128px基本画像を、詳細表示に見合う解像度(512px基本、端末解像度に
+  // 応じ256pxも選べるsrcset)へ差し替える
+  upgradeTrophyImagesForDetail(clone);
 
   // 上部: トロフィー番号・カテゴリー(+レア度)バッジ(閉じるボタンは
   // #trophy-detail-bodyの外にある既存の#trophy-detail-closeをそのまま使う)
@@ -2920,6 +3036,7 @@ function initMapEncyclopediaLink() {
 // 初期化
 // ==========================================================
 function initApp() {
+  initTrophyImageFallback();
   initTopScreen();
   renderSelectScreen();
   initFlagRetry();

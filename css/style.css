@@ -1520,8 +1520,10 @@ img { max-width: 100%; }
   filter: grayscale(1);
   opacity: 0.55;
 }
-/* 将来、トロフィー固有画像(TROPHY_ICON_IMAGE_URLS)が登録された場合に
-   表示される画像アイコン。丸いマークの内側いっぱいに収める */
+/* トロフィー固有画像(TROPHY_IMAGE_ASSETS)が登録されている場合に表示される
+   画像アイコン。丸いマークの内側いっぱいに収める。画像自体は正方形かつ
+   内接円に不透明部分が収まるよう作られているため、object-fit:coverによる
+   余計な切り抜きは発生しない */
 .trophy-mark-image {
   width: 100%;
   height: 100%;
@@ -1822,6 +1824,13 @@ img { max-width: 100%; }
   justify-content: center;
   font-size: 1.3rem;
   animation: secretUnlock 1.1s ease forwards;
+}
+.trophy-award-mark-icon {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .trophy-award-mark-secret .trophy-award-mark-icon {
   opacity: 0;
