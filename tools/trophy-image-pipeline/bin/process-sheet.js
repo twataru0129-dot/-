@@ -46,6 +46,7 @@ async function main() {
     seamCutHalfHeight: opts.seamCutHalfHeight,
     seamSearchRadiusRatio: opts.seamSearchRadiusRatio,
     alphaBackgroundThreshold: opts.alphaBackgroundThreshold,
+    lightMetric: opts.lightMetric,
   });
 
   const report = {
@@ -55,6 +56,7 @@ async function main() {
     sheetSize: { width, height },
     darkThreshold: opts.darkThreshold,
     lightThreshold: opts.lightThreshold,
+    lightMetric: opts.lightMetric,
     backgroundMode: typeof opts.lightThreshold === "number" ? "light" : "dark",
     expectedCellCount: sheetConfig.cells.length,
     problems: [],

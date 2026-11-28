@@ -254,7 +254,7 @@ async function resetAndGoto(page, baseUrl) {
       // 記録(TrophyModule.awardIfNew)は行わないため、一覧側の確認用に
       // ここで明示的に獲得済みにする
       TrophyModule.awardIfNew("trophy_74");
-      TrophyModule.awardIfNew("trophy_19", "flag");
+      TrophyModule.awardIfNew("trophy_19", "capital");
       state.trophyListFilter = { topBucket: "all", category: "all", status: "all" };
       renderTrophyListScreen();
       showScreen("screen-trophy-list");
@@ -274,18 +274,18 @@ async function resetAndGoto(page, baseUrl) {
     check("No.74(画像あり)獲得済みマーク: 既存の光沢box-shadowが除去されている", imageChrome.boxShadow === "none");
 
     // 画像が無い(絵文字のみ)の獲得済みマークは、既存の金色チップ表示が
-    // そのまま残ることを確認する(国旗/首都分割カードNo.19の国旗側を獲得。
-    // No.1〜16はトロフィー画像第5弾で固有画像登録済みのため、分割カードの
-    // うち引き続き未登録のNo.19を例に使う)
+    // そのまま残ることを確認する(国旗/首都分割カードNo.19の首都側を獲得。
+    // 分割対象32種類すべての国旗側はトロフィー画像第5/6弾で固有画像登録
+    // 済みのため、ここでは引き続き未登録の首都側を例に使う)
     const noImageChrome = await page.evaluate(() => {
-      const card = document.querySelector('#trophy-grid .trophy-card-split[data-trophy-id="trophy_19"][data-split-mode="国旗クイズ"]');
+      const card = document.querySelector('#trophy-grid .trophy-card-split[data-trophy-id="trophy_19"][data-split-mode="首都クイズ"]');
       const mark = card ? card.querySelector(".trophy-mark.earned") : null;
       if (!mark) return null;
       const cs = getComputedStyle(mark);
       return { bg: cs.backgroundImage, hasImage: !!mark.querySelector(".trophy-mark-image") };
     });
-    check("No.19国旗側(画像なし)獲得済みマーク: 画像は表示されない", !!noImageChrome && noImageChrome.hasImage === false);
-    check("No.19国旗側(画像なし)獲得済みマーク: 既存の金色背景は維持される", !!noImageChrome && noImageChrome.bg !== "none");
+    check("No.19首都側(画像なし)獲得済みマーク: 画像は表示されない", !!noImageChrome && noImageChrome.hasImage === false);
+    check("No.19首都側(画像なし)獲得済みマーク: 既存の金色背景は維持される", !!noImageChrome && noImageChrome.bg !== "none");
 
     // ---- 9.6. 表示サイズ拡大の確認(修正1) ----
     const sizeCheck = await page.evaluate(() => {

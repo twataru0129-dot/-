@@ -34,16 +34,35 @@
  * @param {"dark"|"light"} [backgroundMode] - 既定"dark"。シートの地色が
  *   白に近い場合(例: 白背景で書き出された画像シート)は"light"を指定する。
  *   alphaBackgroundThresholdによる強制値がdarkでは0(暗い側)・lightでは
- *   255(明るい側)になる点以外、明度配列そのものの計算方法(RGB最大値)は
- *   変わらない。背景かどうかの判定(しきい値との比較方向)は
- *   floodFillBackgroundFromBorder側で行う。
- * @returns {Uint8Array} 長さ width*height の明度配列(各チャンネルの最大値)
+ *   255(明るい側)になる点以外、明度配列そのものの計算方法(既定: 各
+ *   チャンネルの最大値)は変わらない。背景かどうかの判定(しきい値との
+ *   比較方向)はfloodFillBackgroundFromBorder側で行う。
+ * @param {"max"|"min"} [lightMetric] - backgroundMode==="light"の場合のみ
+ *   有効。既定"max"(各チャンネルの最大値。従来どおり)。
+ *
+ *   "max"の弱点: 白背景は「3チャンネルすべて高い」(R≈G≈B≈255)のに対し、
+ *   トロフィー装飾の金色のハイライトや濃い橙色(例:R=254,G=213,B=21)は
+ *   R(最大値)だけが白背景と同程度まで高く、G・Bは低い。最大値だけで
+ *   判定すると、この種の彩度の高い金色・橙色部分までもが「背景候補」として
+ *   外周からの塗りつぶしに巻き込まれ、枠の縁や光沢部分が誤って透明化
+ *   されてしまう(トロフィー画像第6弾で実際に発生した不具合)。
+ *
+ *   "min"を指定すると各チャンネルの最小値を使う: 3チャンネルすべてが
+ *   高い値でなければ候補にならないため、本物の白背景だけを正しく拾い、
+ *   彩度の高い金色・橙色は(どれだけ明るい色でも)前景として保護される。
+ *   ただし挙動が変わるため、既存シート(既定"max")には一切影響しない
+ *   オプトイン方式とし、問題が実際に確認されたシートの設定でのみ
+ *   明示的に指定する。
+ * @returns {Uint8Array} 長さ width*height の明度配列(lightMetricにより
+ *   各チャンネルの最大値または最小値)
  */
-function computeBrightness(data, width, height, channels, alphaBackgroundThreshold, backgroundMode) {
+function computeBrightness(data, width, height, channels, alphaBackgroundThreshold, backgroundMode, lightMetric) {
   const n = width * height;
   const brightness = new Uint8Array(n);
   const hasAlphaGate = channels >= 4 && typeof alphaBackgroundThreshold === "number";
-  const forcedValue = backgroundMode === "light" ? 255 : 0;
+  const isLight = backgroundMode === "light";
+  const useMin = isLight && lightMetric === "min";
+  const forcedValue = isLight ? 255 : 0;
   for (let i = 0; i < n; i++) {
     const o = i * channels;
     if (hasAlphaGate && data[o + 3] < alphaBackgroundThreshold) {
@@ -53,7 +72,9 @@ function computeBrightness(data, width, height, channels, alphaBackgroundThresho
     const r = data[o];
     const g = data[o + 1];
     const b = data[o + 2];
-    brightness[i] = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    brightness[i] = useMin
+      ? (r < g ? (r < b ? r : b) : (g < b ? g : b))
+      : (r > g ? (r > b ? r : b) : (g > b ? g : b));
   }
   return brightness;
 }
@@ -206,7 +227,7 @@ function analyzeForeground(data, width, height, channels, options) {
     ? opts.lightThreshold
     : (typeof opts.darkThreshold === "number" ? opts.darkThreshold : 18);
 
-  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold, backgroundMode);
+  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold, backgroundMode, opts.lightMetric);
   const isBackground = floodFillBackgroundFromBorder(brightness, width, height, threshold, backgroundMode);
   const { labels, components } = labelForegroundComponents(isBackground, width, height);
 
