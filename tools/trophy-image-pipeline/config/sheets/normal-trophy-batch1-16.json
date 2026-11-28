@@ -1,0 +1,24 @@
+{
+  "sheet": "input/normal-trophy-batch1-16.png",
+  "rows": 4,
+  "cols": 4,
+  "lightThreshold": 245,
+  "cells": [
+    { "number": 1, "key": "trophy_1_flag", "name": "はじめの一歩" },
+    { "number": 2, "key": "trophy_2_flag", "name": "クイズ好き" },
+    { "number": 3, "key": "trophy_3_flag", "name": "世界への挑戦者" },
+    { "number": 4, "key": "trophy_4_flag", "name": "世界を旅する人" },
+    { "number": 5, "key": "trophy_5_flag", "name": "百戦錬磨" },
+    { "number": 6, "key": "trophy_6_flag", "name": "不屈の探究者" },
+    { "number": 7, "key": "trophy_7_flag", "name": "伝説の挑戦者" },
+    { "number": 8, "key": "trophy_8_flag", "name": "ナイスチャレンジ" },
+    { "number": 9, "key": "trophy_9_flag", "name": "安定の実力者" },
+    { "number": 10, "key": "trophy_10_flag", "name": "知識の探究者" },
+    { "number": 11, "key": "trophy_11_flag", "name": "実力派プレイヤー" },
+    { "number": 12, "key": "trophy_12_flag", "name": "世界の優等生" },
+    { "number": 13, "key": "trophy_13_flag", "name": "世界の知識人" },
+    { "number": 14, "key": "trophy_14_flag", "name": "世界の達人" },
+    { "number": 15, "key": "trophy_15_flag", "name": "三つ星チャレンジャー" },
+    { "number": 16, "key": "trophy_16_flag", "name": "五つ星マスター" }
+  ]
+}
