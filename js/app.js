@@ -1603,6 +1603,18 @@ const TROPHY_IMAGE_ASSETS = {
   trophy_98: { 128: "assets/trophies/128/trophy_98.webp", 256: "assets/trophies/256/trophy_98.webp", 512: "assets/trophies/512/trophy_98.webp" },
   trophy_99: { 128: "assets/trophies/128/trophy_99.webp", 256: "assets/trophies/256/trophy_99.webp", 512: "assets/trophies/512/trophy_99.webp" },
   trophy_100: { 128: "assets/trophies/128/trophy_100.webp", 256: "assets/trophies/256/trophy_100.webp", 512: "assets/trophies/512/trophy_100.webp" },
+  trophy_101: { 128: "assets/trophies/128/trophy_101.webp", 256: "assets/trophies/256/trophy_101.webp", 512: "assets/trophies/512/trophy_101.webp" },
+  trophy_102: { 128: "assets/trophies/128/trophy_102.webp", 256: "assets/trophies/256/trophy_102.webp", 512: "assets/trophies/512/trophy_102.webp" },
+  trophy_103: { 128: "assets/trophies/128/trophy_103.webp", 256: "assets/trophies/256/trophy_103.webp", 512: "assets/trophies/512/trophy_103.webp" },
+  trophy_104: { 128: "assets/trophies/128/trophy_104.webp", 256: "assets/trophies/256/trophy_104.webp", 512: "assets/trophies/512/trophy_104.webp" },
+  trophy_105: { 128: "assets/trophies/128/trophy_105.webp", 256: "assets/trophies/256/trophy_105.webp", 512: "assets/trophies/512/trophy_105.webp" },
+  trophy_106: { 128: "assets/trophies/128/trophy_106.webp", 256: "assets/trophies/256/trophy_106.webp", 512: "assets/trophies/512/trophy_106.webp" },
+  trophy_107: { 128: "assets/trophies/128/trophy_107.webp", 256: "assets/trophies/256/trophy_107.webp", 512: "assets/trophies/512/trophy_107.webp" },
+  trophy_108: { 128: "assets/trophies/128/trophy_108.webp", 256: "assets/trophies/256/trophy_108.webp", 512: "assets/trophies/512/trophy_108.webp" },
+  trophy_109: { 128: "assets/trophies/128/trophy_109.webp", 256: "assets/trophies/256/trophy_109.webp", 512: "assets/trophies/512/trophy_109.webp" },
+  trophy_110: { 128: "assets/trophies/128/trophy_110.webp", 256: "assets/trophies/256/trophy_110.webp", 512: "assets/trophies/512/trophy_110.webp" },
+  trophy_111: { 128: "assets/trophies/128/trophy_111.webp", 256: "assets/trophies/256/trophy_111.webp", 512: "assets/trophies/512/trophy_111.webp" },
+  trophy_112: { 128: "assets/trophies/128/trophy_112.webp", 256: "assets/trophies/256/trophy_112.webp", 512: "assets/trophies/512/trophy_112.webp" },
 };
 
 // 国旗/首都で独立に獲得する32種類は、side("flag"|"capital")を渡すと
