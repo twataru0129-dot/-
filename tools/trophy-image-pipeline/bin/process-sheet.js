@@ -44,6 +44,7 @@ async function main() {
     minComponentSizeRatio: opts.minComponentSizeRatio,
     seamCutHalfHeight: opts.seamCutHalfHeight,
     seamSearchRadiusRatio: opts.seamSearchRadiusRatio,
+    alphaBackgroundThreshold: opts.alphaBackgroundThreshold,
   });
 
   const report = {

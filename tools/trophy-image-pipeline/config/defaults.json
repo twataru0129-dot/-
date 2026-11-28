@@ -1,5 +1,6 @@
 {
   "darkThreshold": 18,
+  "alphaBackgroundThreshold": 16,
   "minComponentSizeRatio": 0.0015,
   "seamCutHalfHeight": 5,
   "seamSearchRadiusRatio": 0.45,

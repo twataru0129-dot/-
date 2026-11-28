@@ -50,7 +50,7 @@ function analyzeSheetWithAutoSeamCuts(data, width, height, channels, rows, cols,
   const cutHalfHeight = typeof opts.seamCutHalfHeight === "number" ? opts.seamCutHalfHeight : 5;
   const searchRadiusRatio = typeof opts.seamSearchRadiusRatio === "number" ? opts.seamSearchRadiusRatio : 0.45;
 
-  const brightness = computeBrightness(data, width, height, channels);
+  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold);
   const isBackground = floodFillBackgroundFromBorder(brightness, width, height, darkThreshold);
   const first = labelForegroundComponents(isBackground, width, height);
   const firstSignificant = significantComponents(first.components, width, height, minComponentSizeRatio);
