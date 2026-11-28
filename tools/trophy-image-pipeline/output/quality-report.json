@@ -18,13 +18,13 @@
     "trophy_103: 512px出力は元のbbox(310x305)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_104: 512px出力は元のbbox(310x308)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_105: 512px出力は元のbbox(314x330)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_106: 512px出力は元のbbox(330x345)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_106: 512px出力は元のbbox(329x343)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_107: 512px出力は元のbbox(294x293)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_108: 512px出力は元のbbox(327x317)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_109: 512px出力は元のbbox(317x322)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_110: 512px出力は元のbbox(326x325)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
     "trophy_111: 512px出力は元のbbox(329x336)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_112: 512px出力は元のbbox(336x358)より大きいためアップスケールが発生しています(画質劣化の可能性)。"
+    "trophy_112: 512px出力は元のbbox(333x357)より大きいためアップスケールが発生しています(画質劣化の可能性)。"
   ],
   "cells": [
     {
@@ -303,15 +303,15 @@
       "name": "国旗レジェンド",
       "detectedBbox": [
         385,
-        332,
-        714,
+        334,
+        713,
         676
       ],
-      "detectedSize": 87613,
-      "side": 401,
+      "detectedSize": 76668,
+      "side": 398,
       "bbox": {
-        "width": 330,
-        "height": 345
+        "width": 329,
+        "height": 343
       },
       "circleSafety": {
         "ok": true,
@@ -324,29 +324,29 @@
         {
           "tier": "original",
           "path": "output/original/trophy_106.webp",
-          "pixelSize": "401x401",
-          "bytes": 171668,
+          "pixelSize": "398x398",
+          "bytes": 151398,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_106.webp",
           "pixelSize": "128x128",
-          "bytes": 8898,
+          "bytes": 9282,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_106.webp",
           "pixelSize": "256x256",
-          "bytes": 22992,
+          "bytes": 23738,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_106.webp",
           "pixelSize": "512x512",
-          "bytes": 50756,
+          "bytes": 52198,
           "upscaled": true
         }
       ]
@@ -627,15 +627,15 @@
       "name": "首都レジェンド",
       "detectedBbox": [
         1070,
-        684,
-        1405,
+        685,
+        1402,
         1041
       ],
-      "detectedSize": 91079,
-      "side": 416,
+      "detectedSize": 82232,
+      "side": 415,
       "bbox": {
-        "width": 336,
-        "height": 358
+        "width": 333,
+        "height": 357
       },
       "circleSafety": {
         "ok": true,
@@ -648,29 +648,29 @@
         {
           "tier": "original",
           "path": "output/original/trophy_112.webp",
-          "pixelSize": "416x416",
-          "bytes": 176278,
+          "pixelSize": "415x415",
+          "bytes": 163352,
           "upscaled": false
         },
         {
           "tier": "128",
           "path": "output/128/trophy_112.webp",
           "pixelSize": "128x128",
-          "bytes": 8448,
+          "bytes": 8352,
           "upscaled": false
         },
         {
           "tier": "256",
           "path": "output/256/trophy_112.webp",
           "pixelSize": "256x256",
-          "bytes": 22324,
+          "bytes": 22230,
           "upscaled": false
         },
         {
           "tier": "512",
           "path": "output/512/trophy_112.webp",
           "pixelSize": "512x512",
-          "bytes": 49786,
+          "bytes": 50212,
           "upscaled": true
         }
       ]
@@ -679,5 +679,19 @@
   "seamCutsApplied": [],
   "sourceResolutionNote": "このシート(1448x1086px, 3行4列)から検出した各トロフィーの正方形キャンバスは平均374px角。512px出力はこれより大きいため全セルで軽度のアップスケール(約37%拡大)が発生している。次回シート生成時は、1セルあたりネイティブ解像度が512px角以上になるよう、より高解像度(例: 3x3なら2048x2048px以上)で生成することを推奨する。",
   "montagePath": "output/preview/montage.png",
-  "ok": true
+  "ok": true,
+  "roundDFix": {
+    "appliedAt": "2026-11-28T19:13:29.525Z",
+    "scope": [
+      "trophy_106",
+      "trophy_112"
+    ],
+    "reason": "白背景残り(発光ハロー・下部装飾の縁)の除去のため、この2点のみ特別なシート全体パラメータで個別に再加工した。他10点はこのレポート上部のlightMetric=\"min\"設定のまま。",
+    "parametersUsedForThisScopeOnly": {
+      "lightMetric": "min-chroma",
+      "lightChromaThreshold": 50,
+      "lightChromaBackgroundFloor": 150,
+      "note": "これらの値はconfig/sheets/title-collection-12.jsonには反映していない(他10点への影響を避けるため)。このレポートのトップレベルのlightMetric等は他10点を生成した設定を示す。trophy_106/112をゼロから再現したい場合は、本レポートのparametersUsedForThisScopeOnlyの値でconfig/sheets/title-collection-12.jsonの一時コピーを作り、12点中この2点分のみ全出力から採用すること。"
+    }
+  }
 }

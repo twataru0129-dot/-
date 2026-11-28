@@ -47,6 +47,8 @@ async function main() {
     seamSearchRadiusRatio: opts.seamSearchRadiusRatio,
     alphaBackgroundThreshold: opts.alphaBackgroundThreshold,
     lightMetric: opts.lightMetric,
+    lightChromaThreshold: opts.lightChromaThreshold,
+    lightChromaBackgroundFloor: opts.lightChromaBackgroundFloor,
   });
 
   const report = {
@@ -57,6 +59,8 @@ async function main() {
     darkThreshold: opts.darkThreshold,
     lightThreshold: opts.lightThreshold,
     lightMetric: opts.lightMetric,
+    lightChromaThreshold: opts.lightChromaThreshold,
+    lightChromaBackgroundFloor: opts.lightChromaBackgroundFloor,
     backgroundMode: typeof opts.lightThreshold === "number" ? "light" : "dark",
     expectedCellCount: sheetConfig.cells.length,
     problems: [],

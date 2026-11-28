@@ -56,7 +56,7 @@ function analyzeSheetWithAutoSeamCuts(data, width, height, channels, rows, cols,
     ? opts.lightThreshold
     : (typeof opts.darkThreshold === "number" ? opts.darkThreshold : 18);
 
-  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold, backgroundMode, opts.lightMetric);
+  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold, backgroundMode, opts.lightMetric, opts.lightChromaThreshold, opts.lightChromaBackgroundFloor);
   const isBackground = floodFillBackgroundFromBorder(brightness, width, height, threshold, backgroundMode);
   const first = labelForegroundComponents(isBackground, width, height);
   const firstSignificant = significantComponents(first.components, width, height, minComponentSizeRatio);
