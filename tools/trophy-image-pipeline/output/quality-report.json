@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-28T06:38:42.047Z",
-  "sheetConfigPath": "/tmp/claude-0/trophy-image-batch3-wt/tools/trophy-image-pipeline/config/sheets/flag-trivia-batch3-9.json",
-  "sheetPath": "/tmp/claude-0/trophy-image-batch3-wt/tools/trophy-image-pipeline/input/flag-trivia-batch3-9.png",
+  "generatedAt": "2026-11-28T09:55:53.051Z",
+  "sheetConfigPath": "/tmp/claude-0/trophy-image-batch4-wt/tools/trophy-image-pipeline/config/sheets/flag-trivia-batch4-9.json",
+  "sheetPath": "/tmp/claude-0/trophy-image-batch4-wt/tools/trophy-image-pipeline/input/flag-trivia-batch4-9.png",
   "sheetSize": {
     "width": 1536,
     "height": 1024
@@ -12,88 +12,40 @@
   "expectedCellCount": 9,
   "problems": [],
   "warnings": [
-    "trophy_80: 512px出力は元のbbox(386x323)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_81: 512px出力は元のbbox(390x324)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_81: 512px出力(51668bytes)が目標サイズ(51200bytes)を超えています。",
-    "trophy_82: 512px出力は元のbbox(392x323)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_82: 512px出力(55350bytes)が目標サイズ(51200bytes)を超えています。",
-    "trophy_83: 512px出力は元のbbox(392x320)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_84: 512px出力は元のbbox(391x319)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_85: 512px出力は元のbbox(396x320)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_86: 512px出力は元のbbox(398x330)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_89: 512px出力は元のbbox(396x330)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
-    "trophy_91: 512px出力は元のbbox(399x331)より大きいためアップスケールが発生しています(画質劣化の可能性)。"
+    "trophy_92: 512px出力は元のbbox(390x326)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_92: 512px出力(55496bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_93: 512px出力は元のbbox(393x327)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_93: 512px出力(54510bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_94: 512px出力は元のbbox(394x327)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_94: 512px出力(56346bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_95: 512px出力は元のbbox(392x326)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_95: 512px出力(53274bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_96: 512px出力は元のbbox(390x325)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_96: 512px出力(51234bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_97: 512px出力は元のbbox(395x326)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_97: 512px出力(51824bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_99: 512px出力は元のbbox(394x332)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_99: 512px出力(53752bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_87: 512px出力は元のbbox(399x333)より大きいためアップスケールが発生しています(画質劣化の可能性)。",
+    "trophy_87: 512px出力(53092bytes)が目標サイズ(51200bytes)を超えています。",
+    "trophy_88: 512px出力は元のbbox(398x332)より大きいためアップスケールが発生しています(画質劣化の可能性)。"
   ],
   "cells": [
     {
-      "key": "trophy_80",
-      "number": 80,
-      "name": "海を越えた言葉",
+      "key": "trophy_92",
+      "number": 92,
+      "name": "独立を守った国々",
       "detectedBbox": [
-        120,
-        1,
-        505,
-        323
+        118,
+        3,
+        507,
+        328
       ],
-      "detectedSize": 96346,
-      "side": 425,
-      "bbox": {
-        "width": 386,
-        "height": 323
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_80.webp",
-          "pixelSize": "425x425",
-          "bytes": 175604,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_80.webp",
-          "pixelSize": "128x128",
-          "bytes": 7720,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_80.webp",
-          "pixelSize": "256x256",
-          "bytes": 21144,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_80.webp",
-          "pixelSize": "512x512",
-          "bytes": 50630,
-          "upscaled": true
-        }
-      ]
-    },
-    {
-      "key": "trophy_81",
-      "number": 81,
-      "name": "巨人と小人",
-      "detectedBbox": [
-        567,
-        1,
-        956,
-        324
-      ],
-      "detectedSize": 97713,
+      "detectedSize": 95637,
       "side": 430,
       "bbox": {
         "width": 390,
-        "height": 324
+        "height": 326
       },
       "circleSafety": {
         "ok": true,
@@ -105,49 +57,49 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_81.webp",
+          "path": "output/original/trophy_92.webp",
           "pixelSize": "430x430",
-          "bytes": 175620,
+          "bytes": 183400,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_81.webp",
+          "path": "output/128/trophy_92.webp",
           "pixelSize": "128x128",
-          "bytes": 7450,
+          "bytes": 7884,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_81.webp",
+          "path": "output/256/trophy_92.webp",
           "pixelSize": "256x256",
-          "bytes": 20824,
+          "bytes": 22240,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_81.webp",
+          "path": "output/512/trophy_92.webp",
           "pixelSize": "512x512",
-          "bytes": 51668,
+          "bytes": 55496,
           "upscaled": true
         }
       ]
     },
     {
-      "key": "trophy_82",
-      "number": 82,
-      "name": "国の中の国",
+      "key": "trophy_93",
+      "number": 93,
+      "name": "10億人の世界",
       "detectedBbox": [
-        1020,
-        1,
-        1411,
-        323
+        568,
+        2,
+        960,
+        328
       ],
-      "detectedSize": 97297,
-      "side": 432,
+      "detectedSize": 96095,
+      "side": 433,
       "bbox": {
-        "width": 392,
-        "height": 323
+        "width": 393,
+        "height": 327
       },
       "circleSafety": {
         "ok": true,
@@ -159,157 +111,49 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_82.webp",
-          "pixelSize": "432x432",
-          "bytes": 189100,
+          "path": "output/original/trophy_93.webp",
+          "pixelSize": "433x433",
+          "bytes": 183990,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_82.webp",
+          "path": "output/128/trophy_93.webp",
           "pixelSize": "128x128",
-          "bytes": 7768,
+          "bytes": 7836,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_82.webp",
+          "path": "output/256/trophy_93.webp",
           "pixelSize": "256x256",
-          "bytes": 22290,
+          "bytes": 22414,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_82.webp",
+          "path": "output/512/trophy_93.webp",
           "pixelSize": "512x512",
-          "bytes": 55350,
+          "bytes": 54510,
           "upscaled": true
         }
       ]
     },
     {
-      "key": "trophy_83",
-      "number": 83,
-      "name": "一つの半島、二つの国",
-      "detectedBbox": [
-        116,
-        335,
-        507,
-        654
-      ],
-      "detectedSize": 96814,
-      "side": 432,
-      "bbox": {
-        "width": 392,
-        "height": 320
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_83.webp",
-          "pixelSize": "432x432",
-          "bytes": 168958,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_83.webp",
-          "pixelSize": "128x128",
-          "bytes": 7516,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_83.webp",
-          "pixelSize": "256x256",
-          "bytes": 20554,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_83.webp",
-          "pixelSize": "512x512",
-          "bytes": 48732,
-          "upscaled": true
-        }
-      ]
-    },
-    {
-      "key": "trophy_84",
-      "number": 84,
-      "name": "色が逆さま！",
-      "detectedBbox": [
-        567,
-        336,
-        957,
-        654
-      ],
-      "detectedSize": 97477,
-      "side": 431,
-      "bbox": {
-        "width": 391,
-        "height": 319
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_84.webp",
-          "pixelSize": "431x431",
-          "bytes": 149030,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_84.webp",
-          "pixelSize": "128x128",
-          "bytes": 7316,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_84.webp",
-          "pixelSize": "256x256",
-          "bytes": 18162,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_84.webp",
-          "pixelSize": "512x512",
-          "bytes": 40854,
-          "upscaled": true
-        }
-      ]
-    },
-    {
-      "key": "trophy_85",
-      "number": 85,
-      "name": "三色旗の秘密",
+      "key": "trophy_94",
+      "number": 94,
+      "name": "同じ言葉、遠い国",
       "detectedBbox": [
         1019,
-        335,
-        1414,
-        654
+        2,
+        1412,
+        328
       ],
-      "detectedSize": 98069,
-      "side": 436,
+      "detectedSize": 96058,
+      "side": 434,
       "bbox": {
-        "width": 396,
-        "height": 320
+        "width": 394,
+        "height": 327
       },
       "circleSafety": {
         "ok": true,
@@ -321,49 +165,211 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_85.webp",
-          "pixelSize": "436x436",
-          "bytes": 161932,
+          "path": "output/original/trophy_94.webp",
+          "pixelSize": "434x434",
+          "bytes": 182688,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_85.webp",
+          "path": "output/128/trophy_94.webp",
           "pixelSize": "128x128",
-          "bytes": 7344,
+          "bytes": 7864,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_85.webp",
+          "path": "output/256/trophy_94.webp",
           "pixelSize": "256x256",
-          "bytes": 18942,
+          "bytes": 22524,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_85.webp",
+          "path": "output/512/trophy_94.webp",
           "pixelSize": "512x512",
-          "bytes": 44606,
+          "bytes": 56346,
           "upscaled": true
         }
       ]
     },
     {
-      "key": "trophy_86",
-      "number": 86,
-      "name": "国旗の中に武器!?",
+      "key": "trophy_95",
+      "number": 95,
+      "name": "海を越えたフランス語",
+      "detectedBbox": [
+        118,
+        333,
+        509,
+        658
+      ],
+      "detectedSize": 95875,
+      "side": 432,
+      "bbox": {
+        "width": 392,
+        "height": 326
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_95.webp",
+          "pixelSize": "432x432",
+          "bytes": 178484,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_95.webp",
+          "pixelSize": "128x128",
+          "bytes": 7836,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_95.webp",
+          "pixelSize": "256x256",
+          "bytes": 21892,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_95.webp",
+          "pixelSize": "512x512",
+          "bytes": 53274,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_96",
+      "number": 96,
+      "name": "海まで二つの国",
+      "detectedBbox": [
+        569,
+        333,
+        958,
+        657
+      ],
+      "detectedSize": 97155,
+      "side": 430,
+      "bbox": {
+        "width": 390,
+        "height": 325
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_96.webp",
+          "pixelSize": "430x430",
+          "bytes": 180982,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_96.webp",
+          "pixelSize": "128x128",
+          "bytes": 7762,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_96.webp",
+          "pixelSize": "256x256",
+          "bytes": 21122,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_96.webp",
+          "pixelSize": "512x512",
+          "bytes": 51234,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_97",
+      "number": 97,
+      "name": "イタリアの中の国",
+      "detectedBbox": [
+        1019,
+        333,
+        1413,
+        658
+      ],
+      "detectedSize": 97903,
+      "side": 435,
+      "bbox": {
+        "width": 395,
+        "height": 326
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_97.webp",
+          "pixelSize": "435x435",
+          "bytes": 179952,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_97.webp",
+          "pixelSize": "128x128",
+          "bytes": 7546,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_97.webp",
+          "pixelSize": "256x256",
+          "bytes": 21272,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_97.webp",
+          "pixelSize": "512x512",
+          "bytes": 51824,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_99",
+      "number": 99,
+      "name": "細長い国の秘密",
       "detectedBbox": [
         114,
-        666,
-        511,
-        995
+        662,
+        507,
+        993
       ],
-      "detectedSize": 100793,
-      "side": 438,
+      "detectedSize": 100210,
+      "side": 434,
       "bbox": {
-        "width": 398,
-        "height": 330
+        "width": 394,
+        "height": 332
       },
       "circleSafety": {
         "ok": true,
@@ -375,103 +381,49 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_86.webp",
-          "pixelSize": "438x438",
-          "bytes": 154246,
+          "path": "output/original/trophy_99.webp",
+          "pixelSize": "434x434",
+          "bytes": 185844,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_86.webp",
+          "path": "output/128/trophy_99.webp",
           "pixelSize": "128x128",
-          "bytes": 7290,
+          "bytes": 7806,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_86.webp",
+          "path": "output/256/trophy_99.webp",
           "pixelSize": "256x256",
-          "bytes": 18534,
+          "bytes": 21848,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_86.webp",
+          "path": "output/512/trophy_99.webp",
           "pixelSize": "512x512",
-          "bytes": 43178,
+          "bytes": 53752,
           "upscaled": true
         }
       ]
     },
     {
-      "key": "trophy_89",
-      "number": 89,
-      "name": "国旗が語りかける",
+      "key": "trophy_87",
+      "number": 87,
+      "name": "国旗の動物園",
       "detectedBbox": [
         564,
-        666,
-        959,
-        995
+        662,
+        962,
+        994
       ],
-      "detectedSize": 100432,
-      "side": 436,
-      "bbox": {
-        "width": 396,
-        "height": 330
-      },
-      "circleSafety": {
-        "ok": true,
-        "outsidePixelCount": 0,
-        "maxExcessPx": 0,
-        "maxExcessPoint": null
-      },
-      "circleSafetyWarning": false,
-      "tiers": [
-        {
-          "tier": "original",
-          "path": "output/original/trophy_89.webp",
-          "pixelSize": "436x436",
-          "bytes": 147608,
-          "upscaled": false
-        },
-        {
-          "tier": "128",
-          "path": "output/128/trophy_89.webp",
-          "pixelSize": "128x128",
-          "bytes": 7160,
-          "upscaled": false
-        },
-        {
-          "tier": "256",
-          "path": "output/256/trophy_89.webp",
-          "pixelSize": "256x256",
-          "bytes": 18426,
-          "upscaled": false
-        },
-        {
-          "tier": "512",
-          "path": "output/512/trophy_89.webp",
-          "pixelSize": "512x512",
-          "bytes": 41518,
-          "upscaled": true
-        }
-      ]
-    },
-    {
-      "key": "trophy_91",
-      "number": 91,
-      "name": "左側通行の仲間",
-      "detectedBbox": [
-        1015,
-        666,
-        1413,
-        996
-      ],
-      "detectedSize": 100952,
+      "detectedSize": 101835,
       "side": 439,
       "bbox": {
         "width": 399,
-        "height": 331
+        "height": 333
       },
       "circleSafety": {
         "ok": true,
@@ -483,146 +435,91 @@
       "tiers": [
         {
           "tier": "original",
-          "path": "output/original/trophy_91.webp",
+          "path": "output/original/trophy_87.webp",
           "pixelSize": "439x439",
-          "bytes": 171272,
+          "bytes": 186896,
           "upscaled": false
         },
         {
           "tier": "128",
-          "path": "output/128/trophy_91.webp",
+          "path": "output/128/trophy_87.webp",
           "pixelSize": "128x128",
-          "bytes": 7632,
+          "bytes": 7408,
           "upscaled": false
         },
         {
           "tier": "256",
-          "path": "output/256/trophy_91.webp",
+          "path": "output/256/trophy_87.webp",
           "pixelSize": "256x256",
-          "bytes": 20752,
+          "bytes": 21104,
           "upscaled": false
         },
         {
           "tier": "512",
-          "path": "output/512/trophy_91.webp",
+          "path": "output/512/trophy_87.webp",
           "pixelSize": "512x512",
-          "bytes": 49318,
+          "bytes": 53092,
+          "upscaled": true
+        }
+      ]
+    },
+    {
+      "key": "trophy_88",
+      "number": 88,
+      "name": "国旗の中の地図",
+      "detectedBbox": [
+        1017,
+        662,
+        1414,
+        993
+      ],
+      "detectedSize": 100944,
+      "side": 438,
+      "bbox": {
+        "width": 398,
+        "height": 332
+      },
+      "circleSafety": {
+        "ok": true,
+        "outsidePixelCount": 0,
+        "maxExcessPx": 0,
+        "maxExcessPoint": null
+      },
+      "circleSafetyWarning": false,
+      "tiers": [
+        {
+          "tier": "original",
+          "path": "output/original/trophy_88.webp",
+          "pixelSize": "438x438",
+          "bytes": 174628,
+          "upscaled": false
+        },
+        {
+          "tier": "128",
+          "path": "output/128/trophy_88.webp",
+          "pixelSize": "128x128",
+          "bytes": 7502,
+          "upscaled": false
+        },
+        {
+          "tier": "256",
+          "path": "output/256/trophy_88.webp",
+          "pixelSize": "256x256",
+          "bytes": 20154,
+          "upscaled": false
+        },
+        {
+          "tier": "512",
+          "path": "output/512/trophy_88.webp",
+          "pixelSize": "512x512",
+          "bytes": 47836,
           "upscaled": true
         }
       ]
     }
   ],
-  "seamCutsApplied": [
-    {
-      "column": 0,
-      "boundaryIndex": 1,
-      "waistY": 329,
-      "waistForegroundPixelCount": 1,
-      "searchRange": [
-        183,
-        482
-      ],
-      "cutRange": [
-        324,
-        334
-      ],
-      "columnXRange": [
-        114,
-        511
-      ]
-    },
-    {
-      "column": 0,
-      "boundaryIndex": 2,
-      "waistY": 660,
-      "waistForegroundPixelCount": 1,
-      "searchRange": [
-        515,
-        814
-      ],
-      "cutRange": [
-        655,
-        665
-      ],
-      "columnXRange": [
-        114,
-        511
-      ]
-    },
-    {
-      "column": 1,
-      "boundaryIndex": 1,
-      "waistY": 330,
-      "waistForegroundPixelCount": 2,
-      "searchRange": [
-        183,
-        482
-      ],
-      "cutRange": [
-        325,
-        335
-      ],
-      "columnXRange": [
-        564,
-        959
-      ]
-    },
-    {
-      "column": 1,
-      "boundaryIndex": 2,
-      "waistY": 660,
-      "waistForegroundPixelCount": 2,
-      "searchRange": [
-        515,
-        814
-      ],
-      "cutRange": [
-        655,
-        665
-      ],
-      "columnXRange": [
-        564,
-        959
-      ]
-    },
-    {
-      "column": 2,
-      "boundaryIndex": 1,
-      "waistY": 329,
-      "waistForegroundPixelCount": 2,
-      "searchRange": [
-        184,
-        482
-      ],
-      "cutRange": [
-        324,
-        334
-      ],
-      "columnXRange": [
-        1015,
-        1414
-      ]
-    },
-    {
-      "column": 2,
-      "boundaryIndex": 2,
-      "waistY": 660,
-      "waistForegroundPixelCount": 2,
-      "searchRange": [
-        516,
-        814
-      ],
-      "cutRange": [
-        655,
-        665
-      ],
-      "columnXRange": [
-        1015,
-        1414
-      ]
-    }
-  ],
-  "sourceResolutionNote": "このシート(1536x1024px, 3行3列)から検出した各トロフィーの正方形キャンバスは平均433px角。512px出力はこれより大きいため全セルで軽度のアップスケール(約18%拡大)が発生している。次回シート生成時は、1セルあたりネイティブ解像度が512px角以上になるよう、より高解像度(例: 3x3なら2048x2048px以上)で生成することを推奨する。",
+  "seamCutsApplied": [],
+  "sourceResolutionNote": "このシート(1536x1024px, 3行3列)から検出した各トロフィーの正方形キャンバスは平均434px角。512px出力はこれより大きいため全セルで軽度のアップスケール(約18%拡大)が発生している。次回シート生成時は、1セルあたりネイティブ解像度が512px角以上になるよう、より高解像度(例: 3x3なら2048x2048px以上)で生成することを推奨する。",
   "montagePath": "output/preview/montage.png",
   "ok": true
 }
