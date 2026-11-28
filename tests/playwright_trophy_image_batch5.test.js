@@ -68,17 +68,22 @@ const CAP_SEL = (n) => `#trophy-grid [data-trophy-id="trophy_${n}"][data-split-m
     await page.reload();
     await page.waitForSelector("#screen-top.active");
 
-    // ---- 登録整合性: 45件(国旗トリビア29+通常トロフィー国旗版16)、重複なし、首都版は未登録 ----
+    // ---- 登録整合性: 国旗トリビア29+通常トロフィー国旗版16(=45件)が
+    // 引き続きすべて揃っていること・重複なし・首都版は未登録であることを
+    // 確認する。TROPHY_IMAGE_ASSETS全体の件数は、トロフィー画像第6弾以降は
+    // 45を超えるため、ここでは全体件数ではなくこの45件の部分集合だけを
+    // 検証する ----
     const registry = await page.evaluate(() => {
       const keys = Object.keys(TROPHY_IMAGE_ASSETS);
+      const triviaNums = [71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,91,92,93,94,95,96,97,98,99,100];
       return {
-        count: keys.length,
         hasCapitalKeys: keys.some((k) => k.endsWith("_capital")),
         flagKeysPresent: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16].every((n) => keys.includes(`trophy_${n}_flag`)),
+        triviaKeysPresent: triviaNums.every((n) => keys.includes(`trophy_${n}`)),
         dupFree: new Set(keys).size === keys.length,
       };
     });
-    check("TROPHY_IMAGE_ASSETSが45件(29+16)", registry.count === 45);
+    check("国旗トリビア29種類が引き続きすべて登録されている", registry.triviaKeysPresent === true);
     check("重複なし", registry.dupFree === true);
     check("No.1〜16の_flagキーがすべて存在する", registry.flagKeysPresent === true);
     check("_capitalキーは1件も登録されていない(首都版に混入していない)", registry.hasCapitalKeys === false);

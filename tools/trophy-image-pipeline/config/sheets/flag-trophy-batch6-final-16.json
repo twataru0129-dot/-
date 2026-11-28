@@ -1,0 +1,24 @@
+{
+  "sheet": "input/flag-trophy-batch6-final-16.png",
+  "rows": 4,
+  "cols": 4,
+  "lightThreshold": 245,
+  "cells": [
+    { "number": 17, "key": "trophy_17_flag", "name": "完全制覇" },
+    { "number": 18, "key": "trophy_18_flag", "name": "バランスの達人" },
+    { "number": 19, "key": "trophy_19_flag", "name": "安定の世界マスター" },
+    { "number": 21, "key": "trophy_21_flag", "name": "ロケット回答" },
+    { "number": 26, "key": "trophy_26_flag", "name": "瞬間判断の達人" },
+    { "number": 27, "key": "trophy_27_flag", "name": "反射神経の鬼" },
+    { "number": 30, "key": "trophy_30_flag", "name": "アジアマスター" },
+    { "number": 31, "key": "trophy_31_flag", "name": "ヨーロッパマスター" },
+    { "number": 32, "key": "trophy_32_flag", "name": "アフリカマスター" },
+    { "number": 33, "key": "trophy_33_flag", "name": "北米マスター" },
+    { "number": 34, "key": "trophy_34_flag", "name": "南米マスター" },
+    { "number": 35, "key": "trophy_35_flag", "name": "オセアニアマスター" },
+    { "number": 36, "key": "trophy_36_flag", "name": "六大地域制覇" },
+    { "number": 37, "key": "trophy_37_flag", "name": "地域探検家" },
+    { "number": 38, "key": "trophy_38_flag", "name": "世界一周達成" },
+    { "number": 39, "key": "trophy_39_flag", "name": "地球の知識王" }
+  ]
+}
