@@ -1542,6 +1542,22 @@ const TROPHY_ICON_IMAGE_URLS = {};
 // SVG表示のまま変わらない。判定・保存データ・獲得条件には一切関与しない、
 // 表示専用の対応表(将来452件分をここに追記していく)
 const TROPHY_IMAGE_ASSETS = {
+  trophy_1_flag: { 128: "assets/trophies/128/trophy_1_flag.webp", 256: "assets/trophies/256/trophy_1_flag.webp", 512: "assets/trophies/512/trophy_1_flag.webp" },
+  trophy_2_flag: { 128: "assets/trophies/128/trophy_2_flag.webp", 256: "assets/trophies/256/trophy_2_flag.webp", 512: "assets/trophies/512/trophy_2_flag.webp" },
+  trophy_3_flag: { 128: "assets/trophies/128/trophy_3_flag.webp", 256: "assets/trophies/256/trophy_3_flag.webp", 512: "assets/trophies/512/trophy_3_flag.webp" },
+  trophy_4_flag: { 128: "assets/trophies/128/trophy_4_flag.webp", 256: "assets/trophies/256/trophy_4_flag.webp", 512: "assets/trophies/512/trophy_4_flag.webp" },
+  trophy_5_flag: { 128: "assets/trophies/128/trophy_5_flag.webp", 256: "assets/trophies/256/trophy_5_flag.webp", 512: "assets/trophies/512/trophy_5_flag.webp" },
+  trophy_6_flag: { 128: "assets/trophies/128/trophy_6_flag.webp", 256: "assets/trophies/256/trophy_6_flag.webp", 512: "assets/trophies/512/trophy_6_flag.webp" },
+  trophy_7_flag: { 128: "assets/trophies/128/trophy_7_flag.webp", 256: "assets/trophies/256/trophy_7_flag.webp", 512: "assets/trophies/512/trophy_7_flag.webp" },
+  trophy_8_flag: { 128: "assets/trophies/128/trophy_8_flag.webp", 256: "assets/trophies/256/trophy_8_flag.webp", 512: "assets/trophies/512/trophy_8_flag.webp" },
+  trophy_9_flag: { 128: "assets/trophies/128/trophy_9_flag.webp", 256: "assets/trophies/256/trophy_9_flag.webp", 512: "assets/trophies/512/trophy_9_flag.webp" },
+  trophy_10_flag: { 128: "assets/trophies/128/trophy_10_flag.webp", 256: "assets/trophies/256/trophy_10_flag.webp", 512: "assets/trophies/512/trophy_10_flag.webp" },
+  trophy_11_flag: { 128: "assets/trophies/128/trophy_11_flag.webp", 256: "assets/trophies/256/trophy_11_flag.webp", 512: "assets/trophies/512/trophy_11_flag.webp" },
+  trophy_12_flag: { 128: "assets/trophies/128/trophy_12_flag.webp", 256: "assets/trophies/256/trophy_12_flag.webp", 512: "assets/trophies/512/trophy_12_flag.webp" },
+  trophy_13_flag: { 128: "assets/trophies/128/trophy_13_flag.webp", 256: "assets/trophies/256/trophy_13_flag.webp", 512: "assets/trophies/512/trophy_13_flag.webp" },
+  trophy_14_flag: { 128: "assets/trophies/128/trophy_14_flag.webp", 256: "assets/trophies/256/trophy_14_flag.webp", 512: "assets/trophies/512/trophy_14_flag.webp" },
+  trophy_15_flag: { 128: "assets/trophies/128/trophy_15_flag.webp", 256: "assets/trophies/256/trophy_15_flag.webp", 512: "assets/trophies/512/trophy_15_flag.webp" },
+  trophy_16_flag: { 128: "assets/trophies/128/trophy_16_flag.webp", 256: "assets/trophies/256/trophy_16_flag.webp", 512: "assets/trophies/512/trophy_16_flag.webp" },
   trophy_71: { 128: "assets/trophies/128/trophy_71.webp", 256: "assets/trophies/256/trophy_71.webp", 512: "assets/trophies/512/trophy_71.webp" },
   trophy_72: { 128: "assets/trophies/128/trophy_72.webp", 256: "assets/trophies/256/trophy_72.webp", 512: "assets/trophies/512/trophy_72.webp" },
   trophy_73: { 128: "assets/trophies/128/trophy_73.webp", 256: "assets/trophies/256/trophy_73.webp", 512: "assets/trophies/512/trophy_73.webp" },
