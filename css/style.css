@@ -1500,16 +1500,22 @@ img { max-width: 100%; }
   gap: 4px;
 }
 .trophy-mark {
-  width: 48px;
-  height: 48px;
+  width: 80px;
+  height: 80px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.3rem;
+  font-size: 2.1rem;
   overflow: hidden;
   border: 3px solid rgba(255,255,255,0.12);
   box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.35);
+}
+@media (min-width: 900px) {
+  .trophy-mark { width: 88px; height: 88px; font-size: 2.3rem; }
+}
+@media (min-width: 1320px) {
+  .trophy-mark { width: 96px; height: 96px; font-size: 2.5rem; }
 }
 .trophy-mark.earned {
   background: linear-gradient(135deg, #ffe27a, #d4a017);
@@ -1519,6 +1525,16 @@ img { max-width: 100%; }
   background: rgba(255,255,255,0.06);
   filter: grayscale(1);
   opacity: 0.55;
+}
+/* 固有画像(TROPHY_IMAGE_ASSETS)を表示している間だけ、既存の金色円形
+   背景・枠を取り除く。画像自体が難易度別フレーム(無色〜伝説級)を
+   内包しているため、既存の金色チップ装飾と二重にならないようにする。
+   画像が登録されていない(絵文字のみ)場合はこのルールが適用されず、
+   既存の金色チップ表示がそのまま残る */
+.trophy-mark.earned:has(.trophy-mark-image) {
+  background: none;
+  border: none;
+  box-shadow: none;
 }
 /* トロフィー固有画像(TROPHY_IMAGE_ASSETS)が登録されている場合に表示される
    画像アイコン。丸いマークの内側いっぱいに収める。画像自体は正方形かつ
@@ -1564,6 +1580,12 @@ img { max-width: 100%; }
   display: flex;
   flex-direction: column;
 }
+/* 国旗/首都いずれかのモードに絞り込んでいる間は、表示されている方の
+   分割カードが二度と現れないペアを待つ必要が無いため、幅いっぱいに
+   広げて他の(分割されていない)トロフィーカードと幅を揃える */
+.trophy-dual-pair.trophy-dual-pair-single-mode .trophy-card-split:not(.hidden) {
+  flex: 1 1 100%;
+}
 .trophy-card-split .trophy-card-top { margin-bottom: 6px; }
 .trophy-card-split .trophy-number { font-size: 0.68rem; }
 .trophy-split-mode-badge {
@@ -1577,9 +1599,15 @@ img { max-width: 100%; }
 }
 .trophy-card-split .trophy-marks { gap: 0; margin: 2px 0 8px; }
 .trophy-card-split .trophy-mark {
-  width: 38px;
-  height: 38px;
-  font-size: 1rem;
+  width: 64px;
+  height: 64px;
+  font-size: 1.7rem;
+}
+@media (min-width: 900px) {
+  .trophy-card-split .trophy-mark { width: 70px; height: 70px; font-size: 1.85rem; }
+}
+@media (min-width: 1320px) {
+  .trophy-card-split .trophy-mark { width: 76px; height: 76px; font-size: 2rem; }
 }
 .trophy-card-split .trophy-mark-date {
   font-size: 0.64rem;
@@ -1687,9 +1715,14 @@ img { max-width: 100%; }
   text-align: center;
   padding-bottom: 20px;
 }
-.trophy-detail-content .trophy-mark { width: 104px; height: 104px; font-size: 2.6rem; }
+.trophy-detail-content .trophy-mark { width: 220px; height: 220px; font-size: 5.5rem; }
 .trophy-detail-content .trophy-mark.earned {
   box-shadow: inset 0 -4px 0 rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.35), 0 0 0 4px rgba(231, 196, 104, 0.22), 0 0 24px 4px rgba(231, 196, 104, 0.35);
+}
+/* 詳細モーダルでも固有画像表示時は上記の金色グロー枠を重ねない
+   (背景・枠自体は.trophy-mark.earned:has()側で既に外してある) */
+.trophy-detail-content .trophy-mark.earned:has(.trophy-mark-image) {
+  box-shadow: none;
 }
 .trophy-detail-content .trophy-name { font-size: 1.3rem; margin-top: 12px; }
 /* アイコン直下の「獲得済み(日付)/未獲得/未発見」キャプションを、状態が
@@ -1710,7 +1743,7 @@ img { max-width: 100%; }
   color: var(--tl-gold-strong);
 }
 @media (max-width: 380px) {
-  .trophy-detail-content .trophy-mark { width: 84px; height: 84px; font-size: 2.1rem; }
+  .trophy-detail-content .trophy-mark { width: 180px; height: 180px; font-size: 4.5rem; }
 }
 
 /* 詳細情報: 獲得条件・謎解きの問題文・説明文・注釈・共通トロフィーの
@@ -1753,15 +1786,29 @@ img { max-width: 100%; }
 }
 .trophy-award-mark {
   flex-shrink: 0;
-  width: 52px;
-  height: 52px;
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 2.4rem;
   background: linear-gradient(135deg, #ffe27a, #d4a017);
   box-shadow: inset 0 -4px 0 rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.2);
+}
+@media (min-width: 600px) {
+  .trophy-award-mark { width: 108px; height: 108px; font-size: 2.7rem; }
+}
+@media (min-width: 900px) {
+  .trophy-award-mark { width: 120px; height: 120px; font-size: 3rem; }
+}
+/* 固有画像表示時は、ここでも既存の金色背景・光沢を外し、画像自体の
+   フレームをそのまま主役にする(隠しトロフィー発見時の
+   .trophy-award-mark-secret/.trophy-award-mark-legendの配色より、
+   このルールの方が詳細度が高いため、画像がある時は確実に優先される) */
+.trophy-award-mark:has(.trophy-mark-image) {
+  background: none;
+  box-shadow: none;
 }
 .trophy-award-info { flex: 1; min-width: 0; }
 .trophy-award-number { font-size: 0.75rem; font-weight: 800; color: var(--color-text-sub); margin: 0; }
@@ -1927,14 +1974,20 @@ img { max-width: 100%; }
   color: #f3e8ff;
 }
 .legend-icon-wrap {
-  width: 140px;
-  height: 140px;
+  width: 240px;
+  height: 240px;
   margin: 0 auto 16px;
   border-radius: 50%;
   background: radial-gradient(circle at 32% 26%, #4a3b7a 0%, #241b45 55%, #150f2e 100%);
   box-shadow: 0 0 0 3px #ffd76a, 0 0 32px 6px rgba(255, 215, 106, .5), inset 0 -8px 0 rgba(0,0,0,.3);
-  padding: 22px;
+  padding: 36px;
   animation: legendIconIn .9s ease both, legendGlowPulse 2.6s ease-in-out .9s infinite;
+}
+/* 伝説級の固有画像が登録された場合に限り、既存の紺紫の背景を取り除く
+   (現時点では対象画像が無いため表示に変化は無い。光る縁取り
+   (box-shadow)のアニメーションは「特別感」としてそのまま残す) */
+.legend-icon-wrap:has(.trophy-mark-image) {
+  background: none;
 }
 @keyframes legendIconIn {
   0% { opacity: 0; transform: scale(0.4) rotate(-8deg); }
@@ -2002,7 +2055,7 @@ img { max-width: 100%; }
 }
 
 @media (max-width: 420px) {
-  .legend-icon-wrap { width: 112px; height: 112px; padding: 18px; }
+  .legend-icon-wrap { width: 200px; height: 200px; padding: 30px; }
   .legend-heading { font-size: 1.35rem; }
   .legend-subheading { font-size: 1rem; }
 }

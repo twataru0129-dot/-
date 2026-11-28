@@ -4,6 +4,11 @@
 // 隠しトロフィー)を対象に、一覧・詳細・獲得演出での画像表示、
 // 未獲得/隠し時のネタバレ防止、画像読み込み失敗時のフォールバック、
 // 452件集計への影響なしを確認する。
+// PR #92フォロー(表示デザイン改善)で以下を追加:
+// 固有画像表示時の既存アイコン装飾(金色背景・枠・光沢)の撤去、
+// グリッド/詳細モーダル/獲得演出の表示サイズ拡大、複数トロフィー
+// 同時獲得時の表示、国旗/首都分割カードの単一モード絞り込み時の
+// フル幅化。
 // 実行方法: node tests/playwright_trophy_image_display.test.js
 // ==========================================================
 const { chromium } = require("playwright");
@@ -239,6 +244,140 @@ async function resetAndGoto(page, baseUrl) {
     });
     check("隠しトロフィー発見演出: secretアイテムとして表示される", secretAwardImg.hasSecretItem === true);
     check("隠しトロフィー発見演出: 画像も表示される", secretAwardImg.hasImage === true && !!secretAwardImg.src && secretAwardImg.src.includes("trophy_88.webp"));
+
+    // ---- 9.5. 固有画像表示時の金色背景・枠の撤去(修正2/3) ----
+    // (No.71は直前のフォールバックテストで意図的に画像読み込みを失敗させ、
+    // 既に絵文字表示に置き換わっているため、ここでは画像が壊れていない
+    // No.74(獲得済み・section 8で獲得)を使って一覧画面に戻して確認する)
+    await page.evaluate(() => {
+      // renderTrophyAwardScreen()は演出表示用の呼び出しのみで実際の獲得
+      // 記録(TrophyModule.awardIfNew)は行わないため、一覧側の確認用に
+      // ここで明示的に獲得済みにする
+      TrophyModule.awardIfNew("trophy_74");
+      TrophyModule.awardIfNew("trophy_1", "flag");
+      state.trophyListFilter = { topBucket: "all", category: "all", status: "all" };
+      renderTrophyListScreen();
+      showScreen("screen-trophy-list");
+    });
+    await page.waitForSelector("#screen-trophy-list.active");
+
+    // 画像ありの獲得済みマーク(No.74)は、既存の金色円形背景・枠・光沢が
+    // 完全に外れ、画像自身の透明背景・フレームがそのまま見える状態になる
+    const imageChrome = await page.evaluate(() => {
+      const card = document.querySelector('#trophy-grid .trophy-card[data-trophy-id="trophy_74"]');
+      const mark = card.querySelector(".trophy-mark.earned");
+      const cs = getComputedStyle(mark);
+      return { bg: cs.backgroundImage, border: cs.borderStyle, boxShadow: cs.boxShadow };
+    });
+    check("No.74(画像あり)獲得済みマーク: 金色背景が除去されている", imageChrome.bg === "none");
+    check("No.74(画像あり)獲得済みマーク: 既存の枠線が除去されている", imageChrome.border === "none");
+    check("No.74(画像あり)獲得済みマーク: 既存の光沢box-shadowが除去されている", imageChrome.boxShadow === "none");
+
+    // 画像が無い(絵文字のみ)の獲得済みマークは、既存の金色チップ表示が
+    // そのまま残ることを確認する(国旗/首都分割カードNo.1の国旗側を獲得)
+    const noImageChrome = await page.evaluate(() => {
+      const card = document.querySelector('#trophy-grid .trophy-card-split[data-trophy-id="trophy_1"][data-split-mode="国旗クイズ"]');
+      const mark = card ? card.querySelector(".trophy-mark.earned") : null;
+      if (!mark) return null;
+      const cs = getComputedStyle(mark);
+      return { bg: cs.backgroundImage, hasImage: !!mark.querySelector(".trophy-mark-image") };
+    });
+    check("No.1国旗側(画像なし)獲得済みマーク: 画像は表示されない", !!noImageChrome && noImageChrome.hasImage === false);
+    check("No.1国旗側(画像なし)獲得済みマーク: 既存の金色背景は維持される", !!noImageChrome && noImageChrome.bg !== "none");
+
+    // ---- 9.6. 表示サイズ拡大の確認(修正1) ----
+    const sizeCheck = await page.evaluate(() => {
+      const gridMark = document.querySelector('#trophy-grid .trophy-card[data-trophy-id="trophy_74"] .trophy-mark');
+      const r = gridMark.getBoundingClientRect();
+      return { w: r.width, h: r.height };
+    });
+    check("一覧グリッドの固有画像サイズが80px以上(拡大済み)", sizeCheck.w >= 80 && sizeCheck.h >= 80);
+
+    await page.click('#trophy-grid .trophy-card[data-trophy-id="trophy_74"]');
+    await page.waitForSelector("#trophy-detail-modal:not(.hidden)");
+    const detailSize = await page.evaluate(() => {
+      const mark = document.querySelector("#trophy-detail-body .trophy-mark");
+      const r = mark.getBoundingClientRect();
+      return { w: r.width, h: r.height };
+    });
+    check("詳細モーダルの固有画像サイズが180px以上(拡大済み)", detailSize.w >= 180 && detailSize.h >= 180);
+    await page.click("#trophy-detail-close");
+    await page.waitForSelector("#trophy-detail-modal.hidden", { state: "attached" });
+
+    // ---- 9.7. 獲得演出アイコンの拡大・金色背景撤去(修正2/3) ----
+    await page.evaluate(() => {
+      renderTrophyAwardScreen({ newTrophyIds: ["trophy_74"], mode: "flag_only", total: null, correct: null });
+      showScreen("screen-trophy-award");
+    });
+    await page.waitForSelector("#screen-trophy-award.active");
+    const awardMarkInfo = await page.evaluate(() => {
+      const mark = document.querySelector("#trophy-award-list .trophy-award-mark");
+      const r = mark.getBoundingClientRect();
+      const cs = getComputedStyle(mark);
+      return { w: r.width, h: r.height, bg: cs.backgroundImage, boxShadow: cs.boxShadow };
+    });
+    check("通常獲得演出アイコンのサイズが96px以上(拡大済み)", awardMarkInfo.w >= 96 && awardMarkInfo.h >= 96);
+    check("通常獲得演出アイコン(画像あり): 金色背景が除去されている", awardMarkInfo.bg === "none");
+    check("通常獲得演出アイコン(画像あり): 光沢box-shadowが除去されている", awardMarkInfo.boxShadow === "none");
+
+    // ---- 9.8. 複数トロフィー同時獲得時も正常に表示される(修正4) ----
+    await page.evaluate(() => {
+      renderTrophyAwardScreen({ newTrophyIds: ["trophy_74", "trophy_78", "trophy_79"], mode: "flag_only", total: null, correct: null });
+      showScreen("screen-trophy-award");
+    });
+    await page.waitForSelector("#screen-trophy-award.active");
+    const multiAward = await page.evaluate(() => {
+      const items = Array.from(document.querySelectorAll("#trophy-award-list .trophy-award-item"));
+      return items.map((item) => {
+        const img = item.querySelector(".trophy-mark-image");
+        const mark = item.querySelector(".trophy-award-mark");
+        const r = mark.getBoundingClientRect();
+        return { hasImage: !!img, src: img ? img.getAttribute("src") : null, w: r.width };
+      });
+    });
+    check("複数同時獲得: 3件すべてのアイテムが表示される", multiAward.length === 3);
+    check("複数同時獲得: 各アイテムに固有画像(96px以上)が表示される", multiAward.every((m) => m.hasImage && m.w >= 96));
+    check(
+      "複数同時獲得: No.74/78/79の画像がそれぞれ正しく対応する",
+      multiAward.some((m) => m.src && m.src.includes("trophy_74")) &&
+        multiAward.some((m) => m.src && m.src.includes("trophy_78")) &&
+        multiAward.some((m) => m.src && m.src.includes("trophy_79"))
+    );
+
+    // ---- 9.9. 国旗/首都分割カードの単一モード表示時フル幅化(修正1) ----
+    await page.evaluate(() => {
+      state.trophyListFilter = { topBucket: "flag", category: "all", status: "all" };
+      renderTrophyListScreen();
+      showScreen("screen-trophy-list");
+    });
+    await page.waitForSelector("#screen-trophy-list.active");
+    const singleModeWidths = await page.evaluate(() => {
+      const pair = document.querySelector("#trophy-grid .trophy-dual-pair");
+      const splitCard = pair ? pair.querySelector(".trophy-card-split:not(.hidden)") : null;
+      const normalCard = document.querySelector("#trophy-grid .trophy-card:not(.trophy-card-split):not(.hidden)");
+      return {
+        hasSingleModeClass: pair ? pair.classList.contains("trophy-dual-pair-single-mode") : null,
+        splitW: splitCard ? splitCard.getBoundingClientRect().width : null,
+        normalW: normalCard ? normalCard.getBoundingClientRect().width : null,
+      };
+    });
+    check("国旗モード絞り込み時: trophy-dual-pair-single-modeが付与される", singleModeWidths.hasSingleModeClass === true);
+    check(
+      "国旗モード絞り込み時: 分割カード幅が通常カードとほぼ一致する(差10px未満)",
+      singleModeWidths.splitW !== null &&
+        singleModeWidths.normalW !== null &&
+        Math.abs(singleModeWidths.splitW - singleModeWidths.normalW) < 10
+    );
+
+    await page.evaluate(() => {
+      state.trophyListFilter = { topBucket: "all", category: "all", status: "all" };
+      renderTrophyListScreen();
+    });
+    const allModeClass = await page.evaluate(() => {
+      const pair = document.querySelector("#trophy-grid .trophy-dual-pair");
+      return pair ? pair.classList.contains("trophy-dual-pair-single-mode") : null;
+    });
+    check("「すべて」表示時: trophy-dual-pair-single-modeは付与されない(従来どおり)", allModeClass === false);
 
     // ---- 10. 既存の回帰: カテゴリー切り替え・検索・フィルターが動作する ----
     await page.evaluate(() => {

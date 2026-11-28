@@ -1119,7 +1119,7 @@ function renderTrophyAwardScreen(overrideData) {
     // (=画像を見せてよい)。国旗/首都分割トロフィーは、このプレイで実際に
     // 達成した側(mode)の画像キーを使う
     const awardSide = def.mode === "both" ? (mode === "capital" ? "capital" : "flag") : null;
-    const markIcon = trophyHeroImageHtml(trophyImageKey(def.number, awardSide), def.number, fallbackMarkIcon, "52px");
+    const markIcon = trophyHeroImageHtml(trophyImageKey(def.number, awardSide), def.number, fallbackMarkIcon, "(min-width: 900px) 120px, (min-width: 600px) 108px, 96px");
     const markLabel = def.mode === "both" ? (mode === "capital" ? "首都クイズで達成" : "国旗クイズで達成") : "";
     // 隠しトロフィーの発見演出: 鍵アイコンが外れて本来のトロフィーアイコンが
     // 現れるアニメーション(CSS側の@keyframesで表現、過度な点滅・長時間化は避ける)
@@ -1216,7 +1216,7 @@ function renderLegendAwardScreen(number) {
     : (isGreat ? "その名は――<strong>世界の叡智</strong>。" : "その名は――<strong>都の神話</strong>。");
   // レジェンド3種(#142/#158/#425)専用の固有画像が将来登録された場合は
   // それを使い、未登録の間は既存の専用SVG(王冠+地球儀 等)のまま変わらない
-  $("legend-icon-wrap").innerHTML = trophyHeroImageHtml(trophyImageKey(n), n, legendIconSvgForNumber(n), "112px");
+  $("legend-icon-wrap").innerHTML = trophyHeroImageHtml(trophyImageKey(n), n, legendIconSvgForNumber(n), "(max-width: 420px) 200px, 240px");
   const panel = $("screen-trophy-legend").querySelector(".legend-panel");
   panel.classList.toggle("legend-panel-great", isGreat);
   panel.classList.toggle("legend-panel-truth", isTruth);
@@ -1612,7 +1612,7 @@ function upgradeTrophyImagesForDetail(root) {
     const src256 = img.dataset.src256 || img.dataset.src512;
     const src512 = img.dataset.src512;
     img.srcset = `${src256} 256w, ${src512} 512w`;
-    img.sizes = "104px";
+    img.sizes = "(max-width: 380px) 180px, 220px";
     img.src = src512;
     img.loading = "eager";
   });
@@ -2398,9 +2398,18 @@ function applyTrophyFilters() {
   // グリッドに残さない。片方だけ表示される場合はラッパー自体は
   // 表示したままにし、CSS側で残った1枚の幅を2枚表示時と同じ固定幅に
   // 保つ(flex-grow: 0)ため、幅いっぱいへは広がらず右半分は空白のまま
+  // 国旗(flag)・首都(capital)いずれかのモードに絞り込んでいる間は、
+  // そのモードに属さない側のカードは今後もこの絞り込み中は二度と
+  // 表示されない(モードが変わらない限りペアが揃うことはない)ため、
+  // 残った1枚を2枚分の幅いっぱいまで広げ、他の(分割されていない)
+  // カードと幅を揃える。「すべて」や獲得状況での絞り込みで片方だけ
+  // 一時的に隠れている場合は、ペア表示に戻った時の見た目を保つため
+  // 従来どおり固定幅(空白あり)のままにする
+  const isSingleModeBucket = filter.topBucket === "flag" || filter.topBucket === "capital";
   document.querySelectorAll("#trophy-grid .trophy-dual-pair").forEach((pair) => {
     const anyVisible = !!pair.querySelector(".trophy-card:not(.hidden)");
     pair.classList.toggle("hidden", !anyVisible);
+    pair.classList.toggle("trophy-dual-pair-single-mode", isSingleModeBucket);
   });
 
   $("trophy-result-count").textContent = `${visibleCount}件を表示中`;
