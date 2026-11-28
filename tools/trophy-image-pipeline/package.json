@@ -1,0 +1,13 @@
+{
+  "name": "trophy-image-pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "世界の国旗クイズ: トロフィー固有画像の加工支援ツール(本体アプリとは独立)。ChatGPT等で作った画像シートを分割・透明化・正方形化・複数解像度WebP変換する。",
+  "type": "commonjs",
+  "scripts": {
+    "process": "node bin/process-sheet.js"
+  },
+  "dependencies": {
+    "sharp": "^0.35.5"
+  }
+}

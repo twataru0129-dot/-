@@ -1,0 +1,21 @@
+{
+  "darkThreshold": 18,
+  "minComponentSizeRatio": 0.0015,
+  "seamCutHalfHeight": 5,
+  "seamSearchRadiusRatio": 0.45,
+  "circleSafetyMargin": 0.1,
+  "featherPad": 4,
+  "alphaBlurSigma": 0.6,
+  "resolutions": [128, 256, 512],
+  "targetFileSizeBytes": {
+    "128": 10240,
+    "512": 51200
+  },
+  "minCircleSafetyRatio": 1.0,
+  "montageCols": 3,
+  "webp": {
+    "quality": 85,
+    "alphaQuality": 95,
+    "effort": 6
+  }
+}
