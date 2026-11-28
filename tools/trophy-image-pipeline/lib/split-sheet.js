@@ -45,13 +45,19 @@ function significantComponents(components, width, height, minComponentSizeRatio)
  */
 function analyzeSheetWithAutoSeamCuts(data, width, height, channels, rows, cols, options) {
   const opts = options || {};
-  const darkThreshold = typeof opts.darkThreshold === "number" ? opts.darkThreshold : 18;
   const minComponentSizeRatio = typeof opts.minComponentSizeRatio === "number" ? opts.minComponentSizeRatio : 0.0015;
   const cutHalfHeight = typeof opts.seamCutHalfHeight === "number" ? opts.seamCutHalfHeight : 5;
   const searchRadiusRatio = typeof opts.seamSearchRadiusRatio === "number" ? opts.seamSearchRadiusRatio : 0.45;
+  // lightThresholdが指定されたシート(地色が白に近い)は背景候補の向きを
+  // 反転する(明度がthresholdを超える側を背景とみなす)。未指定時は
+  // 従来どおりdarkThresholdによる暗背景判定のまま
+  const backgroundMode = typeof opts.lightThreshold === "number" ? "light" : "dark";
+  const threshold = backgroundMode === "light"
+    ? opts.lightThreshold
+    : (typeof opts.darkThreshold === "number" ? opts.darkThreshold : 18);
 
-  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold);
-  const isBackground = floodFillBackgroundFromBorder(brightness, width, height, darkThreshold);
+  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold, backgroundMode);
+  const isBackground = floodFillBackgroundFromBorder(brightness, width, height, threshold, backgroundMode);
   const first = labelForegroundComponents(isBackground, width, height);
   const firstSignificant = significantComponents(first.components, width, height, minComponentSizeRatio);
 
