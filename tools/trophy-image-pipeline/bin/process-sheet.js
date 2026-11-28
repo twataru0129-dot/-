@@ -41,6 +41,7 @@ async function main() {
   console.log(`[2/6] 前景検出(外周フラッドフィル + 連結成分ラベリング)`);
   const analysis = analyzeSheetWithAutoSeamCuts(data, width, height, channels, sheetConfig.rows, sheetConfig.cols, {
     darkThreshold: opts.darkThreshold,
+    lightThreshold: opts.lightThreshold,
     minComponentSizeRatio: opts.minComponentSizeRatio,
     seamCutHalfHeight: opts.seamCutHalfHeight,
     seamSearchRadiusRatio: opts.seamSearchRadiusRatio,
@@ -53,6 +54,8 @@ async function main() {
     sheetPath,
     sheetSize: { width, height },
     darkThreshold: opts.darkThreshold,
+    lightThreshold: opts.lightThreshold,
+    backgroundMode: typeof opts.lightThreshold === "number" ? "light" : "dark",
     expectedCellCount: sheetConfig.cells.length,
     problems: [],
     warnings: [],

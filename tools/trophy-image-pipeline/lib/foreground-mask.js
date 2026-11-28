@@ -28,18 +28,26 @@
  *   本来透明であるべきこの種のノイズが前景(=装飾の一部)として
  *   誤認識され、枠の外周にジャギーなノイズとして残ってしまう。
  *   この値が指定された場合、ネイティブのalphaがこの値未満のピクセルは
- *   RGBが何であれ強制的に明度0(=暗い=背景候補)として扱う。
+ *   RGBが何であれ強制的に「背景候補」として扱う(具体的な明度値は
+ *   backgroundModeにより異なる。下記参照)。
  *   アルファチャンネルを持たない(channels===3)シートには一切影響しない。
+ * @param {"dark"|"light"} [backgroundMode] - 既定"dark"。シートの地色が
+ *   白に近い場合(例: 白背景で書き出された画像シート)は"light"を指定する。
+ *   alphaBackgroundThresholdによる強制値がdarkでは0(暗い側)・lightでは
+ *   255(明るい側)になる点以外、明度配列そのものの計算方法(RGB最大値)は
+ *   変わらない。背景かどうかの判定(しきい値との比較方向)は
+ *   floodFillBackgroundFromBorder側で行う。
  * @returns {Uint8Array} 長さ width*height の明度配列(各チャンネルの最大値)
  */
-function computeBrightness(data, width, height, channels, alphaBackgroundThreshold) {
+function computeBrightness(data, width, height, channels, alphaBackgroundThreshold, backgroundMode) {
   const n = width * height;
   const brightness = new Uint8Array(n);
   const hasAlphaGate = channels >= 4 && typeof alphaBackgroundThreshold === "number";
+  const forcedValue = backgroundMode === "light" ? 255 : 0;
   for (let i = 0; i < n; i++) {
     const o = i * channels;
     if (hasAlphaGate && data[o + 3] < alphaBackgroundThreshold) {
-      brightness[i] = 0;
+      brightness[i] = forcedValue;
       continue;
     }
     const r = data[o];
@@ -51,11 +59,19 @@ function computeBrightness(data, width, height, channels, alphaBackgroundThresho
 }
 
 /**
- * 画像の外周(四辺)から、しきい値未満の暗いピクセルだけをBFSでたどり、
- * 「外周とつながっている暗い領域=確定背景」を求める。
+ * 画像の外周(四辺)から、背景候補のピクセルだけをBFSでたどり、
+ * 「外周とつながっている背景候補の領域=確定背景」を求める。
+ *
+ * mode==="dark"(既定、従来どおり)の場合は threshold 未満(暗い)の
+ * ピクセルを背景候補とする。mode==="light" の場合は threshold を
+ * 超える(明るい)ピクセルを背景候補とする(地色が白に近いシート用)。
+ * いずれの場合も、装飾の内部にある同系統の明度の部分(dark時の夜空・
+ * 影、light時の雲・ハイライト等)は、外周と繋がっていなければ背景
+ * 扱いにならず前景として残る(本モジュールの基本方針どおり)。
+ *
  * @returns {Uint8Array} 1=確定背景, 0=それ以外(前景候補)
  */
-function floodFillBackgroundFromBorder(brightness, width, height, darkThreshold) {
+function floodFillBackgroundFromBorder(brightness, width, height, threshold, mode) {
   const n = width * height;
   const isBackground = new Uint8Array(n);
   const visited = new Uint8Array(n);
@@ -63,9 +79,13 @@ function floodFillBackgroundFromBorder(brightness, width, height, darkThreshold)
   const stack = new Int32Array(n);
   let sp = 0;
 
+  const isCandidate = mode === "light"
+    ? (idx) => brightness[idx] > threshold
+    : (idx) => brightness[idx] < threshold;
+
   function trySeed(idx) {
     if (visited[idx]) return;
-    if (brightness[idx] >= darkThreshold) return; // 明るい=背景候補ではない
+    if (!isCandidate(idx)) return;
     visited[idx] = 1;
     isBackground[idx] = 1;
     stack[sp++] = idx;
@@ -93,7 +113,7 @@ function floodFillBackgroundFromBorder(brightness, width, height, darkThreshold)
 
   function tryVisit(idx) {
     if (visited[idx]) return;
-    if (brightness[idx] >= darkThreshold) return;
+    if (!isCandidate(idx)) return;
     visited[idx] = 1;
     isBackground[idx] = 1;
     stack[sp++] = idx;
@@ -167,7 +187,10 @@ function labelForegroundComponents(isBackground, width, height) {
  * @param {number} width
  * @param {number} height
  * @param {number} channels
- * @param {{darkThreshold?: number, minComponentSizeRatio?: number}} [options]
+ * @param {{darkThreshold?: number, lightThreshold?: number, minComponentSizeRatio?: number}} [options]
+ *   lightThresholdが指定された場合は地色が白に近いシートとして扱い
+ *   (backgroundMode="light")、darkThresholdは無視する。未指定の場合は
+ *   従来どおりdarkThresholdによる暗背景判定(backgroundMode="dark")。
  * @returns {{
  *   labels: Int32Array,
  *   width: number,
@@ -177,11 +200,14 @@ function labelForegroundComponents(isBackground, width, height) {
  */
 function analyzeForeground(data, width, height, channels, options) {
   const opts = options || {};
-  const darkThreshold = typeof opts.darkThreshold === "number" ? opts.darkThreshold : 18;
   const minComponentSizeRatio = typeof opts.minComponentSizeRatio === "number" ? opts.minComponentSizeRatio : 0.0015;
+  const backgroundMode = typeof opts.lightThreshold === "number" ? "light" : "dark";
+  const threshold = backgroundMode === "light"
+    ? opts.lightThreshold
+    : (typeof opts.darkThreshold === "number" ? opts.darkThreshold : 18);
 
-  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold);
-  const isBackground = floodFillBackgroundFromBorder(brightness, width, height, darkThreshold);
+  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold, backgroundMode);
+  const isBackground = floodFillBackgroundFromBorder(brightness, width, height, threshold, backgroundMode);
   const { labels, components } = labelForegroundComponents(isBackground, width, height);
 
   const minSize = width * height * minComponentSizeRatio;

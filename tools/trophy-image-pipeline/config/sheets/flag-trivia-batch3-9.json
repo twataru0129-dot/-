@@ -1,0 +1,17 @@
+{
+  "sheet": "input/flag-trivia-batch3-9.png",
+  "rows": 3,
+  "cols": 3,
+  "lightThreshold": 245,
+  "cells": [
+    { "number": 80, "key": "trophy_80", "name": "海を越えた言葉" },
+    { "number": 81, "key": "trophy_81", "name": "巨人と小人" },
+    { "number": 82, "key": "trophy_82", "name": "国の中の国" },
+    { "number": 83, "key": "trophy_83", "name": "一つの半島、二つの国" },
+    { "number": 84, "key": "trophy_84", "name": "色が逆さま！" },
+    { "number": 85, "key": "trophy_85", "name": "三色旗の秘密" },
+    { "number": 86, "key": "trophy_86", "name": "国旗の中に武器!?" },
+    { "number": 89, "key": "trophy_89", "name": "国旗が語りかける" },
+    { "number": 91, "key": "trophy_91", "name": "左側通行の仲間" }
+  ]
+}
