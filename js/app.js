@@ -1562,7 +1562,14 @@ const TROPHY_IMAGE_ASSETS = {
   trophy_88: { 128: "assets/trophies/128/trophy_88.webp", 256: "assets/trophies/256/trophy_88.webp", 512: "assets/trophies/512/trophy_88.webp" },
   trophy_89: { 128: "assets/trophies/128/trophy_89.webp", 256: "assets/trophies/256/trophy_89.webp", 512: "assets/trophies/512/trophy_89.webp" },
   trophy_91: { 128: "assets/trophies/128/trophy_91.webp", 256: "assets/trophies/256/trophy_91.webp", 512: "assets/trophies/512/trophy_91.webp" },
+  trophy_92: { 128: "assets/trophies/128/trophy_92.webp", 256: "assets/trophies/256/trophy_92.webp", 512: "assets/trophies/512/trophy_92.webp" },
+  trophy_93: { 128: "assets/trophies/128/trophy_93.webp", 256: "assets/trophies/256/trophy_93.webp", 512: "assets/trophies/512/trophy_93.webp" },
+  trophy_94: { 128: "assets/trophies/128/trophy_94.webp", 256: "assets/trophies/256/trophy_94.webp", 512: "assets/trophies/512/trophy_94.webp" },
+  trophy_95: { 128: "assets/trophies/128/trophy_95.webp", 256: "assets/trophies/256/trophy_95.webp", 512: "assets/trophies/512/trophy_95.webp" },
+  trophy_96: { 128: "assets/trophies/128/trophy_96.webp", 256: "assets/trophies/256/trophy_96.webp", 512: "assets/trophies/512/trophy_96.webp" },
+  trophy_97: { 128: "assets/trophies/128/trophy_97.webp", 256: "assets/trophies/256/trophy_97.webp", 512: "assets/trophies/512/trophy_97.webp" },
   trophy_98: { 128: "assets/trophies/128/trophy_98.webp", 256: "assets/trophies/256/trophy_98.webp", 512: "assets/trophies/512/trophy_98.webp" },
+  trophy_99: { 128: "assets/trophies/128/trophy_99.webp", 256: "assets/trophies/256/trophy_99.webp", 512: "assets/trophies/512/trophy_99.webp" },
   trophy_100: { 128: "assets/trophies/128/trophy_100.webp", 256: "assets/trophies/256/trophy_100.webp", 512: "assets/trophies/512/trophy_100.webp" },
 };
 

@@ -1,0 +1,17 @@
+{
+  "sheet": "input/flag-trivia-batch4-9.png",
+  "rows": 3,
+  "cols": 3,
+  "lightThreshold": 245,
+  "cells": [
+    { "number": 92, "key": "trophy_92", "name": "独立を守った国々" },
+    { "number": 93, "key": "trophy_93", "name": "10億人の世界" },
+    { "number": 94, "key": "trophy_94", "name": "同じ言葉、遠い国" },
+    { "number": 95, "key": "trophy_95", "name": "海を越えたフランス語" },
+    { "number": 96, "key": "trophy_96", "name": "海まで二つの国" },
+    { "number": 97, "key": "trophy_97", "name": "イタリアの中の国" },
+    { "number": 99, "key": "trophy_99", "name": "細長い国の秘密" },
+    { "number": 87, "key": "trophy_87", "name": "国旗の動物園" },
+    { "number": 88, "key": "trophy_88", "name": "国旗の中の地図" }
+  ]
+}
