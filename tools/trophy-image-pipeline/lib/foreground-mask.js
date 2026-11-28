@@ -20,13 +20,28 @@
  * @param {number} width
  * @param {number} height
  * @param {number} channels - 3(RGB) or 4(RGBA)
+ * @param {number} [alphaBackgroundThreshold] - channels===4の場合のみ有効。
+ *   シート自体が本物のアルファチャンネルを持つ場合(例: AI生成ツールが
+ *   直接透過PNGを書き出した場合)、カットアウト境界に「ほぼ透明だが
+ *   RGBだけ明るい色が残っている」アンプリマルチプライド由来のゴミ
+ *   ピクセルが点在することがある。これをRGB明度だけで判定すると、
+ *   本来透明であるべきこの種のノイズが前景(=装飾の一部)として
+ *   誤認識され、枠の外周にジャギーなノイズとして残ってしまう。
+ *   この値が指定された場合、ネイティブのalphaがこの値未満のピクセルは
+ *   RGBが何であれ強制的に明度0(=暗い=背景候補)として扱う。
+ *   アルファチャンネルを持たない(channels===3)シートには一切影響しない。
  * @returns {Uint8Array} 長さ width*height の明度配列(各チャンネルの最大値)
  */
-function computeBrightness(data, width, height, channels) {
+function computeBrightness(data, width, height, channels, alphaBackgroundThreshold) {
   const n = width * height;
   const brightness = new Uint8Array(n);
+  const hasAlphaGate = channels >= 4 && typeof alphaBackgroundThreshold === "number";
   for (let i = 0; i < n; i++) {
     const o = i * channels;
+    if (hasAlphaGate && data[o + 3] < alphaBackgroundThreshold) {
+      brightness[i] = 0;
+      continue;
+    }
     const r = data[o];
     const g = data[o + 1];
     const b = data[o + 2];
@@ -165,7 +180,7 @@ function analyzeForeground(data, width, height, channels, options) {
   const darkThreshold = typeof opts.darkThreshold === "number" ? opts.darkThreshold : 18;
   const minComponentSizeRatio = typeof opts.minComponentSizeRatio === "number" ? opts.minComponentSizeRatio : 0.0015;
 
-  const brightness = computeBrightness(data, width, height, channels);
+  const brightness = computeBrightness(data, width, height, channels, opts.alphaBackgroundThreshold);
   const isBackground = floodFillBackgroundFromBorder(brightness, width, height, darkThreshold);
   const { labels, components } = labelForegroundComponents(isBackground, width, height);
 

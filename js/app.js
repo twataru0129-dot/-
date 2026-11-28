@@ -1543,8 +1543,12 @@ const TROPHY_ICON_IMAGE_URLS = {};
 // 表示専用の対応表(将来452件分をここに追記していく)
 const TROPHY_IMAGE_ASSETS = {
   trophy_71: { 128: "assets/trophies/128/trophy_71.webp", 256: "assets/trophies/256/trophy_71.webp", 512: "assets/trophies/512/trophy_71.webp" },
+  trophy_72: { 128: "assets/trophies/128/trophy_72.webp", 256: "assets/trophies/256/trophy_72.webp", 512: "assets/trophies/512/trophy_72.webp" },
+  trophy_73: { 128: "assets/trophies/128/trophy_73.webp", 256: "assets/trophies/256/trophy_73.webp", 512: "assets/trophies/512/trophy_73.webp" },
   trophy_74: { 128: "assets/trophies/128/trophy_74.webp", 256: "assets/trophies/256/trophy_74.webp", 512: "assets/trophies/512/trophy_74.webp" },
   trophy_75: { 128: "assets/trophies/128/trophy_75.webp", 256: "assets/trophies/256/trophy_75.webp", 512: "assets/trophies/512/trophy_75.webp" },
+  trophy_76: { 128: "assets/trophies/128/trophy_76.webp", 256: "assets/trophies/256/trophy_76.webp", 512: "assets/trophies/512/trophy_76.webp" },
+  trophy_77: { 128: "assets/trophies/128/trophy_77.webp", 256: "assets/trophies/256/trophy_77.webp", 512: "assets/trophies/512/trophy_77.webp" },
   trophy_78: { 128: "assets/trophies/128/trophy_78.webp", 256: "assets/trophies/256/trophy_78.webp", 512: "assets/trophies/512/trophy_78.webp" },
   trophy_79: { 128: "assets/trophies/128/trophy_79.webp", 256: "assets/trophies/256/trophy_79.webp", 512: "assets/trophies/512/trophy_79.webp" },
   trophy_87: { 128: "assets/trophies/128/trophy_87.webp", 256: "assets/trophies/256/trophy_87.webp", 512: "assets/trophies/512/trophy_87.webp" },

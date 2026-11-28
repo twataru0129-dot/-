@@ -1,0 +1,11 @@
+{
+  "sheet": "input/flag-trivia-batch2-4.png",
+  "rows": 2,
+  "cols": 2,
+  "cells": [
+    { "number": 72, "key": "trophy_72", "name": "そっくりさん発見！" },
+    { "number": 73, "key": "trophy_73", "name": "白と赤の双子" },
+    { "number": 76, "key": "trophy_76", "name": "島から島へ" },
+    { "number": 77, "key": "trophy_77", "name": "南北のロングラン" }
+  ]
+}
